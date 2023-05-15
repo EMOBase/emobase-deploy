@@ -10,5 +10,5 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro 
 
   fe:
-    image: ibb-fe:1.2.0
+    image: docker.gitlab.gwdg.de/ibb/ibb-fe:1.2.0
     restart: always
