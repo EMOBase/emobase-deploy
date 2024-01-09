@@ -1,0 +1,74 @@
+version: "3"
+
+volumes:
+  es-data:
+    driver: local
+
+services:
+  es:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    mem_limit: 0.5g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - 9200:9200 # should be disabled in production
+    healthcheck:
+      test: 
+        [
+          "CMD-SHELL",
+          "curl -s localhost:9200 | grep -q 'You Know, for Search'"
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+
+  ontologyservice:
+    image: cnd/ontologyservice:1.0.0-SNAPSHOT
+    depends_on:
+      es:
+        condition: service_healthy
+    ports:
+      - 8082:8080 # should be disabled in production
+
+
+  imageservice:
+    image: cnd/imageservice:1.0.1-SNAPSHOT
+    user: 1001:1001
+    depends_on:
+      es:
+        condition: service_healthy
+    volumes:
+      - ${IMAGE_DIR}:/images
+    ports:
+      - 8084:8080 # should be disabled in production
+
+
+  nginx:
+    image: nginx:1.19
+    restart: always
+    ports:
+      - ${HTTP_PORT:-80}:80
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+
+  fe:
+    image: docker.gitlab.gwdg.de/ibb/ibb-fe:1.2.0
+    restart: always
+    profiles:
+      - disabled
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:21.1.1
+    command: "start-dev"
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+    profiles:
+      - experimental
