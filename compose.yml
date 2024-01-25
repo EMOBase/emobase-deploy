@@ -5,6 +5,16 @@ volumes:
     driver: local
 
 services:
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    environment:
+      - BASE_URL=/ibb/swagger-ui
+      - "URLS=[
+        { url: '$PUBLIC_SERVER/ibb/api/phenotypeservice/v1/q/openapi/', name: 'Phenotype Service' },
+        { url: '$PUBLIC_SERVER/ibb/api/imageservice/v1/q/openapi/', name: 'Image Service' },
+        { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' }
+        ]" 
+
   es:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
     volumes:
@@ -48,6 +58,16 @@ services:
       - ${IMAGE_DIR}:/images
     ports:
       - 8084:8080 # should be disabled in production
+         
+  phenotypeservice:
+    image: cnd/phenotypeservice:1.0.0-SNAPSHOT
+    depends_on:
+      es:
+        condition: service_healthy
+      imageservice:
+        condition: service_started
+    ports:
+      - 8086:8080 # should be disabled in production
 
 
   nginx:
