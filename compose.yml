@@ -12,7 +12,9 @@ services:
       - "URLS=[
         { url: '$PUBLIC_SERVER/ibb/api/phenotypeservice/v1/q/openapi/', name: 'Phenotype Service' },
         { url: '$PUBLIC_SERVER/ibb/api/imageservice/v1/q/openapi/', name: 'Image Service' },
-        { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' }
+        { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' },
+        { url: '$PUBLIC_SERVER/ibb/api/goannotationservice/v1/q/openapi/', name: 'GO Annotation Service' },
+        { url: '$PUBLIC_SERVER/ibb/api/publicationservice/v1/q/openapi/', name: 'Publication Service' }
         ]" 
 
   es:
@@ -40,16 +42,15 @@ services:
       retries: 120
 
   ontologyservice:
-    image: cnd/ontologyservice:1.0.0-SNAPSHOT
+    image: docker.gitlab.gwdg.de/ibb/api/ontologyservice:1.3.0
     depends_on:
       es:
         condition: service_healthy
     ports:
       - 8082:8080 # should be disabled in production
 
-
   imageservice:
-    image: cnd/imageservice:1.0.1-SNAPSHOT
+    image: docker.gitlab.gwdg.de/ibb/api/imageservice:1.3.0
     user: 1001:1001
     depends_on:
       es:
@@ -60,7 +61,7 @@ services:
       - 8084:8080 # should be disabled in production
          
   phenotypeservice:
-    image: cnd/phenotypeservice:1.0.0-SNAPSHOT
+    image: docker.gitlab.gwdg.de/ibb/api/phenotypeservice:1.3.0
     depends_on:
       es:
         condition: service_healthy
@@ -68,6 +69,22 @@ services:
         condition: service_started
     ports:
       - 8086:8080 # should be disabled in production
+
+  goannotationservice:
+    image: docker.gitlab.gwdg.de/ibb/api/geneontologyservice:1.3.0
+    depends_on:
+      es:
+        condition: service_healthy
+    ports:
+      - 8088:8080 # should be disabled in production
+
+  publicationservice:
+    image: docker.gitlab.gwdg.de/ibb/api/ibb-publication:1.3.0
+    depends_on:
+      es:
+        condition: service_healthy
+    ports:
+      - 8090:8080 # should be disabled in production
 
 
   nginx:
@@ -79,10 +96,19 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
   fe:
-    image: docker.gitlab.gwdg.de/ibb/ibb-fe:1.2.0
+    image: docker.gitlab.gwdg.de/ibb/ibb-fe:1.3.0
     restart: always
-    profiles:
-      - disabled
+    environment:
+      - API_BASEURL=http://0.0.0.0:9090/ibb/api
+      - API_IBDSRNASERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/genesilencing/v1/
+      - API_IBPHENOTYPESERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/screen/v1/
+      - API_IBIMAGESERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/image/v1/
+      - API_IBLETHALITYSERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/lethality/v1/
+      - API_GENEINFOSERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/geneinfo/v1/
+      - API_ORTHOLOGYSERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/orthology/v1/
+      - API_SEARCHSERVICE=https://ibeetle-base.uni-goettingen.de/ibb/elasticsearch/
+      - API_QUERYPIPELINESERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/pipeline/v1/
+
 
   keycloak:
     image: quay.io/keycloak/keycloak:21.1.1
