@@ -99,15 +99,15 @@ services:
     image: docker.gitlab.gwdg.de/ibb/ibb-fe:1.3.0
     restart: always
     environment:
-      - API_BASEURL=http://0.0.0.0:9090/ibb/api
-      - API_IBDSRNASERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/genesilencing/v1/
-      - API_IBPHENOTYPESERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/screen/v1/
-      - API_IBIMAGESERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/image/v1/
-      - API_IBLETHALITYSERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/lethality/v1/
-      - API_GENEINFOSERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/geneinfo/v1/
-      - API_ORTHOLOGYSERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/orthology/v1/
-      - API_SEARCHSERVICE=https://ibeetle-base.uni-goettingen.de/ibb/elasticsearch/
-      - API_QUERYPIPELINESERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/pipeline/v1/
+      - NUXT_PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
+      - NUXT_PUBLIC_APIS_URLS_IBDSRNASERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/genesilencing/v1/
+      - NUXT_PUBLIC_APIS_URLS_IBPHENOTYPESERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/screen/v1/
+      - NUXT_PUBLIC_APIS_URLS_IBIMAGESERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/image/v1/
+      - NUXT_PUBLIC_APIS_URLS_IBLETHALITYSERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/lethality/v1/
+      - NUXT_PUBLIC_APIS_URLS_GENEINFOSERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/geneinfo/v1/
+      - NUXT_PUBLIC_APIS_URLS_ORTHOLOGYSERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/orthology/v1/
+      - NUXT_PUBLIC_APIS_URLS_SEARCHSERVICE=https://ibeetle-base.uni-goettingen.de/ibb/elasticsearch/
+      - NUXT_PUBLIC_APIS_URLS_QUERYPIPELINESERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/pipeline/v1/
 
 
   keycloak:
