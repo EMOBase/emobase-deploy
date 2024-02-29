@@ -9,3 +9,15 @@ Requirements:
 ```bash
 docker compose up -d
 ```
+
+## Copy database
+
+For example:
+
+```bash
+elasticdump \
+  --input http://localhost:9200 \
+  --input-index=publicationservice-publications \
+  --output https://ibb-test.vm19002.virt.gwdg.de/ibb/es/ \
+  --output-index=publicationservice-publications
+```
