@@ -14,11 +14,13 @@ services:
         { url: '$PUBLIC_SERVER/ibb/api/imageservice/v1/q/openapi/', name: 'Image Service' },
         { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' },
         { url: '$PUBLIC_SERVER/ibb/api/goannotationservice/v1/q/openapi/', name: 'GO Annotation Service' },
-        { url: '$PUBLIC_SERVER/ibb/api/publicationservice/v1/q/openapi/', name: 'Publication Service' }
+        { url: '$PUBLIC_SERVER/ibb/api/publicationservice/v1/q/openapi/', name: 'Publication Service' },
+        { url: '$PUBLIC_SERVER/ibb/api/geneservice/v1/q/openapi/', name: 'Gene Service' }
         ]" 
 
   es:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+    restart: always
     volumes:
       - es-data:/usr/share/elasticsearch/data
     environment:
@@ -86,6 +88,15 @@ services:
     ports:
       - 8090:8080 # should be disabled in production
 
+  geneservice:
+    image: docker.gitlab.gwdg.de/ibb/api/geneservice:1.3.1
+    depends_on:
+      es:
+        condition: service_healthy
+    ports:
+      - 8092:8080 # should be disabled in production
+    volumes:
+      - ${GENESERVICE_DATA_DIR}:/home/jboss/data:ro
 
   nginx:
     image: nginx:1.19
