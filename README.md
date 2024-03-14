@@ -12,6 +12,12 @@ docker compose up -d
 
 ## Copy databases
 
+Install elasticdump:
+
+```bash
+npm install -g elasticdump
+```
+
 For example:
 
 ```bash

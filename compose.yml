@@ -13,17 +13,27 @@ services:
       - ${HTTP_PORT:-80}:80
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${DATA_DIR}:/download/:ro
+
+  h2:
+    build: h2
+    restart: always
+    volumes:
+      - ./data/h2:/opt/h2-data
 
   fe:
     image: docker.gitlab.gwdg.de/ibb/ibb-fe:1.3.1
     restart: always
     environment:
       - NUXT_PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
-      - NUXT_PUBLIC_APIS_URLS_IBPHENOTYPESERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/screen/v1/
-      - NUXT_PUBLIC_APIS_URLS_IBIMAGESERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/image/v1/
-      - NUXT_PUBLIC_APIS_URLS_IBLETHALITYSERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/lethality/v1/
-      - NUXT_PUBLIC_APIS_URLS_QUERYPIPELINESERVICE=https://ibeetle-base.uni-goettingen.de/ibb/api/pipeline/v1/
 
+  jbrowse2:
+    image: docker.gitlab.gwdg.de/ibb/api/ibb-jbrowse2:latest
+    restart: always
+
+  ontoscope:
+    image: docker.gitlab.gwdg.de/ibb/api/ibb-ontoscope:latest
+    restart: always
 
   swagger-ui:
     image: swaggerapi/swagger-ui
@@ -31,12 +41,8 @@ services:
     environment:
       - BASE_URL=/ibb/swagger-ui
       - "URLS=[
-        { url: '$PUBLIC_SERVER/ibb/api/geneservice/v1/q/openapi/', name: 'Gene Service' }
-        { url: '$PUBLIC_SERVER/ibb/api/phenotypeservice/v1/q/openapi/', name: 'Phenotype Service' },
-        { url: '$PUBLIC_SERVER/ibb/api/imageservice/v1/q/openapi/', name: 'Image Service' },
-        { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' },
-        { url: '$PUBLIC_SERVER/ibb/api/goannotationservice/v1/q/openapi/', name: 'GO Annotation Service' },
-        { url: '$PUBLIC_SERVER/ibb/api/publicationservice/v1/q/openapi/', name: 'Publication Service' }
+        { url: '$PUBLIC_SERVER/ibb/api/geneservice/v1/q/openapi/', name: 'Gene Service' },
+        { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' }
         ]" 
 
   es:
@@ -70,10 +76,10 @@ services:
     depends_on:
       es:
         condition: service_healthy
-    ports:
-      - 8092:8080 # should be disabled in production
     volumes:
       - ${GENESERVICE_DATA_DIR}:/data:ro
+    environment:
+      - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/geneservice/v1/
 
   ontologyservice:
     image: docker.gitlab.gwdg.de/ibb/api/ontologyservice:1.3.0
@@ -81,8 +87,8 @@ services:
     depends_on:
       es:
         condition: service_healthy
-    ports:
-      - 8082:8080 # should be disabled in production
+    environment:
+      - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/ontologyservice/v1/
 
   imageservice:
     image: docker.gitlab.gwdg.de/ibb/api/imageservice:1.3.0
@@ -93,8 +99,6 @@ services:
         condition: service_healthy
     volumes:
       - ${IMAGE_DIR}:/images
-    ports:
-      - 8084:8080 # should be disabled in production
          
   phenotypeservice:
     image: docker.gitlab.gwdg.de/ibb/api/phenotypeservice:1.3.0
@@ -104,8 +108,6 @@ services:
         condition: service_healthy
       imageservice:
         condition: service_started
-    ports:
-      - 8086:8080 # should be disabled in production
 
   goannotationservice:
     image: docker.gitlab.gwdg.de/ibb/api/geneontologyservice:1.3.0
@@ -113,8 +115,6 @@ services:
     depends_on:
       es:
         condition: service_healthy
-    ports:
-      - 8088:8080 # should be disabled in production
 
   publicationservice:
     image: docker.gitlab.gwdg.de/ibb/api/ibb-publication:1.3.0
@@ -122,8 +122,31 @@ services:
     depends_on:
       es:
         condition: service_healthy
-    ports:
-      - 8090:8080 # should be disabled in production
+
+  iblethalityservice:
+    image: docker.gitlab.gwdg.de/ibb/api/lethalityservice:latest
+    restart: always
+    environment:
+      - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/iblethalityservice/v1/
+      - QUARKUS_ELASTICSEARCH_HOSTS=es:9200
+      - QUARKUS_HTTP_CORS=true
+
+  ibphenotypeservice:
+    image: docker.gitlab.gwdg.de/ibb/api/experimentservice:local-native
+    restart: always
+    depends_on:
+      - h2
+    environment:
+      - DATA_IGNORE=true
+      - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/screen/v1/
+      - QUARKUS_DATASOURCE_JDBC_URL=jdbc:h2:tcp://h2/./screen
+
+  ibimageservice:
+    image: docker.gitlab.gwdg.de/ibb/api/imageservice:latest
+    restart: always
+    volumes:
+      - ${IMAGE_DIR}:/images
+      - ./data/ibimageservice/:/data/
 
   keycloak:
     image: quay.io/keycloak/keycloak:21.1.1
