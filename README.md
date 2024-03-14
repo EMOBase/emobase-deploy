@@ -10,7 +10,7 @@ Requirements:
 docker compose up -d
 ```
 
-## Copy database
+## Copy databases
 
 For example:
 
