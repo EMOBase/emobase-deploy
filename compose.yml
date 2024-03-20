@@ -93,7 +93,7 @@ services:
   imageservice:
     image: docker.gitlab.gwdg.de/ibb/api/imageservice:1.3.0
     restart: always
-    user: 1001:1001
+    user: "${UID}:${GID}"
     depends_on:
       es:
         condition: service_healthy
@@ -146,7 +146,7 @@ services:
     restart: always
     volumes:
       - ${IMAGE_DIR}:/images
-      - ./data/ibimageservice/:/data/
+      - ${PUBLIC_DATA_DIR}/ibimageservice/:/data/
 
   querypipelineservice:
     image: docker.gitlab.gwdg.de/ibb/api/query-pipeline:1.3.0
