@@ -15,11 +15,6 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ${PUBLIC_DATA_DIR}:/download/:ro
 
-  h2:
-    build: h2
-    restart: always
-    volumes:
-      - ${PUBLIC_DATA_DIR}/h2:/opt/h2-data
 
   fe:
     image: docker.gitlab.gwdg.de/ibb/ibb-fe:1.3.1
@@ -77,7 +72,7 @@ services:
       es:
         condition: service_healthy
     volumes:
-      - ${PUBLIC_DATA_DIR}/geneservice:/data:ro
+      - ${PRIVATE_DATA_DIR}/geneservice:/data:ro
     environment:
       - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/geneservice/v1/
 
@@ -91,13 +86,14 @@ services:
       - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/ontologyservice/v1/
 
   imageservice:
-    image: docker.gitlab.gwdg.de/ibb/api/imageservice:1.3.0
+    image: docker.gitlab.gwdg.de/ibb/api/imageservice:1.4.0
     restart: always
     user: "${UID}:${GID}"
     depends_on:
       es:
         condition: service_healthy
     volumes:
+      - ${PRIVATE_DATA_DIR}/imageservice:/data:ro
       - ${IMAGE_DIR}:/images
          
   phenotypeservice:
@@ -130,23 +126,6 @@ services:
       - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/iblethalityservice/v1/
       - QUARKUS_ELASTICSEARCH_HOSTS=es:9200
       - QUARKUS_HTTP_CORS=true
-
-  ibphenotypeservice:
-    image: docker.gitlab.gwdg.de/ibb/api/experimentservice:local-native
-    restart: always
-    depends_on:
-      - h2
-    environment:
-      - DATA_IGNORE=true
-      - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/screen/v1/
-      - QUARKUS_DATASOURCE_JDBC_URL=jdbc:h2:tcp://h2/./screen
-
-  ibimageservice:
-    image: docker.gitlab.gwdg.de/ibb/api/imageservice:latest
-    restart: always
-    volumes:
-      - ${IMAGE_DIR}:/images
-      - ${PUBLIC_DATA_DIR}/ibimageservice/:/data/
 
   querypipelineservice:
     image: docker.gitlab.gwdg.de/ibb/api/query-pipeline:1.3.0
