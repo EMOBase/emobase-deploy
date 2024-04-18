@@ -16,7 +16,7 @@ services:
       - ${PUBLIC_DATA_DIR}:/download/:ro
 
   fe:
-    image: docker.gitlab.gwdg.de/ibb/ibb-fe:1.3.2
+    image: docker.gitlab.gwdg.de/ibb/ibb-fe:1.5.0
     restart: always
     environment:
       - NUXT_PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
@@ -76,7 +76,7 @@ services:
       - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/geneservice/v1/
 
   ontologyservice:
-    image: docker.gitlab.gwdg.de/ibb/api/ontologyservice:1.3.0
+    image: docker.gitlab.gwdg.de/ibb/api/ontologyservice:1.5.0
     restart: always
     depends_on:
       es:
@@ -93,6 +93,7 @@ services:
         condition: service_healthy
     volumes:
       - ${IMAGE_DIR}:/images
+      - ${PRIVATE_DATA_DIR}/imageservice:/data:ro
          
   phenotypeservice:
     image: docker.gitlab.gwdg.de/ibb/api/phenotypeservice:1.5.0
@@ -102,6 +103,9 @@ services:
         condition: service_healthy
       imageservice:
         condition: service_started
+    volumes:
+      - ${IMAGE_DIR}:/images
+      - ${PRIVATE_DATA_DIR}/phenotypeservice:/data:ro
 
   goannotationservice:
     image: docker.gitlab.gwdg.de/ibb/api/geneontologyservice:1.3.0
