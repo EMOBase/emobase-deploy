@@ -121,14 +121,6 @@ services:
       es:
         condition: service_healthy
 
-  iblethalityservice:
-    image: docker.gitlab.gwdg.de/ibb/api/lethalityservice:latest
-    restart: always
-    environment:
-      - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/iblethalityservice/v1/
-      - QUARKUS_ELASTICSEARCH_HOSTS=es:9200
-      - QUARKUS_HTTP_CORS=true
-
   querypipelineservice:
     image: docker.gitlab.gwdg.de/ibb/api/query-pipeline:1.3.0
     restart: always
