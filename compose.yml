@@ -3,6 +3,8 @@ version: "3"
 volumes:
   es-data:
     driver: local
+  blast-data:
+    driver: local
 
 services:
 
@@ -22,7 +24,7 @@ services:
       - NUXT_PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
 
   jbrowse2:
-    image: docker.gitlab.gwdg.de/ibb/api/ibb-jbrowse2:latest
+    image: docker.gitlab.gwdg.de/ibb/api/ibb-jbrowse2:1.5.0
     restart: always
 
   ontoscope:
@@ -135,3 +137,23 @@ services:
       - KEYCLOAK_ADMIN_PASSWORD=admin
     profiles:
       - experimental
+
+  blast:
+    image: wurmlab/sequenceserver:latest # The current version is 3.0.1 but they have not provided the docker image with tag 3.0.1
+    tty: true
+    mem_limit: 1g
+    volumes:
+      - blast-data:/db/
+    ports:
+      - 4567:4567
+
+  setup-blast:
+    image: wurmlab/sequenceserver:latest
+    command: ["/bin/sh", "/work/create-db.sh"]
+    volumes:
+      - ${PUBLIC_DATA_DIR}/blast/:/data/
+      - ./blast/:/work/
+      - blast-data:/db/
+
+    profiles:
+      - setup
