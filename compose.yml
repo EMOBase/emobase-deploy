@@ -5,6 +5,8 @@ volumes:
     driver: local
   blast-data:
     driver: local
+  mysql-data:
+    driver: local
 
 services:
 
@@ -49,7 +51,7 @@ services:
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-    mem_limit: 0.5g
+    mem_limit: 1g
     ulimits:
       memlock:
         soft: -1
@@ -129,19 +131,58 @@ services:
     environment:
       - PUBLIC_SERVER=$PUBLIC_SERVER/ibb/api/querypipelineservice/v1/
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:21.1.1
-    command: "start-dev"
+  mysql:
+    image: mysql:8.0
+    restart: always
     environment:
-      - KEYCLOAK_ADMIN=admin
-      - KEYCLOAK_ADMIN_PASSWORD=admin
-    profiles:
-      - experimental
+      - MYSQL_ROOT_PASSWORD
+      - MYSQL_DATABASE=keycloak
+      - MYSQL_USER
+      - MYSQL_PASSWORD
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysql -u $$MYSQL_USER -p$$MYSQL_PASSWORD -e 'select 1'"
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.3
+    restart: always
+    command: ["start"]
+    environment:
+      - KEYCLOAK_ADMIN
+      - KEYCLOAK_ADMIN_PASSWORD
+      - KC_HOSTNAME_DEBUG=true
+      - KC_HOSTNAME_URL=${PUBLIC_SERVER}/ibb/keycloak/
+      - KC_HOSTNAME_ADMIN_URL=${PUBLIC_SERVER}/ibb/keycloak/
+      - KC_HOSTNAME_STRICT=false
+      - KC_HOSTNAME_STRICT_HTTPS=false
+      - KC_HTTP_RELATIVE_PATH=/ibb/keycloak/
+      - KC_HTTP_ENABLED=true
+      - KC_PROXY_HEADERS=xforwarded
+      - KC_DB=mysql
+      - KC_DB_URL_HOST=mysql
+      - KC_DB_USERNAME=$MYSQL_USER
+      - KC_DB_PASSWORD=$MYSQL_PASSWORD
+      - KC_DB_SCHEMA=keycloak
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   blast:
     image: wurmlab/sequenceserver:latest # The current version is 3.0.1 but they have not provided the docker image with tag 3.0.1
     tty: true
     mem_limit: 1g
+    restart: always
+    command: ["sh", "-c", "sed -i 's|redirect to(\"/#{job.id}\")|redirect to(\"'$${PUBLIC_SERVER}'/ibb/blast/#{job.id}\")|g' /sequenceserver/lib/sequenceserver/routes.rb; sequenceserver"]
+    environment:
+      - PUBLIC_SERVER
     volumes:
       - blast-data:/db/
     ports:
