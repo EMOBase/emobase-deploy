@@ -3,9 +3,11 @@ version: "3"
 volumes:
   es-data:
     driver: local
+  mysql-data:
+    driver: local
   blast-data:
     driver: local
-  mysql-data:
+  jbrowse2-data:
     driver: local
 
 services:
@@ -18,12 +20,13 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ${PUBLIC_DATA_DIR}:/download/:ro
+      - jbrowse2-data:/ibb/jbrowse2/:ro
 
   fe:
     image: docker.gitlab.gwdg.de/ibb/ibb-fe:2.0.0-dev
     # As for now on 21.05.2024, setting NUXT_OIDC_PROVIDERS_KEYCLOAK_BASE_URL does not work with "nuxt-oidc-auth" module yet
     # https://github.com/itpropro/nuxt-oidc-auth/issues/20#issuecomment-2067548689
-    # Therefore, we replace it with the correct value on container startup
+    # Therefore, we replace it with the correct value at container startup
     command: ["sh", "-c", "sed -i 's|https://ibeetle-base.uni-goettingen.de/ibb/keycloak/realms/ibb|'$${NUXT_OIDC_PROVIDERS_KEYCLOAK_BASE_URL}'|g' /src/.output/server/chunks/runtime.mjs; node .output/server/index.mjs"]
     restart: always
     extra_hosts:
@@ -34,6 +37,7 @@ services:
       - NUXT_PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
       - NUXT_PUBLIC_UI_PAGES_BLAST=${PUBLIC_SERVER}/ibb/blast/
       - NUXT_PUBLIC_UI_PAGES_API_DOC=${PUBLIC_SERVER}/ibb/swagger-ui/
+      - NUXT_PUBLIC_UI_PAGES_GENOMEBROWSER=${PUBLIC_SERVER}/ibb/jbrowse2/
       - NUXT_PUBLIC_MAIN_SPECIES=${MAIN_SPECIES}
       - NUXT_OIDC_SESSION_SECRET
       - NUXT_OIDC_TOKEN_KEY
@@ -41,11 +45,6 @@ services:
       - NUXT_OIDC_PROVIDERS_KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
       - NUXT_OIDC_PROVIDERS_KEYCLOAK_REDIRECT_URI=${PUBLIC_SERVER}/auth/keycloak/callback
       - NUXT_OIDC_PROVIDERS_KEYCLOAK_BASE_URL=${PUBLIC_SERVER}/ibb/keycloak/realms/ibb
-
-
-  jbrowse2:
-    image: docker.gitlab.gwdg.de/ibb/api/ibb-jbrowse2:1.5.0
-    restart: always
 
   ontoscope:
     image: docker.gitlab.gwdg.de/ibb/api/ibb-ontoscope:latest
@@ -217,14 +216,25 @@ services:
 
   setup-blast:
     image: wurmlab/sequenceserver:latest
-    command: ["/bin/sh", "/work/create-db.sh", "${MAIN_SPECIES_DISPLAY}"]
+    command: ["/bin/sh", "/work/create-db.sh", "${ASSEMBLY_NAME}"]
     environment:
-      - MAIN_SPECIES_DISPLAY
+      - ASSEMBLY_NAME
     volumes:
       - ${PUBLIC_DATA_DIR}/genomic/${MAIN_SPECIES}/:/data/
       - ./blast/:/work/
       - blast-data:/db/
 
+    profiles:
+      - setup
+      - update
+
+  setup-jbrowse2:
+    image: docker.gitlab.gwdg.de/ibb/api/ibb-jbrowse2:2.0.0
+    command: ["/bin/sh", "/work/setup.sh"]
+    volumes:
+      - jbrowse2-data:/web/
+      - ${PUBLIC_DATA_DIR}/genomic/${MAIN_SPECIES}/:/data/
+      - ./jbrowse2/:/work/
     profiles:
       - setup
       - update
