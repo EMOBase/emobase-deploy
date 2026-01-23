@@ -23,7 +23,7 @@ services:
       - jbrowse2-data:/ibb/jbrowse2/:ro
 
   fe:
-    image: docker.gitlab.gwdg.de/ibb/ibb-fe:2.0.0-dev
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ibb-fe:2.0.0-dev
     # As for now on 21.05.2024, setting NUXT_OIDC_PROVIDERS_KEYCLOAK_BASE_URL does not work with "nuxt-oidc-auth" module yet
     # https://github.com/itpropro/nuxt-oidc-auth/issues/20#issuecomment-2067548689
     # Therefore, we replace it with the correct value at container startup
@@ -47,7 +47,7 @@ services:
       - NUXT_OIDC_PROVIDERS_KEYCLOAK_BASE_URL=${PUBLIC_SERVER}/ibb/keycloak/realms/ibb
 
   ontoscope:
-    image: docker.gitlab.gwdg.de/ibb/api/ibb-ontoscope:latest
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ibb-ontoscope:latest
     restart: always
 
   swagger-ui:
@@ -86,7 +86,7 @@ services:
       retries: 120
 
   geneservice:
-    image: docker.gitlab.gwdg.de/ibb/api/geneservice:2.0.0-dev
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/geneservice:2.0.0-dev
     restart: always
     depends_on:
       es:
@@ -98,7 +98,7 @@ services:
       - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/geneservice/v1/
 
   ontologyservice:
-    image: docker.gitlab.gwdg.de/ibb/api/ontologyservice:1.5.0
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ontologyservice:1.5.0
     restart: always
     depends_on:
       es:
@@ -107,7 +107,7 @@ services:
       - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/ontologyservice/v1/
 
   imageservice:
-    image: docker.gitlab.gwdg.de/ibb/api/imageservice:2.0.0
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/imageservice:2.0.0
     restart: always
     user: "${UID}:${GID}"
     environment:
@@ -120,7 +120,7 @@ services:
       - ${PRIVATE_DATA_DIR}/imageservice:/data:ro
          
   phenotypeservice:
-    image: docker.gitlab.gwdg.de/ibb/api/phenotypeservice:1.6.0
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/phenotypeservice:1.6.0
     restart: always
     depends_on:
       es:
@@ -135,7 +135,7 @@ services:
       - ${PRIVATE_DATA_DIR}/phenotypeservice:/data:ro
 
   goannotationservice:
-    image: docker.gitlab.gwdg.de/ibb/api/geneontologyservice:1.6.0
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/goannotationservice:1.6.0
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
@@ -145,7 +145,7 @@ services:
         condition: service_healthy
 
   publicationservice:
-    image: docker.gitlab.gwdg.de/ibb/api/ibb-publication:1.6.0
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/publicationservice:1.6.0
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
@@ -155,7 +155,7 @@ services:
         condition: service_healthy
 
   querypipelineservice:
-    image: docker.gitlab.gwdg.de/ibb/api/query-pipeline:1.5.0
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/querypipelineservice:1.5.0
     restart: always
     environment:
       - PUBLIC_SERVER=$PUBLIC_SERVER/ibb/api/querypipelineservice/v1/
@@ -229,7 +229,7 @@ services:
       - update
 
   setup-jbrowse2:
-    image: docker.gitlab.gwdg.de/ibb/api/ibb-jbrowse2:2.0.0
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ibb-jbrowse2:2.0.0
     command: ["/bin/sh", "/work/setup.sh"]
     volumes:
       - jbrowse2-data:/web/
@@ -240,7 +240,7 @@ services:
       - update
 
   update-geneservice:
-    image: docker.gitlab.gwdg.de/ibb/api/geneservice:2.0.0-dev
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/geneservice:2.0.0-dev
     depends_on:
       es:
         condition: service_healthy
