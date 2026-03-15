@@ -9,6 +9,8 @@ volumes:
     driver: local
   jbrowse2-data:
     driver: local
+  directus-data:
+    driver: local
 
 services:
 
@@ -23,31 +25,28 @@ services:
       - jbrowse2-data:/ibb/jbrowse2/:ro
 
   fe:
-    image: docker.gitlab.gwdg.de/ibb/ibb-fe:2.0.0-dev
-    # As for now on 21.05.2024, setting NUXT_OIDC_PROVIDERS_KEYCLOAK_BASE_URL does not work with "nuxt-oidc-auth" module yet
-    # https://github.com/itpropro/nuxt-oidc-auth/issues/20#issuecomment-2067548689
-    # Therefore, we replace it with the correct value at container startup
-    command: ["sh", "-c", "sed -i 's|https://ibeetle-base.uni-goettingen.de/ibb/keycloak/realms/ibb|'$${NUXT_OIDC_PROVIDERS_KEYCLOAK_BASE_URL}'|g' /src/.output/server/chunks/runtime.mjs; node .output/server/index.mjs"]
+    build: ../../EMOBase/emobase-web
     restart: always
     extra_hosts:
       # If requests sent to PUBLIC_SERVER from this container do not work because PUBLIC_SERVER is resolved to 127.0.0.1 or 127.0.1.1,
       # the following line is needed.
       - ${HOSTNAME}:host-gateway
     environment:
-      - NUXT_PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
-      - NUXT_PUBLIC_UI_PAGES_BLAST=${PUBLIC_SERVER}/ibb/blast/
-      - NUXT_PUBLIC_UI_PAGES_API_DOC=${PUBLIC_SERVER}/ibb/swagger-ui/
-      - NUXT_PUBLIC_UI_PAGES_GENOMEBROWSER=${PUBLIC_SERVER}/ibb/jbrowse2/
-      - NUXT_PUBLIC_MAIN_SPECIES=${MAIN_SPECIES}
-      - NUXT_OIDC_SESSION_SECRET
-      - NUXT_OIDC_TOKEN_KEY
-      - NUXT_OIDC_AUTH_SESSION_SECRET
-      - NUXT_OIDC_PROVIDERS_KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
-      - NUXT_OIDC_PROVIDERS_KEYCLOAK_REDIRECT_URI=${PUBLIC_SERVER}/auth/keycloak/callback
-      - NUXT_OIDC_PROVIDERS_KEYCLOAK_BASE_URL=${PUBLIC_SERVER}/ibb/keycloak/realms/ibb
+      - PUBLIC_MAIN_SPECIES=${MAIN_SPECIES}
+      - PUBLIC_SPECIES_SCIENTIFIC_NAME=Parasteatoda tepidariorum
+      - PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
+      - PUBLIC_UI_PAGE_GENOMEBROWSER=${PUBLIC_SERVER}/ibb/jbrowse2/
+      - PUBLIC_UI_PAGE_BLAST=${PUBLIC_SERVER}/ibb/blast/
+      - PUBLIC_UI_PAGE_API_DOC=${PUBLIC_SERVER}/ibb/swagger-ui/
+      - PUBLIC_DIRECTUS_URL=${PUBLIC_SERVER}/ibb/cms
+      - AUTH_SECRET=${NUXT_OIDC_SESSION_SECRET}
+      - AUTH_TRUST_HOST=true
+      - KEYCLOAK_ISSUER=${PUBLIC_SERVER}/ibb/keycloak/realms/ibb
+      - KEYCLOAK_CLIENT_ID=ibb-client
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
 
   ontoscope:
-    image: docker.gitlab.gwdg.de/ibb/api/ibb-ontoscope:latest
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ibb-ontoscope:latest
     restart: always
 
   swagger-ui:
@@ -55,10 +54,7 @@ services:
     restart: always
     environment:
       - BASE_URL=/ibb/swagger-ui
-      - "URLS=[
-        { url: '$PUBLIC_SERVER/ibb/api/geneservice/v1/q/openapi/', name: 'Gene Service' },
-        { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' }
-        ]" 
+      - "URLS=[ { url: '$PUBLIC_SERVER/ibb/api/geneservice/v1/q/openapi/', name: 'Gene Service' }, { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' } ]"
 
   es:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
@@ -76,17 +72,13 @@ services:
     ports:
       - 9200:9200
     healthcheck:
-      test: 
-        [
-          "CMD-SHELL",
-          "curl -s localhost:9200 | grep -q 'You Know, for Search'"
-        ]
+      test: [ "CMD-SHELL", "curl -s localhost:9200 | grep -q 'You Know, for Search'" ]
       interval: 10s
       timeout: 10s
       retries: 120
 
   geneservice:
-    image: docker.gitlab.gwdg.de/ibb/api/geneservice:2.0.0-dev
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/geneservice:2.0.0-dev
     restart: always
     depends_on:
       es:
@@ -95,19 +87,19 @@ services:
       - ${PUBLIC_DATA_DIR}:/data:ro
     environment:
       - GENESERVICE_MAIN_SPECIES=${MAIN_SPECIES}
-      - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/geneservice/v1/
+      - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/medbioinf/devbio/ibb/geneservice/v1/
 
   ontologyservice:
-    image: docker.gitlab.gwdg.de/ibb/api/ontologyservice:1.5.0
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ontologyservice:1.5.0
     restart: always
     depends_on:
       es:
         condition: service_healthy
     environment:
-      - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/ontologyservice/v1/
+      - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/medbioinf/devbio/ibb/ontologyservice/v1/
 
   imageservice:
-    image: docker.gitlab.gwdg.de/ibb/api/imageservice:2.0.0
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/imageservice:2.0.0
     restart: always
     user: "${UID}:${GID}"
     environment:
@@ -118,9 +110,9 @@ services:
     volumes:
       - ${IMAGE_DIR}:/images
       - ${PRIVATE_DATA_DIR}/imageservice:/data:ro
-         
+
   phenotypeservice:
-    image: docker.gitlab.gwdg.de/ibb/api/phenotypeservice:1.6.0
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/phenotypeservice:1.6.0
     restart: always
     depends_on:
       es:
@@ -135,7 +127,7 @@ services:
       - ${PRIVATE_DATA_DIR}/phenotypeservice:/data:ro
 
   goannotationservice:
-    image: docker.gitlab.gwdg.de/ibb/api/geneontologyservice:1.6.0
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/goannotationservice:1.6.0
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
@@ -145,7 +137,7 @@ services:
         condition: service_healthy
 
   publicationservice:
-    image: docker.gitlab.gwdg.de/ibb/api/ibb-publication:1.6.0
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/publicationservice:1.6.0
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
@@ -155,10 +147,11 @@ services:
         condition: service_healthy
 
   querypipelineservice:
-    image: docker.gitlab.gwdg.de/ibb/api/query-pipeline:1.5.0
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/querypipelineservice:1.5.0
     restart: always
     environment:
-      - PUBLIC_SERVER=$PUBLIC_SERVER/ibb/api/querypipelineservice/v1/
+
+      - PUBLIC_SERVER=$PUBLIC_SERVER/medbioinf/devbio/ibb/querypipelineservice/v1/
 
   mysql:
     image: mysql:8.0
@@ -168,12 +161,9 @@ services:
       - MYSQL_DATABASE=keycloak
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "mysql -u root -p$$MYSQL_ROOT_PASSWORD -e 'select 1'"
-        ]
+      test: [ "CMD-SHELL", "mysql -u root -p$$MYSQL_ROOT_PASSWORD -e 'select 1'" ]
       interval: 10s
       timeout: 10s
       retries: 120
@@ -181,7 +171,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.3
     restart: always
-    command: ["start"]
+    command: [ "start" ]
     environment:
       - KEYCLOAK_ADMIN
       - KEYCLOAK_ADMIN_PASSWORD
@@ -208,7 +198,7 @@ services:
     mem_limit: 1g
     restart: always
     # Fix the redirection link after a job is submitted in BLAST page.
-    command: ["sh", "-c", "sed -i 's|redirect to(\"/#{job.id}\")|redirect to(\"'$${PUBLIC_SERVER}'/ibb/blast/#{job.id}\")|g' /sequenceserver/lib/sequenceserver/routes.rb; sequenceserver"]
+    command: [ "sh", "-c", "sed -i 's|redirect to(\"/#{job.id}\")|redirect to(\"'$${PUBLIC_SERVER}'/ibb/blast/#{job.id}\")|g' /sequenceserver/lib/sequenceserver/routes.rb; sequenceserver" ]
     environment:
       - PUBLIC_SERVER
     volumes:
@@ -216,7 +206,7 @@ services:
 
   setup-blast:
     image: wurmlab/sequenceserver:latest
-    command: ["/bin/sh", "/work/create-db.sh", "${ASSEMBLY_NAME}"]
+    command: [ "/bin/sh", "/work/create-db.sh", "${ASSEMBLY_NAME}" ]
     environment:
       - ASSEMBLY_NAME
     volumes:
@@ -229,8 +219,8 @@ services:
       - update
 
   setup-jbrowse2:
-    image: docker.gitlab.gwdg.de/ibb/api/ibb-jbrowse2:2.0.0
-    command: ["/bin/sh", "/work/setup.sh"]
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ibb-jbrowse2:2.0.0
+    command: [ "/bin/sh", "/work/setup.sh" ]
     volumes:
       - jbrowse2-data:/web/
       - ${PUBLIC_DATA_DIR}/genomic/${MAIN_SPECIES}/:/data/
@@ -240,7 +230,7 @@ services:
       - update
 
   update-geneservice:
-    image: docker.gitlab.gwdg.de/ibb/api/geneservice:2.0.0-dev
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/geneservice:2.0.0-dev
     depends_on:
       es:
         condition: service_healthy
@@ -253,3 +243,52 @@ services:
       - geneservice.elasticsearch.delete-on-start.orthology=true
     profiles:
       - update
+
+  directus:
+    build: ./directus
+    restart: always
+    user: "0:0"
+    ports:
+      - 8055:8055
+    environment:
+      - SECRET=${DIRECTUS_SECRET}
+
+      - DB_CLIENT=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=directus
+      - DB_USER=root
+      - DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+
+      - ADMIN_EMAIL=${DIRECTUS_ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${DIRECTUS_ADMIN_PASSWORD}
+      - PROJECT_OWNER=${DIRECTUS_ADMIN_EMAIL}
+
+      - PUBLIC_URL=${PUBLIC_SERVER}/ibb/cms/
+
+      - AUTH_PROVIDERS=keycloak
+      - AUTH_KEYCLOAK_DRIVER=openid
+      - AUTH_KEYCLOAK_CLIENT_ID=ibb-client
+      - AUTH_KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
+      - AUTH_KEYCLOAK_ISSUER_URL=http://keycloak:8080/ibb/keycloak/realms/ibb
+      - AUTH_KEYCLOAK_IDENTIFIER_KEY=preferred_username
+      - AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION=true
+      - AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST=${PUBLIC_SERVER}/ibb/cms/
+      - AUTH_KEYCLOAK_DEFAULT_ROLE_ID=64f31dc8-7465-4416-b1eb-ef6efd990de9
+      - TELEMETRY=false
+    volumes:
+      - directus-data:/directus/uploads
+      - ./directus/schema.yaml:/directus/schema.yaml
+      - ./directus/scripts:/directus/scripts
+    command: >
+      sh -c "npx directus bootstrap &&
+             npx directus schema apply ./schema.yaml --yes &&
+             until curl -s -f -o /dev/null 'http://keycloak:8080/ibb/keycloak/realms/ibb/.well-known/openid-configuration'; do echo 'Waiting for Keycloak realm...'; sleep 3; done &&
+             npx directus start &
+             node ./scripts/bootstrap.js &&
+             wait"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
