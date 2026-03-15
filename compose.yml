@@ -32,9 +32,12 @@ services:
     restart: always
     environment:
       - PUBLIC_MAIN_SPECIES=${MAIN_SPECIES}
+      - PUBLIC_SPECIES_SCIENTIFIC_NAME=Parasteatoda tepidariorum
       - PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
       - PUBLIC_UI_PAGE_GENOMEBROWSER=${PUBLIC_SERVER}/ibb/jbrowse2/
       - PUBLIC_UI_PAGE_BLAST=${PUBLIC_SERVER}/ibb/blast/
+      - PUBLIC_UI_PAGE_API_DOC=${PUBLIC_SERVER}/ibb/swagger-ui/
+      - PUBLIC_DIRECTUS_URL=${PUBLIC_SERVER}/ibb/cms
       - AUTH_SECRET=${NUXT_OIDC_SESSION_SECRET}
       - AUTH_TRUST_HOST=true
       - KEYCLOAK_ISSUER=${PUBLIC_SERVER}/ibb/keycloak/realms/ibb
@@ -75,9 +78,9 @@ services:
     environment:
       - BASE_URL=/ibb/swagger-ui
       - "URLS=[
-        { url: '$PUBLIC_SERVER/ibb/api/geneservice/v1/q/openapi/', name: 'Gene Service' },
-        { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' }
-        ]" 
+          { url: '$PUBLIC_SERVER/ibb/api/geneservice/v1/q/openapi/', name: 'Gene Service' },
+          { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' }
+        ]"
 
   es:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
@@ -95,7 +98,7 @@ services:
     ports:
       - 9200:9200
     healthcheck:
-      test: 
+      test:
         [
           "CMD-SHELL",
           "curl -s localhost:9200 | grep -q 'You Know, for Search'"
@@ -137,7 +140,7 @@ services:
     volumes:
       - ${IMAGE_DIR}:/images
       - ${PRIVATE_DATA_DIR}/imageservice:/data:ro
-         
+
   phenotypeservice:
     image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/phenotypeservice:1.6.0
     restart: always
@@ -275,37 +278,48 @@ services:
       - update
 
   directus:
+    build: ./directus
     restart: always
-    image: directus/directus:11
+    user: "0:0"
     ports:
       - 8055:8055
     environment:
-      SECRET: ${DIRECTUS_SECRET}
+      - SECRET=${DIRECTUS_SECRET}
 
-      DB_CLIENT: mysql
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_DATABASE: directus
-      DB_USER: root
-      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      - DB_CLIENT=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=directus
+      - DB_USER=root
+      - DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
 
-      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
-      PROJECT_OWNER: ${DIRECTUS_ADMIN_EMAIL}
+      - ADMIN_EMAIL=${DIRECTUS_ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${DIRECTUS_ADMIN_PASSWORD}
+      - PROJECT_OWNER=${DIRECTUS_ADMIN_EMAIL}
 
-      PUBLIC_URL: ${PUBLIC_SERVER}/ibb/directus
+      - PUBLIC_URL=${PUBLIC_SERVER}/ibb/cms/
 
-      AUTH_PROVIDERS: keycloak
-      AUTH_KEYCLOAK_DRIVER: openid
-      AUTH_KEYCLOAK_CLIENT_ID: ibb-client
-      AUTH_KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
-      AUTH_KEYCLOAK_ISSUER_URL: http://keycloak:8080/ibb/keycloak/realms/ibb 
-      AUTH_KEYCLOAK_IDENTIFIER_KEY: preferred_username
-      AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION: "true"
-      AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST: ${PUBLIC_SERVER}/ibb/directus
-      TELEMETRY: "false"
+      - AUTH_PROVIDERS=keycloak
+      - AUTH_KEYCLOAK_DRIVER=openid
+      - AUTH_KEYCLOAK_CLIENT_ID=ibb-client
+      - AUTH_KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
+      - AUTH_KEYCLOAK_ISSUER_URL=http://keycloak:8080/ibb/keycloak/realms/ibb
+      - AUTH_KEYCLOAK_IDENTIFIER_KEY=preferred_username
+      - AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION=true
+      - AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST=${PUBLIC_SERVER}/ibb/cms/
+      - AUTH_KEYCLOAK_DEFAULT_ROLE_ID=64f31dc8-7465-4416-b1eb-ef6efd990de9
+      - TELEMETRY=false
     volumes:
       - directus-data:/directus/uploads
+      - ./directus/schema.yaml:/directus/schema.yaml
+      - ./directus/scripts:/directus/scripts
+    command: >
+      sh -c "npx directus bootstrap &&
+             npx directus schema apply ./schema.yaml --yes &&
+             until curl -s -f -o /dev/null 'http://keycloak:8080/ibb/keycloak/realms/ibb/.well-known/openid-configuration'; do echo 'Waiting for Keycloak realm...'; sleep 3; done &&
+             npx directus start &
+             node ./scripts/bootstrap.js &&
+             wait"
     depends_on:
       mysql:
         condition: service_healthy
