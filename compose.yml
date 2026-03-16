@@ -30,6 +30,10 @@ services:
     # Or use pre-built image
     # image: your-registry/emobase-web:latest
     restart: always
+    extra_hosts:
+      # If requests sent to PUBLIC_SERVER from this container do not work because PUBLIC_SERVER is resolved to 127.0.0.1 or 127.0.1.1,
+      # the following line is needed.
+      - ${HOSTNAME}:host-gateway
     environment:
       - PUBLIC_MAIN_SPECIES=${MAIN_SPECIES}
       - PUBLIC_SPECIES_SCIENTIFIC_NAME=Parasteatoda tepidariorum
