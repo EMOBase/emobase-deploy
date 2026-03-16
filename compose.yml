@@ -316,7 +316,6 @@ services:
     command: >
       sh -c "npx directus bootstrap &&
              npx directus schema apply ./schema.yaml --yes &&
-             until curl -s -f -o /dev/null 'http://keycloak:8080/ibb/keycloak/realms/ibb/.well-known/openid-configuration'; do echo 'Waiting for Keycloak realm...'; sleep 3; done &&
              npx directus start &
              node ./scripts/bootstrap.js &&
              wait"
