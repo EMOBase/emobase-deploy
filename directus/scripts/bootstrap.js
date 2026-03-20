@@ -83,7 +83,7 @@ async function run() {
 
   console.log("Creating permissions...");
 
-  const collections = [ 'logo', 'color', 'examples', 'site_info', 'homepage']
+  const collections = [ 'logo', 'color', 'examples', 'site_info', 'homepage', 'links', 'resource_sections']
   const actions = ['create', 'read', 'update', 'delete']
 
   for (const collection of collections.concat(['directus_folders', 'directus_files'])) {

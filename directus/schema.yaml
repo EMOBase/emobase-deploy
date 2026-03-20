@@ -19,7 +19,7 @@ collections:
       note: null
       preview_url: null
       singleton: true
-      sort: null
+      sort: 1
       sort_field: null
       translations: null
       unarchive_value: null
@@ -43,7 +43,7 @@ collections:
       note: null
       preview_url: null
       singleton: false
-      sort: null
+      sort: 3
       sort_field: null
       translations: null
       unarchive_value: null
@@ -67,13 +67,37 @@ collections:
       note: null
       preview_url: null
       singleton: true
-      sort: null
+      sort: 4
       sort_field: null
       translations: null
       unarchive_value: null
       versioning: false
     schema:
       name: homepage
+  - collection: links
+    meta:
+      accountability: all
+      archive_app_filter: true
+      archive_field: null
+      archive_value: null
+      collapse: open
+      collection: links
+      color: null
+      display_template: null
+      group: null
+      hidden: true
+      icon: null
+      item_duplication_fields: null
+      note: null
+      preview_url: null
+      singleton: false
+      sort: 7
+      sort_field: null
+      translations: null
+      unarchive_value: null
+      versioning: false
+    schema:
+      name: links
   - collection: logo
     meta:
       accountability: all
@@ -91,13 +115,37 @@ collections:
       note: null
       preview_url: null
       singleton: true
-      sort: null
+      sort: 2
       sort_field: null
       translations: null
       unarchive_value: null
       versioning: false
     schema:
       name: logo
+  - collection: resource_sections
+    meta:
+      accountability: all
+      archive_app_filter: true
+      archive_field: null
+      archive_value: null
+      collapse: open
+      collection: resource_sections
+      color: null
+      display_template: null
+      group: null
+      hidden: false
+      icon: null
+      item_duplication_fields: null
+      note: null
+      preview_url: null
+      singleton: false
+      sort: 8
+      sort_field: null
+      translations: null
+      unarchive_value: null
+      versioning: false
+    schema:
+      name: resource_sections
   - collection: site_info
     meta:
       accountability: all
@@ -115,7 +163,7 @@ collections:
       note: null
       preview_url: null
       singleton: true
-      sort: null
+      sort: 6
       sort_field: null
       translations: null
       unarchive_value: null
@@ -443,6 +491,248 @@ fields:
       has_auto_increment: false
       foreign_key_table: null
       foreign_key_column: null
+  - collection: links
+    field: id
+    type: integer
+    meta:
+      collection: links
+      conditions: null
+      display: null
+      display_options: null
+      field: id
+      group: null
+      hidden: true
+      interface: null
+      note: null
+      options: null
+      readonly: false
+      required: false
+      searchable: true
+      sort: 1
+      special: null
+      translations: null
+      validation: null
+      validation_message: null
+      width: full
+    schema:
+      name: id
+      table: links
+      data_type: int unsigned
+      default_value: null
+      max_length: null
+      numeric_precision: 10
+      numeric_scale: 0
+      is_nullable: false
+      is_unique: false
+      is_indexed: false
+      is_primary_key: true
+      is_generated: false
+      generation_expression: null
+      has_auto_increment: true
+      foreign_key_table: null
+      foreign_key_column: null
+  - collection: links
+    field: to
+    type: string
+    meta:
+      collection: links
+      conditions: null
+      display: null
+      display_options: null
+      field: to
+      group: null
+      hidden: false
+      interface: input
+      note: null
+      options:
+        placeholder: https://example.domain.com/example-url
+      readonly: false
+      required: true
+      searchable: true
+      sort: 3
+      special: null
+      translations: null
+      validation: null
+      validation_message: null
+      width: full
+    schema:
+      name: to
+      table: links
+      data_type: varchar
+      default_value: null
+      max_length: 255
+      numeric_precision: null
+      numeric_scale: null
+      is_nullable: true
+      is_unique: false
+      is_indexed: false
+      is_primary_key: false
+      is_generated: false
+      generation_expression: null
+      has_auto_increment: false
+      foreign_key_table: null
+      foreign_key_column: null
+  - collection: links
+    field: text
+    type: string
+    meta:
+      collection: links
+      conditions: null
+      display: null
+      display_options: null
+      field: text
+      group: null
+      hidden: false
+      interface: input
+      note: null
+      options: null
+      readonly: false
+      required: false
+      searchable: true
+      sort: 4
+      special: null
+      translations: null
+      validation: null
+      validation_message: null
+      width: full
+    schema:
+      name: text
+      table: links
+      data_type: varchar
+      default_value: null
+      max_length: 255
+      numeric_precision: null
+      numeric_scale: null
+      is_nullable: true
+      is_unique: false
+      is_indexed: false
+      is_primary_key: false
+      is_generated: false
+      generation_expression: null
+      has_auto_increment: false
+      foreign_key_table: null
+      foreign_key_column: null
+  - collection: links
+    field: comment
+    type: text
+    meta:
+      collection: links
+      conditions: null
+      display: null
+      display_options: null
+      field: comment
+      group: null
+      hidden: false
+      interface: input-multiline
+      note: null
+      options: null
+      readonly: false
+      required: false
+      searchable: true
+      sort: 5
+      special: null
+      translations: null
+      validation: null
+      validation_message: null
+      width: full
+    schema:
+      name: comment
+      table: links
+      data_type: text
+      default_value: null
+      max_length: 65535
+      numeric_precision: null
+      numeric_scale: null
+      is_nullable: true
+      is_unique: false
+      is_indexed: false
+      is_primary_key: false
+      is_generated: false
+      generation_expression: null
+      has_auto_increment: false
+      foreign_key_table: null
+      foreign_key_column: null
+  - collection: links
+    field: download
+    type: boolean
+    meta:
+      collection: links
+      conditions: null
+      display: null
+      display_options: null
+      field: download
+      group: null
+      hidden: false
+      interface: boolean
+      note: null
+      options: null
+      readonly: false
+      required: false
+      searchable: true
+      sort: 6
+      special:
+        - cast-boolean
+      translations: null
+      validation: null
+      validation_message: null
+      width: full
+    schema:
+      name: download
+      table: links
+      data_type: boolean
+      default_value: null
+      max_length: null
+      numeric_precision: 3
+      numeric_scale: 0
+      is_nullable: true
+      is_unique: false
+      is_indexed: false
+      is_primary_key: false
+      is_generated: false
+      generation_expression: null
+      has_auto_increment: false
+      foreign_key_table: null
+      foreign_key_column: null
+  - collection: links
+    field: resource_section_id
+    type: integer
+    meta:
+      collection: links
+      conditions: null
+      display: null
+      display_options: null
+      field: resource_section_id
+      group: null
+      hidden: true
+      interface: select-dropdown-m2o
+      note: null
+      options: null
+      readonly: false
+      required: false
+      searchable: true
+      sort: 7
+      special: null
+      translations: null
+      validation: null
+      validation_message: null
+      width: full
+    schema:
+      name: resource_section_id
+      table: links
+      data_type: int unsigned
+      default_value: null
+      max_length: null
+      numeric_precision: 10
+      numeric_scale: 0
+      is_nullable: true
+      is_unique: false
+      is_indexed: true
+      is_primary_key: false
+      is_generated: false
+      generation_expression: null
+      has_auto_increment: false
+      foreign_key_table: resource_sections
+      foreign_key_column: id
   - collection: logo
     field: id
     type: integer
@@ -496,7 +786,8 @@ fields:
       hidden: false
       interface: file-image
       note: null
-      options: null
+      options:
+        crop: false
       readonly: false
       required: false
       searchable: true
@@ -524,6 +815,111 @@ fields:
       has_auto_increment: false
       foreign_key_table: directus_files
       foreign_key_column: id
+  - collection: resource_sections
+    field: id
+    type: integer
+    meta:
+      collection: resource_sections
+      conditions: null
+      display: null
+      display_options: null
+      field: id
+      group: null
+      hidden: true
+      interface: input
+      note: null
+      options: null
+      readonly: true
+      required: false
+      searchable: true
+      sort: 1
+      special: null
+      translations: null
+      validation: null
+      validation_message: null
+      width: full
+    schema:
+      name: id
+      table: resource_sections
+      data_type: int unsigned
+      default_value: null
+      max_length: null
+      numeric_precision: 10
+      numeric_scale: 0
+      is_nullable: false
+      is_unique: false
+      is_indexed: false
+      is_primary_key: true
+      is_generated: false
+      generation_expression: null
+      has_auto_increment: true
+      foreign_key_table: null
+      foreign_key_column: null
+  - collection: resource_sections
+    field: header
+    type: string
+    meta:
+      collection: resource_sections
+      conditions: null
+      display: null
+      display_options: null
+      field: header
+      group: null
+      hidden: false
+      interface: input
+      note: null
+      options: null
+      readonly: false
+      required: false
+      searchable: true
+      sort: 2
+      special: null
+      translations: null
+      validation: null
+      validation_message: null
+      width: full
+    schema:
+      name: header
+      table: resource_sections
+      data_type: varchar
+      default_value: null
+      max_length: 255
+      numeric_precision: null
+      numeric_scale: null
+      is_nullable: true
+      is_unique: false
+      is_indexed: false
+      is_primary_key: false
+      is_generated: false
+      generation_expression: null
+      has_auto_increment: false
+      foreign_key_table: null
+      foreign_key_column: null
+  - collection: resource_sections
+    field: links
+    type: alias
+    meta:
+      collection: resource_sections
+      conditions: null
+      display: null
+      display_options: null
+      field: links
+      group: null
+      hidden: false
+      interface: list-o2m
+      note: null
+      options:
+        sort: null
+      readonly: false
+      required: false
+      searchable: true
+      sort: 3
+      special:
+        - o2m
+      translations: null
+      validation: null
+      validation_message: null
+      width: full
   - collection: site_info
     field: id
     type: integer
@@ -856,6 +1252,27 @@ systemFields:
     schema:
       is_indexed: true
 relations:
+  - collection: links
+    field: resource_section_id
+    related_collection: resource_sections
+    meta:
+      junction_field: null
+      many_collection: links
+      many_field: resource_section_id
+      one_allowed_collections: null
+      one_collection: resource_sections
+      one_collection_field: null
+      one_deselect_action: delete
+      one_field: links
+      sort_field: null
+    schema:
+      table: links
+      column: resource_section_id
+      foreign_key_table: resource_sections
+      foreign_key_column: id
+      constraint_name: links_resource_section_id_foreign
+      on_update: NO ACTION
+      on_delete: CASCADE
   - collection: logo
     field: image
     related_collection: directus_files
