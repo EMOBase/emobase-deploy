@@ -139,11 +139,14 @@ GID=$(id -g)
 # Secrets
 SSR_OIDC_SESSION_SECRET=$(generate_secret_key 48)
 KEYCLOAK_CLIENT_SECRET=$(generate_secret_key 32)
+DIRECTUS_SECRET=$(generate_secret_key 32)
 
 # Credentials
 MYSQL_ROOT_PASSWORD=$(generate_password)
 KEYCLOAK_ADMIN=admin
 KEYCLOAK_ADMIN_PASSWORD=$(generate_password)
+DIRECTUS_ADMIN_EMAIL=admin@emobase.org
+DIRECTUS_ADMIN_PASSWORD=$(generate_password)
 COCO_USERNAME=${COCO_USERNAME}
 COCO_PASSWORD=$(generate_password)"
 

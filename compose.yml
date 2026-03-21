@@ -7,6 +7,8 @@ volumes:
     driver: local
   jbrowse2-data:
     driver: local
+  directus-data:
+    driver: local
 
 services:
 
@@ -28,6 +30,7 @@ services:
       - PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
       - PUBLIC_UI_PAGE_GENOMEBROWSER=${PUBLIC_SERVER}/ibb/jbrowse2/
       - PUBLIC_UI_PAGE_BLAST=${PUBLIC_SERVER}/ibb/blast/
+      - PUBLIC_DIRECTUS_URL=${PUBLIC_SERVER}/ibb/directus/
       - AUTH_SECRET=${SSR_OIDC_SESSION_SECRET}
       - AUTH_TRUST_HOST=true
       - KEYCLOAK_ISSUER=${PUBLIC_SERVER}/ibb/keycloak/realms/ibb
@@ -153,14 +156,14 @@ services:
     restart: always
     environment:
       - MYSQL_ROOT_PASSWORD
-      - MYSQL_DATABASE=keycloak
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "mysql -u root -p$$MYSQL_ROOT_PASSWORD -e 'select 1'"
+          "mysqladmin ping -u root -p$$MYSQL_ROOT_PASSWORD --silent"
         ]
       interval: 10s
       timeout: 10s
@@ -169,7 +172,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.3
     restart: always
-    command: ["start", "--import-realm"]
+    command: ["start", "--import-realm", "--health-enabled=true"]
     volumes:
       - ./keycloak/ibb-realm.json:/opt/keycloak/data/import/ibb-realm.json:ro
     environment:
@@ -194,6 +197,51 @@ services:
       - COCO_PASSWORD
     depends_on:
       mysql:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "{ printf 'HEAD /ibb/keycloak/health/ready HTTP/1.0\r\n\r\n' >&0; grep -q 'HTTP/1.0 200'; } 0<>/dev/tcp/localhost/8080"
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+
+  directus:
+    restart: always
+    image: directus/directus:11
+    environment:
+      SECRET: ${DIRECTUS_SECRET}
+
+      DB_CLIENT: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: directus
+      DB_USER: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
+      PROJECT_OWNER: ${DIRECTUS_ADMIN_EMAIL}
+
+      PUBLIC_URL: ${PUBLIC_SERVER}/ibb/directus
+
+      AUTH_PROVIDERS: keycloak
+      AUTH_KEYCLOAK_DRIVER: openid
+      AUTH_KEYCLOAK_CLIENT_ID: ibb-client
+      AUTH_KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      AUTH_KEYCLOAK_ISSUER_URL: http://keycloak:8080/ibb/keycloak/realms/ibb 
+      AUTH_KEYCLOAK_IDENTIFIER_KEY: preferred_username
+      AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION: true
+      AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST: ${PUBLIC_SERVER}/ibb/directus
+      TELEMETRY: "false"
+    volumes:
+      - directus-data:/directus/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      keycloak:
         condition: service_healthy
 
   blast:
