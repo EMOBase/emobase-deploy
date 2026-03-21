@@ -8,6 +8,7 @@ YES=false
 MAIN_SPECIES=
 PUBLIC_SERVER=
 COCO_USERNAME=
+CONTAINER_PREFIX=
 
 DEFAULT_COCO_USERNAME=coco
 DEFAULT_PUBLIC_SERVER="http://localhost:9090"
@@ -53,6 +54,10 @@ while [[ $# -gt 0 ]]; do
       PUBLIC_SERVER="$2"
       shift 2
       ;;
+    --container-prefix)
+      CONTAINER_PREFIX="$2"
+      shift 2
+      ;;
     -f|--force)
       FORCE=true
       shift
@@ -66,9 +71,10 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
-      echo "Usage: $0 [-f|--force] [-p|--print] [-y|--yes] [-s|--species SPECIES] [--public-server URL]"
+      echo "Usage: $0 [-f|--force] [-p|--print] [-y|--yes] [-s|--species SPECIES] [--public-server URL] [--container-prefix PREFIX]"
       echo "  -s, --species       4-letter species code (e.g. Tcas, Dmel, Ptep)"
       echo "  --public-server     Public server address (default: ${DEFAULT_PUBLIC_SERVER})"
+      echo "  --container-prefix  Prefix for docker compose containers (default: current directory)"
       echo "  -f, --force         Overwrite existing .env file"
       echo "  -y, --yes           Use default values without prompting"
       echo "  -p, --print         Print credentials to screen instead of writing to .env"
@@ -121,7 +127,7 @@ PUBLIC_SERVER=${PUBLIC_SERVER}
 HTTP_PORT=9090
 
 # Project name (prefix for containers)
-COMPOSE_PROJECT_NAME=$(echo $MAIN_SPECIES | tr '[:upper:]' '[:lower:]')
+COMPOSE_PROJECT_NAME=${CONTAINER_PREFIX}
 
 # Directory for data that is publicly downloadable at \$PUBLIC_SERVER/download/
 PUBLIC_DATA_DIR=./data/public
