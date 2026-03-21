@@ -169,7 +169,9 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.3
     restart: always
-    command: ["start"]
+    command: ["start", "--import-realm"]
+    volumes:
+      - ./keycloak/ibb-realm.json:/opt/keycloak/data/import/ibb-realm.json:ro
     environment:
       - KEYCLOAK_ADMIN
       - KEYCLOAK_ADMIN_PASSWORD
@@ -185,6 +187,11 @@ services:
       - KC_DB_USERNAME=root
       - KC_DB_PASSWORD=$MYSQL_ROOT_PASSWORD
       - KC_DB_SCHEMA=keycloak
+
+      - KEYCLOAK_CLIENT_SECRET
+      - PUBLIC_SERVER
+      - COCO_USERNAME
+      - COCO_PASSWORD
     depends_on:
       mysql:
         condition: service_healthy

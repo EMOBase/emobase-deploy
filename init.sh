@@ -7,7 +7,9 @@ FORCE=false
 YES=false
 MAIN_SPECIES=
 PUBLIC_SERVER=
+COCO_USERNAME=
 
+DEFAULT_COCO_USERNAME=coco
 DEFAULT_PUBLIC_SERVER="http://localhost:9090"
 
 fatal() {
@@ -97,6 +99,15 @@ if [[ -z "$PUBLIC_SERVER" ]]; then
   fi
 fi
 
+if [[ -z "$COCO_USERNAME" ]]; then
+  if [[ "$YES" == true ]]; then
+    COCO_USERNAME=${DEFAULT_COCO_USERNAME}
+  else
+    read -rp "🌐 Enter Community Coordinator username [${DEFAULT_COCO_USERNAME}]: " COCO_USERNAME
+    COCO_USERNAME="${COCO_USERNAME:-${DEFAULT_COCO_USERNAME}}"
+  fi
+fi
+
 ENV_CONTENT="# 4-letter code of your species (e.g. Tcas, Dmel, Ptep)
 MAIN_SPECIES=${MAIN_SPECIES}
 
@@ -131,8 +142,10 @@ KEYCLOAK_CLIENT_SECRET=$(generate_secret_key 32)
 
 # Credentials
 MYSQL_ROOT_PASSWORD=$(generate_password)
-KEYCLOAD_ADMIN=admin
-KEYCLOAK_ADMIN_PASSWORD=$(generate_password)"
+KEYCLOAK_ADMIN=admin
+KEYCLOAK_ADMIN_PASSWORD=$(generate_password)
+COCO_USERNAME=${COCO_USERNAME}
+COCO_PASSWORD=$(generate_password)"
 
 if [[ "$PRINT" == true ]]; then
   echo "$ENV_CONTENT"

@@ -7,7 +7,8 @@ Requirements:
 ## Start the services
 
 ```bash
-docker compose up -d
+bash init.sh
+docker compose up -d --wait
 ```
 
 ## Copy databases
