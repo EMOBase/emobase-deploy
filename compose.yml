@@ -74,7 +74,7 @@ services:
         ]
       interval: 10s
       timeout: 10s
-      retries: 120
+      retries: 18
 
   geneservice:
     image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/geneservice:2.0.0-dev
@@ -167,7 +167,7 @@ services:
         ]
       interval: 10s
       timeout: 10s
-      retries: 120
+      retries: 18
 
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.3
@@ -206,36 +206,37 @@ services:
         ]
       interval: 10s
       timeout: 10s
-      retries: 120
+      retries: 18
 
   directus:
     restart: always
     image: directus/directus:11
     environment:
-      SECRET: ${DIRECTUS_SECRET}
+      - SECRET=${DIRECTUS_SECRET}
 
-      DB_CLIENT: mysql
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_DATABASE: directus
-      DB_USER: root
-      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      - DB_CLIENT=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=directus
+      - DB_USER=root
+      - DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
 
-      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
-      PROJECT_OWNER: ${DIRECTUS_ADMIN_EMAIL}
+      - ADMIN_EMAIL=${DIRECTUS_ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${DIRECTUS_ADMIN_PASSWORD}
+      - PROJECT_OWNER=${DIRECTUS_ADMIN_EMAIL}
 
-      PUBLIC_URL: ${PUBLIC_SERVER}/ibb/directus
+      - PUBLIC_URL=${PUBLIC_SERVER}/ibb/directus
 
-      AUTH_PROVIDERS: keycloak
-      AUTH_KEYCLOAK_DRIVER: openid
-      AUTH_KEYCLOAK_CLIENT_ID: ibb-client
-      AUTH_KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
-      AUTH_KEYCLOAK_ISSUER_URL: http://keycloak:8080/ibb/keycloak/realms/ibb 
-      AUTH_KEYCLOAK_IDENTIFIER_KEY: preferred_username
-      AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION: true
-      AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST: ${PUBLIC_SERVER}/ibb/directus
-      TELEMETRY: "false"
+      - AUTH_PROVIDERS=keycloak
+      - AUTH_KEYCLOAK_DRIVER=openid
+      - AUTH_KEYCLOAK_CLIENT_ID=ibb-client
+      - AUTH_KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
+      - AUTH_KEYCLOAK_ISSUER_URL=http://keycloak:8080/ibb/keycloak/realms/ibb 
+      - AUTH_KEYCLOAK_IDENTIFIER_KEY=preferred_username
+      - AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION=true
+      - AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST=${PUBLIC_SERVER}/ibb/directus
+      - AUTH_KEYCLOAK_DEFAULT_ROLE_ID=64f31dc8-7465-4416-b1eb-ef6efd990de9
+      - TELEMETRY=false
     volumes:
       - directus-data:/directus/uploads
     depends_on:
@@ -243,6 +244,13 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_healthy
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "wget -qO- http://127.0.0.1:8055/server/health | grep -q 'ok'"
+      interval: 10s
+      timeout: 10s
+      retries: 18
 
   blast:
     # The current version is 3.0.1 but they have not provided the docker image with this tag.
@@ -256,6 +264,26 @@ services:
       - PUBLIC_SERVER
     volumes:
       - blast-data:/db/
+
+  setup-directus:
+    extends:
+      service: directus
+    network_mode: "service:directus"
+    restart: no
+    command: >
+      sh -c "pnpm add @directus/sdk &&
+        npx directus schema apply /directus/schema.yaml --yes &&
+        node /directus/scripts/bootstrap.js"
+    volumes:
+      - ./directus/scripts:/directus/scripts
+      - ./directus/schema.yaml:/directus/schema.yaml
+    environment:
+      - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+    depends_on:
+      directus:
+        condition: service_healthy
+    profiles:
+      - setup
 
   setup-blast:
     image: wurmlab/sequenceserver:latest

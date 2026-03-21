@@ -9,6 +9,13 @@ Requirements:
 ```bash
 bash init.sh
 docker compose up -d --wait
+docker compose run --rm setup-directus
+```
+
+## Remove all docker containers and their data
+
+```bash
+docker compose --profile '*' down -v
 ```
 
 ## Copy databases
