@@ -67,7 +67,7 @@ async function run() {
 
   console.log("Creating permissions...");
 
-  const collections = [ 'logo', 'color', 'examples', 'site_info', 'homepage', 'links', 'resource_sections']
+  const collections = ['logo', 'color', 'examples', 'site_info', 'homepage', 'links', 'resource_sections', 'gene_link_templates'];
   const actions = ['create', 'read', 'update', 'delete']
 
   await Promise.all(
