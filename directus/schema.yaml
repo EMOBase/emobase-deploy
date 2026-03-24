@@ -19,7 +19,7 @@ collections:
       note: null
       preview_url: null
       singleton: true
-      sort: 1
+      sort: 2
       sort_field: null
       translations: null
       unarchive_value: null
@@ -43,7 +43,7 @@ collections:
       note: null
       preview_url: null
       singleton: false
-      sort: 3
+      sort: 4
       sort_field: null
       translations: null
       unarchive_value: null
@@ -67,7 +67,7 @@ collections:
       note: null
       preview_url: null
       singleton: false
-      sort: null
+      sort: 8
       sort_field: null
       translations: null
       unarchive_value: null
@@ -91,7 +91,7 @@ collections:
       note: null
       preview_url: null
       singleton: true
-      sort: 4
+      sort: 5
       sort_field: null
       translations: null
       unarchive_value: null
@@ -115,7 +115,7 @@ collections:
       note: null
       preview_url: null
       singleton: false
-      sort: 7
+      sort: 6
       sort_field: null
       translations: null
       unarchive_value: null
@@ -139,7 +139,7 @@ collections:
       note: null
       preview_url: null
       singleton: true
-      sort: 2
+      sort: 3
       sort_field: null
       translations: null
       unarchive_value: null
@@ -163,7 +163,7 @@ collections:
       note: null
       preview_url: null
       singleton: false
-      sort: 8
+      sort: 7
       sort_field: null
       translations: null
       unarchive_value: null
@@ -187,7 +187,7 @@ collections:
       note: null
       preview_url: null
       singleton: true
-      sort: 6
+      sort: 1
       sort_field: null
       translations: null
       unarchive_value: null
