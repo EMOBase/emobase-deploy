@@ -1,0 +1,1270 @@
+{
+  "configuration": {
+    "drawerWidth": 384,
+    "widgets": {
+      "hierarchicalTrackSelector": {
+        "id": "hierarchicalTrackSelector",
+        "type": "HierarchicalTrackSelectorWidget",
+        "collapsed": {
+          "tcas5_iBeetle.sorted.gff": true,
+          "ib.sorted.gff": true
+        },
+        "filterText": ""
+      }
+    },
+    "activeWidgets": {
+      "hierarchicalTrackSelector": "hierarchicalTrackSelector"
+    },
+    "connectionInstances": [],
+    "sessionTracks": [],
+    "sessionConnections": [],
+    "sessionAssemblies": [],
+    "sessionPlugins": [],
+    "minimized": true,
+    "drawerPosition": "right",
+    "rpc": {
+      "defaultDriver": "WebWorkerRpcDriver",
+      "drivers": {
+        "MainThreadRpcDriver": {},
+        "WebWorkerRpcDriver": {}
+      }
+    },
+    "logoPath": {
+      "locationType": "UriLocation",
+      "uri": ""
+    }
+  },
+  "plugins": [],
+  "assemblies": [
+    {
+      "name": "Tcas5.2",
+      "sequence": {
+        "type": "ReferenceSequenceTrack",
+        "trackId": "Tcas5.2-ReferenceSequenceTrack",
+        "adapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz"
+          },
+          "faiLocation": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.fai"
+          },
+          "metadataLocation": {
+            "locationType": "UriLocation",
+            "uri": "/path/to/fa.metadata.yaml"
+          },
+          "gziLocation": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi"
+          }
+        },
+        "displays": [
+          {
+            "type": "LinearReferenceSequenceDisplay",
+            "displayId": "Tcas5.2-ReferenceSequenceTrack-LinearReferenceSequenceDisplay"
+          }
+        ]
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "type": "FeatureTrack",
+      "trackId": "tcas5_iBeetle.sorted.gff",
+      "name": "iBeetle OGS3",
+      "formatDetails": {
+        "feature": "jexl:{name:'<a href=https://ibeetle-base.uni-goettingen.de/details/'+feature.name+'>'+feature.name+'</a>'}"
+      },
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "The current official gene model (OGS) provided by the iBeetle consortium (Prof. M. Stanke, L. Gerischer; Greifswald).",
+      "category": [
+        "Current gene prediction"
+      ],
+      "adapter": {
+        "type": "Gff3TabixAdapter",
+        "gffGzLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/gene-prediction/tcas5_iBeetle.renamed.sorted.gff.gz"
+        },
+        "index": {
+          "location": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/gene-prediction/tcas5_iBeetle.renamed.sorted.gff.gz.tbi"
+          }
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearBasicDisplay",
+          "displayId": "tcas5_iBeetle.sorted.gff-LinearBasicDisplay"
+        },
+        {
+          "type": "LinearArcDisplay",
+          "displayId": "tcas5_iBeetle.sorted.gff-LinearArcDisplay"
+        }
+      ]
+    },
+    {
+      "type": "FeatureTrack",
+      "trackId": "tcas5_ncbi.sorted.gff",
+      "name": "NCBI",
+      "formatDetails": {
+        "feature": "jexl:{dbxref:'<a href=https://www.ncbi.nlm.nih.gov/gene/'+split(feature.dbxref, ':')[1]+'>'+feature.dbxref+'</a>'}"
+      },
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Gene prediction from NCBI based on TCAS 5.2",
+      "category": [
+        "Current gene prediction"
+      ],
+      "adapter": {
+        "type": "Gff3TabixAdapter",
+        "gffGzLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/gene-prediction/tcas5_ncbi.sorted.gff.gz"
+        },
+        "index": {
+          "location": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/gene-prediction/tcas5_ncbi.sorted.gff.gz.tbi"
+          }
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearBasicDisplay",
+          "displayId": "tcas5_ncbi.sorted.gff-LinearBasicDisplay"
+        },
+        {
+          "type": "LinearArcDisplay",
+          "displayId": "tcas5_ncbi.sorted.gff-LinearArcDisplay"
+        }
+      ]
+    },
+    {
+      "type": "FeatureTrack",
+      "trackId": "ib.sorted.gff",
+      "name": "iBeetle dsRNA",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "dsRNA used in the iBeetle screen to knock down genes using RNAi (10.1093/nar/gku1054)",
+      "category": [
+        "dsRNA"
+      ],
+      "adapter": {
+        "type": "Gff3TabixAdapter",
+        "gffGzLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/dsRNA/ib.gff.gz"
+        },
+        "index": {
+          "location": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/dsRNA/ib.gff.gz.tbi"
+          }
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearBasicDisplay",
+          "displayId": "ib.sorted.gff-LinearBasicDisplay"
+        },
+        {
+          "type": "LinearArcDisplay",
+          "displayId": "ib.sorted.gff-LinearArcDisplay"
+        }
+      ]
+    },
+    {
+      "type": "FeatureTrack",
+      "trackId": "au4.liftover.sorted.gff",
+      "name": "au4",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "au4 (Augustus 4) is based on the unpublished genome version Tcas4 and has been lifted to Tcas5.2. This gene model is an interim model between OGS2 and OGS3.",
+      "category": [
+        "Former gene prediction"
+      ],
+      "adapter": {
+        "type": "Gff3TabixAdapter",
+        "gffGzLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/gene-prediction/au4.liftover.sorted.gff.gz"
+        },
+        "index": {
+          "location": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/gene-prediction/au4.liftover.sorted.gff.gz.tbi"
+          }
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearBasicDisplay",
+          "displayId": "au4.liftover.sorted.gff-LinearBasicDisplay"
+        },
+        {
+          "type": "LinearArcDisplay",
+          "displayId": "au4.liftover.sorted.gff-LinearArcDisplay"
+        }
+      ]
+    },
+    {
+      "type": "FeatureTrack",
+      "trackId": "OGS2.sorted.gff",
+      "name": "OGS2",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Former official gene set based on Tcas 3.0 lifted to Tcas 5.2 (doi:10.1038/nature06784)",
+      "category": [
+        "Former gene prediction"
+      ],
+      "adapter": {
+        "type": "Gff3TabixAdapter",
+        "gffGzLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/gene-prediction/OGS2.renamed.sorted.gff.gz"
+        },
+        "index": {
+          "location": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/gene-prediction/OGS2.renamed.sorted.gff.gz.tbi"
+          }
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearBasicDisplay",
+          "displayId": "OGS2.sorted.gff-LinearBasicDisplay"
+        },
+        {
+          "type": "LinearArcDisplay",
+          "displayId": "OGS2.sorted.gff-LinearArcDisplay"
+        }
+      ]
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "IT23_Ga8",
+      "name": "IT23 Ga8",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "ATAC-Seq data was supplied by Christine Mau",
+      "category": [
+        "ATAC-Seq"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/atac-seq/IT23_Ga8_scaled_refseq.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_tcas5.2_genomic.fna.gz.fai",
+            "locationtype": "urilocation"
+          },
+          "gzilocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "IT23_Gm8",
+      "name": "IT23 Gm8",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "ATAC-Seq data was supplied by Christine Mau",
+      "category": [
+        "ATAC-Seq"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/atac-seq/IT23_Gm8_scaled_refseq.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_tcas5.2_genomic.fna.gz.fai",
+            "locationtype": "urilocation"
+          },
+          "gzilocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "IT23_Gp8",
+      "name": "IT23 Gp8",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "ATAC-Seq data was supplied by Christine Mau",
+      "category": [
+        "ATAC-Seq"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/atac-seq/IT23_Gp8_scaled_refseq.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_tcas5.2_genomic.fna.gz.fai",
+            "locationtype": "urilocation"
+          },
+          "gzilocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "IT26_Ga8",
+      "name": "IT26 Ga8",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "ATAC-Seq data was supplied by Christine Mau",
+      "category": [
+        "ATAC-Seq"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/atac-seq/IT26_Ga8_scaled_refseq.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_tcas5.2_genomic.fna.gz.fai",
+            "locationtype": "urilocation"
+          },
+          "gzilocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "IT26_Gm8",
+      "name": "IT26 Gm8",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "ATAC-Seq data was supplied by Christine Mau",
+      "category": [
+        "ATAC-Seq"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/atac-seq/IT26_Gm8_scaled_refseq.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_tcas5.2_genomic.fna.gz.fai",
+            "locationtype": "urilocation"
+          },
+          "gzilocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "IT26_Gp8",
+      "name": "IT26 Gp8",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "ATAC-Seq data was supplied by Christine Mau",
+      "category": [
+        "ATAC-Seq"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/atac-seq/IT26_Gp8_scaled_refseq.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_tcas5.2_genomic.fna.gz.fai",
+            "locationtype": "urilocation"
+          },
+          "gzilocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "tcas1",
+      "name": "Pre-blastoderm",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "RNA-Seq data was supplied by Michael Schoppmeier, Ho Chung, Ho Ryun and Uli Loehr",
+      "category": [
+        "RNA-Seq Read Coverage"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/bam/tcas1.read_coverage.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_tcas5.2_genomic.fna.gz.fai",
+            "locationtype": "urilocation"
+          },
+          "gzilocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "tcas2",
+      "name": "Blastoderm",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "RNA-Seq data was supplied by Michael Schoppmeier, Ho Chung, Ho Ryun and Uli Loehr",
+      "category": [
+        "RNA-Seq Read Coverage"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/bam/tcas2.read_coverage.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.fai",
+            "locationType": "UriLocation"
+          },
+          "gziLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "tcas3",
+      "name": "Differentiated blastoderm",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "RNA-Seq data was supplied by Michael Schoppmeier, Ho Chung, Ho Ryun and Uli Loehr",
+      "category": [
+        "RNA-Seq Read Coverage"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/bam/tcas3.read_coverage.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.fai",
+            "locationType": "UriLocation"
+          },
+          "gziLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "tcas_maternal.fs",
+      "name": "Unfertilized eggs",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "RNA-Seq data was supplied by Michael Schoppmeier, Ho Chung, Ho Ryun and Uli Loehr",
+      "category": [
+        "RNA-Seq Read Coverage"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/bam/tcas_maternal.fs.read_coverage.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.fai",
+            "locationType": "UriLocation"
+          },
+          "gziLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "s_1_ovary.fs",
+      "name": "Ovary",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "RNA-Seq data was supplied by Michael Schoppmeier, Ho Chung, Ho Ryun and Uli Loehr",
+      "category": [
+        "RNA-Seq Read Coverage"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/bam/s_1_ovary.fs.read_coverage.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.fai",
+            "locationType": "UriLocation"
+          },
+          "gziLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "L7",
+      "name": "L7-late pupae",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "RNA-Seq data was supplied by Gregor Bucher",
+      "category": [
+        "RNA-Seq Read Coverage"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/bam/L7.read_coverage.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.fai",
+            "locationType": "UriLocation"
+          },
+          "gziLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "embryonic",
+      "name": "Embryo",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "RNA-Seq data was supplied by Bernd Timmermann and Gregor Bucher",
+      "category": [
+        "RNA-Seq Read Coverage"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/bam/embryonic.read_coverage.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.fai",
+            "locationType": "UriLocation"
+          },
+          "gziLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "all_reads.tcas5.s",
+      "name": "All developmental stages",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "RNA-Seq reads combined from all developmental stages",
+      "category": [
+        "RNA-Seq Read Coverage"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/bam/all_reads.tcas5.s.read_coverage.bw"
+        },
+        "sequenceAdapter": {
+          "type": "BgzipFastaAdapter",
+          "fastaLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz",
+            "locationType": "UriLocation"
+          },
+          "faiLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.fai",
+            "locationType": "UriLocation"
+          },
+          "gziLocation": {
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/reference/GCF_000002335.3_Tcas5.2_genomic.fna.gz.gzi",
+            "locationType": "UriLocation"
+          }
+        }
+      }
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "0hr_FAIRE_merged_renamed",
+      "name": "FAIRE: 0-24hr",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Lai YT et al. 2018, Enhancer identification and activity evaluation in the red flour beetle, Tribolium castaneum.  <a href=\"https://doi.org/10.1242/dev.160663\">doi: 10.1242/dev.160663</>",
+      "category": [
+        "FAIRE"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/faire-tracks/0hr_FAIRE_merged_renamed.bw"
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearWiggleDisplay",
+          "displayId": "0hr_FAIRE_merged_renamed-LinearWiggleDisplay"
+        }
+      ]
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "24hr_FAIRE_merged_renamed",
+      "name": "FAIRE: 24-48hr",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Lai YT et al. 2018, Enhancer identification and activity evaluation in the red flour beetle, Tribolium castaneum.  <a href=\"https://doi.org/10.1242/dev.160663\">doi: 10.1242/dev.160663</>",
+      "category": [
+        "FAIRE"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/faire-tracks/24hr_FAIRE_merged_renamed.bw"
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearWiggleDisplay",
+          "displayId": "24hr_FAIRE_merged_renamed-LinearWiggleDisplay"
+        }
+      ]
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "48hr_FAIRE_merged_renamed",
+      "name": "FAIRE: 48-72hr",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Lai YT et al. 2018, Enhancer identification and activity evaluation in the red flour beetle, Tribolium castaneum.  <a href=\"https://doi.org/10.1242/dev.160663\">doi: 10.1242/dev.160663</>",
+      "category": [
+        "FAIRE"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/faire-tracks/48hr_FAIRE_merged_renamed.bw"
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearWiggleDisplay",
+          "displayId": "48hr_FAIRE_merged_renamed-LinearWiggleDisplay"
+        }
+      ]
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "BRAIN_FAIRE_merged_renamed",
+      "name": "FAIRE: brain from last larval stage",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Lai YT et al. 2018, Enhancer identification and activity evaluation in the red flour beetle, Tribolium castaneum.  <a href=\"https://doi.org/10.1242/dev.160663\">doi: 10.1242/dev.160663</>",
+      "category": [
+        "FAIRE"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/faire-tracks/BRAIN_FAIRE_merged_renamed.bw"
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearWiggleDisplay",
+          "displayId": "BRAIN_FAIRE_merged_renamed-LinearWiggleDisplay"
+        }
+      ]
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "T2_FAIRE_merged_renamed",
+      "name": "FAIRE: elytron disc at T2",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Lai YT et al. 2018, Enhancer identification and activity evaluation in the red flour beetle, Tribolium castaneum.  <a href=\"https://doi.org/10.1242/dev.160663\">doi: 10.1242/dev.160663</>",
+      "category": [
+        "FAIRE"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/faire-tracks/T2_FAIRE_merged_renamed.bw"
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearWiggleDisplay",
+          "displayId": "T2_FAIRE_merged_renamed-LinearWiggleDisplay"
+        }
+      ]
+    },
+    {
+      "type": "QuantitativeTrack",
+      "trackId": "T3_FAIRE_merged_renamed",
+      "name": "FAIRE: wing disc at T3",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Lai YT et al. 2018, Enhancer identification and activity evaluation in the red flour beetle, Tribolium castaneum.  <a href=\"https://doi.org/10.1242/dev.160663\">doi: 10.1242/dev.160663</>",
+      "category": [
+        "FAIRE"
+      ],
+      "adapter": {
+        "type": "BigWigAdapter",
+        "bigWigLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/faire-tracks/T3_FAIRE_merged_renamed.bw"
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearWiggleDisplay",
+          "displayId": "T3_FAIRE_merged_renamed-LinearWiggleDisplay"
+        }
+      ]
+    },
+    {
+      "type": "FeatureTrack",
+      "trackId": "masked.sorted.gff",
+      "name": "Masked regions",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Genomic regions masked by RepeatMasker",
+      "category": [
+        "Sequences"
+      ],
+      "adapter": {
+        "type": "Gff3TabixAdapter",
+        "gffGzLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/sequences/masked.sorted.gff.gz"
+        },
+        "index": {
+          "location": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/sequences/masked.sorted.gff.gz.tbi"
+          }
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearBasicDisplay",
+          "displayId": "masked.sorted.gff-LinearBasicDisplay"
+        },
+        {
+          "type": "LinearArcDisplay",
+          "displayId": "masked.sorted.gff-LinearArcDisplay"
+        }
+      ]
+    },
+    {
+      "type": "FeatureTrack",
+      "trackId": "ests.sorted.gff",
+      "name": "EST alignments",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "category": [
+        "Supporting information"
+      ],
+      "adapter": {
+        "type": "Gff3TabixAdapter",
+        "gffGzLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/support/ests.sorted.gff.gz"
+        },
+        "index": {
+          "location": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/support/ests.sorted.gff.gz.tbi"
+          }
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearBasicDisplay",
+          "displayId": "ests.sorted.gff-LinearBasicDisplay"
+        },
+        {
+          "type": "LinearArcDisplay",
+          "displayId": "ests.sorted.gff-LinearArcDisplay"
+        }
+      ]
+    },
+    {
+      "type": "FeatureTrack",
+      "trackId": "exonhints.sorted.gff",
+      "name": "Exonpart hints from RNA-Seq",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Exon part hints are gap-free aligned reads from RNA-Seq, which supports an exon at this position.",
+      "category": [
+        "Supporting information"
+      ],
+      "adapter": {
+        "type": "Gff3TabixAdapter",
+        "gffGzLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/support/exonhints.sorted.gff.gz"
+        },
+        "index": {
+          "location": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/support/exonhints.sorted.gff.gz.tbi"
+          }
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearBasicDisplay",
+          "displayId": "exonhints.sorted.gff-LinearBasicDisplay"
+        },
+        {
+          "type": "LinearArcDisplay",
+          "displayId": "exonhints.sorted.gff-LinearArcDisplay"
+        }
+      ]
+    },
+    {
+      "type": "FeatureTrack",
+      "trackId": "introhints.sorted.gff",
+      "name": "Intron hints from RNA-Seq",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Intron hints are derived from RNA-Seq reads overlapping to adjacent exons.",
+      "category": [
+        "Supporting information"
+      ],
+      "adapter": {
+        "type": "Gff3TabixAdapter",
+        "gffGzLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/support/introhints.sorted.gff.gz"
+        },
+        "index": {
+          "location": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/support/introhints.sorted.gff.gz.tbi"
+          }
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearBasicDisplay",
+          "displayId": "introhints.sorted.gff-LinearBasicDisplay"
+        },
+        {
+          "type": "LinearArcDisplay",
+          "displayId": "introhints.sorted.gff-LinearArcDisplay"
+        }
+      ]
+    },
+    {
+      "type": "FeatureTrack",
+      "trackId": "miRNA_miranda.sorted.gff",
+      "name": "miRNA (Miranda)",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Putative miRNA binding sites predicted with Miranda.",
+      "category": [
+        "Supporting information"
+      ],
+      "adapter": {
+        "type": "Gff3TabixAdapter",
+        "gffGzLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/support/miRNA_miranda.sorted.gff.gz"
+        },
+        "index": {
+          "location": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/support/miRNA_miranda.sorted.gff.gz.tbi"
+          }
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearBasicDisplay",
+          "displayId": "miRNA_miranda.sorted.gff-LinearBasicDisplay"
+        },
+        {
+          "type": "LinearArcDisplay",
+          "displayId": "miRNA_miranda.sorted.gff-LinearArcDisplay"
+        }
+      ]
+    },
+    {
+      "type": "FeatureTrack",
+      "trackId": "miRNA_seeds.sorted.gff",
+      "name": "miRNA (seedVicious)",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Putative miRNA binding sites predicted with seedVicious.",
+      "category": [
+        "Supporting information"
+      ],
+      "adapter": {
+        "type": "Gff3TabixAdapter",
+        "gffGzLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/support/miRNA_seeds.sorted.gff.gz"
+        },
+        "index": {
+          "location": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/support/miRNA_seeds.sorted.gff.gz.tbi"
+          }
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearBasicDisplay",
+          "displayId": "miRNA_seeds.sorted.gff-LinearBasicDisplay"
+        },
+        {
+          "type": "LinearArcDisplay",
+          "displayId": "miRNA_seeds.sorted.gff-LinearArcDisplay"
+        }
+      ]
+    },
+    {
+      "type": "FeatureTrack",
+      "trackId": "proteins.sorted.gff",
+      "name": "Proteins von exonerate",
+      "assemblyNames": [
+        "Tcas5.2"
+      ],
+      "description": "Proteins from other inverterbrates fetched from SwissProt/UniProt.",
+      "category": [
+        "Supporting information"
+      ],
+      "adapter": {
+        "type": "Gff3TabixAdapter",
+        "gffGzLocation": {
+          "locationType": "UriLocation",
+          "uri": "https://ibeetle-base.uni-goettingen.de/download/support/proteins.sorted.gff.gz"
+        },
+        "index": {
+          "location": {
+            "locationType": "UriLocation",
+            "uri": "https://ibeetle-base.uni-goettingen.de/download/support/proteins.sorted.gff.gz.tbi"
+          }
+        }
+      },
+      "displays": [
+        {
+          "type": "LinearBasicDisplay",
+          "displayId": "proteins.sorted.gff-LinearBasicDisplay"
+        },
+        {
+          "type": "LinearArcDisplay",
+          "displayId": "proteins.sorted.gff-LinearArcDisplay"
+        }
+      ]
+    }
+  ],
+  "internetAccounts": [],
+  "aggregateTextSearchAdapters": [
+    {
+      "type": "TrixTextSearchAdapter",
+      "textSearchAdapterId": "Tcas5.2-index",
+      "ixFilePath": {
+        "locationType": "UriLocation",
+        "uri": "trix/Tcas5.2.ix"
+      },
+      "ixxFilePath": {
+        "locationType": "UriLocation",
+        "uri": "trix/Tcas5.2.ixx"
+      },
+      "metaFilePath": {
+        "locationType": "UriLocation",
+        "uri": "trix/Tcas5.2_meta.json"
+      },
+      "assemblyNames": [
+        "Tcas5.2"
+      ]
+    }
+  ],
+  "connections": [],
+  "defaultSession": {
+    "id": "tuk8Qxs5i",
+    "name": "Default",
+    "margin": 0,
+    "drawerWidth": 384,
+    "views": [
+      {
+        "id": "cavG6Bg3t",
+        "type": "LinearGenomeView",
+        "offsetPx": 256458,
+        "bpPerPx": 18.233124018838303,
+        "displayedRegions": [
+          {
+            "refName": "NC_007418.3",
+            "start": 0,
+            "end": 31381287,
+            "reversed": false,
+            "assemblyName": "Tcas5.2"
+          }
+        ],
+        "tracks": [
+          {
+            "id": "CULLqx1lCz",
+            "type": "FeatureTrack",
+            "configuration": "tcas5_ncbi.sorted.gff",
+            "displays": [
+              {
+                "id": "UXFuTAYYEM",
+                "type": "LinearBasicDisplay",
+                "height": 100,
+                "configuration": "tcas5_ncbi.sorted.gff-LinearBasicDisplay"
+              }
+            ]
+          },
+          {
+            "id": "mmlrVCowD",
+            "type": "FeatureTrack",
+            "configuration": "tcas5_iBeetle.sorted.gff",
+            "displays": [
+              {
+                "id": "ptwck8gP2I",
+                "type": "LinearBasicDisplay",
+                "height": 100,
+                "configuration": "tcas5_iBeetle.sorted.gff-LinearBasicDisplay"
+              }
+            ]
+          },
+          {
+            "id": "hjcR9M2sRG",
+            "type": "FeatureTrack",
+            "configuration": "ib.sorted.gff",
+            "displays": [
+              {
+                "id": "opHz2RuJv0",
+                "type": "LinearBasicDisplay",
+                "height": 100,
+                "configuration": "ib.sorted.gff-LinearBasicDisplay"
+              }
+            ]
+          }
+        ],
+        "hideHeader": false,
+        "hideHeaderOverview": false,
+        "hideNoTracksActive": false,
+        "trackSelectorType": "hierarchical",
+        "trackLabels": "overlapping",
+        "showCenterLine": false,
+        "showCytobandsSetting": true,
+        "showGridlines": true
+      }
+    ],
+    "widgets": {
+      "baseFeature": {
+        "finalizedFeatureData": {
+          "source": "RefSeq",
+          "type": "region",
+          "start": 0,
+          "end": 31381287,
+          "strand": 1,
+          "phase": 0,
+          "refName": "NC_007418.3",
+          "id": "NC_007418.3:1..31381287",
+          "dbxref": "taxon:7070",
+          "name": "LG3",
+          "collection-date": "Apr-2003",
+          "country": "USA: Kansas",
+          "gbkey": "Src",
+          "genome": "chromosome",
+          "linkage-group": "LG3",
+          "mol_type": "genomic DNA",
+          "strain": "Georgia GA2",
+          "uniqueId": "1832874188-offset-307083174",
+          "__jbrowsefmt": {}
+        },
+        "id": "baseFeature",
+        "type": "BaseFeatureWidget",
+        "view": "cavG6Bg3t",
+        "track": "CULLqx1lCz"
+      },
+      "hierarchicalTrackSelector": {
+        "id": "hierarchicalTrackSelector",
+        "type": "HierarchicalTrackSelectorWidget",
+        "collapsed": {
+          "tcas5_iBeetle.sorted.gff": true,
+          "ib.sorted.gff": true
+        },
+        "filterText": "",
+        "view": "cavG6Bg3t"
+      }
+    },
+    "activeWidgets": {
+      "hierarchicalTrackSelector": "hierarchicalTrackSelector"
+    },
+    "connectionInstances": [],
+    "sessionTracks": [],
+    "sessionConnections": [],
+    "sessionAssemblies": [],
+    "sessionPlugins": [],
+    "minimized": false,
+    "drawerPosition": "right"
+  }
+}
+

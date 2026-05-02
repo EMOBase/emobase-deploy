@@ -1,0 +1,38 @@
+services:
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    restart: always
+    environment:
+      - BASE_URL=/ibb/swagger-ui
+      - "URLS=[
+        { url: '$PUBLIC_SERVER/ibb/api/geneservice/v1/q/openapi/', name: 'Gene Service' },
+        { url: '$PUBLIC_SERVER/ibb/api/phenotypeservice/v1/q/openapi/', name: 'Phenotype Service' },
+        { url: '$PUBLIC_SERVER/ibb/api/publicationservice/v1/q/openapi/', name: 'Publication Service' },
+        { url: '$PUBLIC_SERVER/ibb/api/goannotationservice/v1/q/openapi/', name: 'GO Annotation Service' },
+        { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' }
+        ]" 
+
+  ontoscope:
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ibb-ontoscope:latest
+    restart: always
+
+  setup-jbrowse2:
+    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ibb-jbrowse2:2.0.0
+    command: ["/bin/sh", "/work/setup.sh"]
+    volumes:
+      - jbrowse2-data:/web/
+      - ./jbrowse2/tcas:/work/
+    profiles:
+      - setup
+      - update
+
+  setup-blast:
+    image: wurmlab/sequenceserver:latest
+    command: ["/bin/sh", "/work/create-db.sh"]
+    volumes:
+      - ${PUBLIC_DATA_DIR}/blast/:/data/
+      - ./blast/tcas/:/work/
+      - blast-data:/db/
+
+    profiles:
+      - setup
