@@ -9,7 +9,7 @@ Requirements:
 
 ```bash
 bash init.sh
-docker compose run --rm emobasegenomicsdbmigrate && docker compose run --rm emobasegenomicsesmigrate
+docker compose run --rm migrate-genomics-db && docker compose run --rm migrate-genomics-es
 docker compose up -d --wait
 docker compose run --rm setup-directus setup-blast setup-jbrowse2
 ```

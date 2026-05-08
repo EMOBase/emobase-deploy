@@ -327,9 +327,9 @@ services:
     profiles:
       - update
 
-  emobasegenomicsservice:
+  genomicsservice:
     image: ghcr.io/emobase/emobase-genomics:latest
-    container_name: emobasegenomicsservice
+    container_name: genomicsservice
     restart: unless-stopped
     command: ["api", "-c", "/app/config.yaml"]
     environment:
@@ -343,7 +343,7 @@ services:
       - EMOBASE_GENOMICS_KEYCLOAK__ISSUER=${PUBLIC_SERVER}/ibb/keycloak/realms/ibb
       - EMOBASE_GENOMICS_KEYCLOAK__REQUIRED_ROLE=default-roles-ibb
       - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
-      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=emobasegenomics
+      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=genomics
       - EMOBASE_GENOMICS_BLAST__DISPLAY_NAME=OGS3
       - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=blast-1
     volumes:
@@ -356,9 +356,9 @@ services:
       es:
         condition: service_healthy
 
-  emobasegenomicsworker-1:
+  genomicsworker-1:
     image: ghcr.io/emobase/emobase-genomics:latest
-    container_name: emobasegenomicsworker-1
+    container_name: genomicsworker-1
     restart: unless-stopped
     command: ["worker", "-c", "/app/config.yaml"]
     environment:
@@ -368,7 +368,7 @@ services:
       - EMOBASE_GENOMICS_MYSQL__USER=root
       - EMOBASE_GENOMICS_MYSQL__PASSWORD=${MYSQL_ROOT_PASSWORD}
       - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
-      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=emobasegenomics
+      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=genomics
       - EMOBASE_GENOMICS_BLAST__DISPLAY_NAME=OGS3
       - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=blast-1
     volumes:
@@ -382,9 +382,9 @@ services:
       es:
         condition: service_healthy
 
-  emobasegenomicsworker-2:
+  genomicsworker-2:
     image: ghcr.io/emobase/emobase-genomics:latest
-    container_name: emobasegenomicsworker-2
+    container_name: genomicsworker-2
     restart: unless-stopped
     command: ["worker", "-c", "/app/config.yaml"]
     environment:
@@ -394,7 +394,7 @@ services:
       - EMOBASE_GENOMICS_MYSQL__USER=root
       - EMOBASE_GENOMICS_MYSQL__PASSWORD=${MYSQL_ROOT_PASSWORD}
       - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
-      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=emobasegenomics
+      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=genomics
       - EMOBASE_GENOMICS_BLAST__DISPLAY_NAME=OGS3
       - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=blast-1
     volumes:
@@ -408,9 +408,9 @@ services:
       es:
         condition: service_healthy
 
-  emobasegenomicsdbmigrate:
+  migrate-genomics-db:
     image: ghcr.io/emobase/emobase-genomics:latest
-    container_name: emobasegenomicsdbmigrate
+    container_name: migrate-genomics-db
     restart: no
     command: ["db:migrate", "-c", "/app/config.yaml"]
     environment:
@@ -425,16 +425,16 @@ services:
     profiles:
       - update
 
-  emobasegenomicsesmigrate:
+  migrate-genomics-es:
     image: ghcr.io/emobase/emobase-genomics:latest
-    container_name: emobasegenomicsesmigrate
+    container_name: migrate-genomics-es
     restart: no
     command: ["es:migrate", "-c", "/app/config.yaml"]
     environment:
       - EMOBASE_GENOMICS_ENV_PREFIX=emobase_genomics
       - EMOBASE_GENOMICS_MAIN_SPECIES=${MAIN_SPECIES}
       - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
-      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=emobasegenomics
+      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=genomics
     depends_on:
       es:
         condition: service_healthy
