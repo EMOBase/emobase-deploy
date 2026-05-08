@@ -155,6 +155,8 @@ services:
     restart: always
     environment:
       - MYSQL_ROOT_PASSWORD
+    ports:
+      - 3308:3306
     volumes:
       - mysql-data:/var/lib/mysql
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -322,5 +324,119 @@ services:
       - geneservice.elasticsearch.delete-on-start.sequences=true
       - geneservice.elasticsearch.delete-on-start.synonyms=true
       - geneservice.elasticsearch.delete-on-start.orthology=true
+    profiles:
+      - update
+
+  emobasegenomicsservice:
+    image: ghcr.io/emobase/emobase-genomics:latest
+    container_name: emobasegenomicsservice
+    restart: unless-stopped
+    command: ["api", "-c", "/app/config.yaml"]
+    environment:
+      - EMOBASE_GENOMICS_ENV_PREFIX=emobase_genomics
+      - EMOBASE_GENOMICS_MAIN_SPECIES=${MAIN_SPECIES}
+      - EMOBASE_GENOMICS_MYSQL__HOST=mysql
+      - EMOBASE_GENOMICS_MYSQL__USER=root
+      - EMOBASE_GENOMICS_MYSQL__PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - EMOBASE_GENOMICS_KEYCLOAK__URL=http://keycloak:8080/ibb/keycloak
+      - EMOBASE_GENOMICS_KEYCLOAK__REALM=ibb
+      - EMOBASE_GENOMICS_KEYCLOAK__ISSUER=${PUBLIC_SERVER}/ibb/keycloak/realms/ibb
+      - EMOBASE_GENOMICS_KEYCLOAK__REQUIRED_ROLE=default-roles-ibb
+      - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
+      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=emobasegenomics
+      - EMOBASE_GENOMICS_BLAST__DISPLAY_NAME=OGS3
+      - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=blast-1
+    volumes:
+      - ${PUBLIC_DATA_DIR}/emobase-genomics:/app/public/uploads
+      - jbrowse2-data:/web/
+      - blast-data:/db/
+    depends_on:
+      mysql:
+        condition: service_healthy
+      es:
+        condition: service_healthy
+
+  emobasegenomicsworker-1:
+    image: ghcr.io/emobase/emobase-genomics:latest
+    container_name: emobasegenomicsworker-1
+    restart: unless-stopped
+    command: ["worker", "-c", "/app/config.yaml"]
+    environment:
+      - EMOBASE_GENOMICS_ENV_PREFIX=emobase_genomics
+      - EMOBASE_GENOMICS_MAIN_SPECIES=${MAIN_SPECIES}
+      - EMOBASE_GENOMICS_MYSQL__HOST=mysql
+      - EMOBASE_GENOMICS_MYSQL__USER=root
+      - EMOBASE_GENOMICS_MYSQL__PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
+      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=emobasegenomics
+      - EMOBASE_GENOMICS_BLAST__DISPLAY_NAME=OGS3
+      - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=blast-1
+    volumes:
+      - ${PUBLIC_DATA_DIR}/emobase-genomics:/app/public/uploads
+      - jbrowse2-data:/web/
+      - blast-data:/db/
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      mysql:
+        condition: service_healthy
+      es:
+        condition: service_healthy
+
+  emobasegenomicsworker-2:
+    image: ghcr.io/emobase/emobase-genomics:latest
+    container_name: emobasegenomicsworker-2
+    restart: unless-stopped
+    command: ["worker", "-c", "/app/config.yaml"]
+    environment:
+      - EMOBASE_GENOMICS_ENV_PREFIX=emobase_genomics
+      - EMOBASE_GENOMICS_MAIN_SPECIES=${MAIN_SPECIES}
+      - EMOBASE_GENOMICS_MYSQL__HOST=mysql
+      - EMOBASE_GENOMICS_MYSQL__USER=root
+      - EMOBASE_GENOMICS_MYSQL__PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
+      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=emobasegenomics
+      - EMOBASE_GENOMICS_BLAST__DISPLAY_NAME=OGS3
+      - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=blast-1
+    volumes:
+      - ${PUBLIC_DATA_DIR}/emobase-genomics:/app/public/uploads
+      - jbrowse2-data:/web/
+      - blast-data:/db/
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      mysql:
+        condition: service_healthy
+      es:
+        condition: service_healthy
+
+  emobasegenomicsdbmigrate:
+    image: ghcr.io/emobase/emobase-genomics:latest
+    container_name: emobasegenomicsdbmigrate
+    restart: no
+    command: ["db:migrate", "-c", "/app/config.yaml"]
+    environment:
+      - EMOBASE_GENOMICS_ENV_PREFIX=emobase_genomics
+      - EMOBASE_GENOMICS_MAIN_SPECIES=${MAIN_SPECIES}
+      - EMOBASE_GENOMICS_MYSQL__HOST=mysql
+      - EMOBASE_GENOMICS_MYSQL__USER=root
+      - EMOBASE_GENOMICS_MYSQL__PASSWORD=${MYSQL_ROOT_PASSWORD}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    profiles:
+      - update
+
+  emobasegenomicsesmigrate:
+    image: ghcr.io/emobase/emobase-genomics:latest
+    container_name: emobasegenomicsesmigrate
+    restart: no
+    command: ["es:migrate", "-c", "/app/config.yaml"]
+    environment:
+      - EMOBASE_GENOMICS_ENV_PREFIX=emobase_genomics
+      - EMOBASE_GENOMICS_MAIN_SPECIES=${MAIN_SPECIES}
+      - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
+      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=emobasegenomics
+    depends_on:
+      es:
+        condition: service_healthy
     profiles:
       - update
