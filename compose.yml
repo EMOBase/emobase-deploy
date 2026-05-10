@@ -155,8 +155,6 @@ services:
     restart: always
     environment:
       - MYSQL_ROOT_PASSWORD
-    ports:
-      - 3308:3306
     volumes:
       - mysql-data:/var/lib/mysql
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
