@@ -326,7 +326,7 @@ services:
       - update
 
   genomicsservice:
-    image: ghcr.io/emobase/emobase-genomics:latest
+    image: ghcr.io/emobase/emobase-genomics:v0.2.0
     container_name: genomicsservice
     restart: unless-stopped
     command: ["api", "-c", "/app/config.yaml"]
@@ -344,6 +344,8 @@ services:
       - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=${EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX:-genomics}
       - EMOBASE_GENOMICS_BLAST__DISPLAY_NAME=${EMOBASE_GENOMICS_BLAST__DISPLAY_NAME:-OGS3}
       - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=${EMOBASE_GENOMICS_BLAST__CONTAINER_NAME:-blast-1}
+      - EMOBASE_GENOMICS_UPLOADS__TUS_BASE_PATH=/ibb/api/genomicsservice/v1/uploads
+      - EMOBASE_GENOMICS_JBROWSE2__GENE_LINK_BASE=${EMOBASE_GENOMICS_JBROWSE2__GENE_LINK_BASE:-https://ibeetle-base.uni-goettingen.de/details/}
     volumes:
       - ${PUBLIC_DATA_DIR}/emobase-genomics:/app/public/uploads
       - jbrowse2-data:/web/
@@ -355,7 +357,7 @@ services:
         condition: service_healthy
 
   genomicsworker-1:
-    image: ghcr.io/emobase/emobase-genomics:latest
+    image: ghcr.io/emobase/emobase-genomics:v0.2.0
     container_name: genomicsworker-1
     restart: unless-stopped
     command: ["worker", "-c", "/app/config.yaml"]
@@ -368,7 +370,8 @@ services:
       - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
       - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=${EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX:-genomics}
       - EMOBASE_GENOMICS_BLAST__DISPLAY_NAME=${EMOBASE_GENOMICS_BLAST__DISPLAY_NAME:-OGS3}
-      - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=${EMOBASE_GENOMICS_BLAST__CONTAINER_NAME:-blast-1}
+      - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=${EMOBASE_GENOMICS_BLAST__CONTAINER_NAME:-emobase-deploy-blast-1}
+      - EMOBASE_GENOMICS_JBROWSE2__GENE_LINK_BASE=${EMOBASE_GENOMICS_JBROWSE2__GENE_LINK_BASE:-https://ibeetle-base.uni-goettingen.de/details/}
     volumes:
       - ${PUBLIC_DATA_DIR}/emobase-genomics:/app/public/uploads
       - jbrowse2-data:/web/
@@ -381,7 +384,7 @@ services:
         condition: service_healthy
 
   genomicsworker-2:
-    image: ghcr.io/emobase/emobase-genomics:latest
+    image: ghcr.io/emobase/emobase-genomics:v0.2.0
     container_name: genomicsworker-2
     restart: unless-stopped
     command: ["worker", "-c", "/app/config.yaml"]
@@ -394,7 +397,8 @@ services:
       - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
       - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=${EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX:-genomics}
       - EMOBASE_GENOMICS_BLAST__DISPLAY_NAME=${EMOBASE_GENOMICS_BLAST__DISPLAY_NAME:-OGS3}
-      - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=${EMOBASE_GENOMICS_BLAST__CONTAINER_NAME:-blast-1}
+      - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=${EMOBASE_GENOMICS_BLAST__CONTAINER_NAME:-emobase-deploy-blast-1}
+      - EMOBASE_GENOMICS_JBROWSE2__GENE_LINK_BASE=${EMOBASE_GENOMICS_JBROWSE2__GENE_LINK_BASE:-https://ibeetle-base.uni-goettingen.de/details/}
     volumes:
       - ${PUBLIC_DATA_DIR}/emobase-genomics:/app/public/uploads
       - jbrowse2-data:/web/
@@ -407,7 +411,7 @@ services:
         condition: service_healthy
 
   migrate-genomics-db:
-    image: ghcr.io/emobase/emobase-genomics:latest
+    image: ghcr.io/emobase/emobase-genomics:v0.2.0
     container_name: migrate-genomics-db
     restart: no
     command: ["db:migrate", "-c", "/app/config.yaml"]
@@ -424,7 +428,7 @@ services:
       - update
 
   migrate-genomics-es:
-    image: ghcr.io/emobase/emobase-genomics:latest
+    image: ghcr.io/emobase/emobase-genomics:v0.2.0
     container_name: migrate-genomics-es
     restart: no
     command: ["es:migrate", "-c", "/app/config.yaml"]
