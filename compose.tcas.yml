@@ -11,6 +11,12 @@ services:
         { url: '$PUBLIC_SERVER/ibb/api/goannotationservice/v1/q/openapi/', name: 'GO Annotation Service' },
         { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' }
         ]" 
+  oba:
+    image: openjdk:7
+    restart: always
+    volumes:
+      - ./oba/:/srv/
+    command: ["java", "-jar", "/srv/oba-server-1.4-SNAPSHOT.jar"]
 
   ontoscope:
     image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ibb-ontoscope:latest
