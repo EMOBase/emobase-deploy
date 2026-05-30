@@ -44,7 +44,7 @@ collections:
       preview_url: null
       singleton: false
       sort: 4
-      sort_field: null
+      sort_field: sort
       translations: null
       unarchive_value: null
       versioning: false
@@ -68,7 +68,7 @@ collections:
       preview_url: null
       singleton: false
       sort: 8
-      sort_field: null
+      sort_field: sort
       translations: null
       unarchive_value: null
       versioning: false
@@ -116,7 +116,7 @@ collections:
       preview_url: null
       singleton: false
       sort: 6
-      sort_field: null
+      sort_field: sort
       translations: null
       unarchive_value: null
       versioning: false
@@ -164,7 +164,7 @@ collections:
       preview_url: null
       singleton: false
       sort: 7
-      sort_field: null
+      sort_field: sort
       translations: null
       unarchive_value: null
       versioning: false
@@ -355,6 +355,46 @@ fields:
       has_auto_increment: false
       foreign_key_table: null
       foreign_key_column: null
+  - collection: examples
+    field: sort
+    type: integer
+    meta:
+      collection: examples
+      conditions: null
+      display: null
+      display_options: null
+      field: sort
+      group: null
+      hidden: true
+      interface: sort
+      note: null
+      options: null
+      readonly: true
+      required: false
+      searchable: true
+      sort: 3
+      special: null
+      translations: null
+      validation: null
+      validation_message: null
+      width: full
+    schema:
+      name: sort
+      table: examples
+      data_type: int unsigned
+      default_value: null
+      max_length: null
+      numeric_precision: 10
+      numeric_scale: 0
+      is_nullable: true
+      is_unique: false
+      is_indexed: false
+      is_primary_key: false
+      is_generated: false
+      generation_expression: null
+      has_auto_increment: false
+      foreign_key_table: null
+      foreign_key_column: null
   - collection: gene_link_templates
     field: id
     type: integer
@@ -467,6 +507,46 @@ fields:
       max_length: 255
       numeric_precision: null
       numeric_scale: null
+      is_nullable: true
+      is_unique: false
+      is_indexed: false
+      is_primary_key: false
+      is_generated: false
+      generation_expression: null
+      has_auto_increment: false
+      foreign_key_table: null
+      foreign_key_column: null
+  - collection: gene_link_templates
+    field: sort
+    type: integer
+    meta:
+      collection: gene_link_templates
+      conditions: null
+      display: null
+      display_options: null
+      field: sort
+      group: null
+      hidden: true
+      interface: sort
+      note: null
+      options: null
+      readonly: true
+      required: false
+      searchable: true
+      sort: 4
+      special: null
+      translations: null
+      validation: null
+      validation_message: null
+      width: full
+    schema:
+      name: sort
+      table: gene_link_templates
+      data_type: int unsigned
+      default_value: null
+      max_length: null
+      numeric_precision: 10
+      numeric_scale: 0
       is_nullable: true
       is_unique: false
       is_indexed: false
@@ -878,6 +958,46 @@ fields:
       has_auto_increment: false
       foreign_key_table: resource_sections
       foreign_key_column: id
+  - collection: links
+    field: sort
+    type: integer
+    meta:
+      collection: links
+      conditions: null
+      display: null
+      display_options: null
+      field: sort
+      group: null
+      hidden: true
+      interface: sort
+      note: null
+      options: null
+      readonly: true
+      required: false
+      searchable: true
+      sort: 8
+      special: null
+      translations: null
+      validation: null
+      validation_message: null
+      width: full
+    schema:
+      name: sort
+      table: links
+      data_type: int unsigned
+      default_value: null
+      max_length: null
+      numeric_precision: 10
+      numeric_scale: 0
+      is_nullable: true
+      is_unique: false
+      is_indexed: false
+      is_primary_key: false
+      is_generated: false
+      generation_expression: null
+      has_auto_increment: false
+      foreign_key_table: null
+      foreign_key_column: null
   - collection: logo
     field: id
     type: integer
@@ -1054,7 +1174,7 @@ fields:
       interface: list-o2m
       note: null
       options:
-        sort: null
+        sort: sort
       readonly: false
       required: false
       searchable: true
@@ -1065,6 +1185,46 @@ fields:
       validation: null
       validation_message: null
       width: full
+  - collection: resource_sections
+    field: sort
+    type: integer
+    meta:
+      collection: resource_sections
+      conditions: null
+      display: null
+      display_options: null
+      field: sort
+      group: null
+      hidden: true
+      interface: sort
+      note: null
+      options: null
+      readonly: true
+      required: false
+      searchable: true
+      sort: 4
+      special: null
+      translations: null
+      validation: null
+      validation_message: null
+      width: full
+    schema:
+      name: sort
+      table: resource_sections
+      data_type: int unsigned
+      default_value: null
+      max_length: null
+      numeric_precision: 10
+      numeric_scale: 0
+      is_nullable: true
+      is_unique: false
+      is_indexed: false
+      is_primary_key: false
+      is_generated: false
+      generation_expression: null
+      has_auto_increment: false
+      foreign_key_table: null
+      foreign_key_column: null
   - collection: site_info
     field: id
     type: integer
@@ -1409,7 +1569,7 @@ relations:
       one_collection_field: null
       one_deselect_action: delete
       one_field: links
-      sort_field: null
+      sort_field: sort
     schema:
       table: links
       column: resource_section_id
