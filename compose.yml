@@ -75,18 +75,6 @@ services:
       timeout: 10s
       retries: 18
 
-  geneservice:
-    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/geneservice:2.0.0-dev
-    restart: always
-    depends_on:
-      es:
-        condition: service_healthy
-    volumes:
-      - ${PUBLIC_DATA_DIR}:/data:ro
-    environment:
-      - GENESERVICE_MAIN_SPECIES=${MAIN_SPECIES}
-      - MP_OPENAPI_SERVERS=$PUBLIC_SERVER/ibb/api/geneservice/v1/
-
   ontologyservice:
     image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ontologyservice:1.5.0
     restart: always
@@ -285,48 +273,17 @@ services:
     profiles:
       - setup
 
-  setup-blast:
-    image: wurmlab/sequenceserver:latest
-    command: ["/bin/sh", "/work/create-db.sh", "${ASSEMBLY_NAME}"]
-    environment:
-      - ASSEMBLY_NAME
-    volumes:
-      - ${PUBLIC_DATA_DIR}/genomic/${MAIN_SPECIES}/:/data/
-      - ./blast/:/work/
-      - blast-data:/db/
-
-    profiles:
-      - setup
-      - update
-
-  setup-jbrowse2:
-    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ibb-jbrowse2:2.0.0
-    command: ["/bin/sh", "/work/setup.sh"]
+  setup-jbrowse2-web:
+    image: ghcr.io/emobase/emobase-genomics:v0.4.1
+    entrypoint: []
+    command: ["jbrowse", "create", "/web"]
     volumes:
       - jbrowse2-data:/web/
-      - ${PUBLIC_DATA_DIR}/genomic/${MAIN_SPECIES}/:/data/
-      - ./jbrowse2/:/work/
     profiles:
       - setup
-      - update
-
-  update-geneservice:
-    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/geneservice:2.0.0-dev
-    depends_on:
-      es:
-        condition: service_healthy
-    volumes:
-      - ${PUBLIC_DATA_DIR}:/data:ro
-    environment:
-      - geneservice.elasticsearch.delete-on-start.genomiclocations=true
-      - geneservice.elasticsearch.delete-on-start.sequences=true
-      - geneservice.elasticsearch.delete-on-start.synonyms=true
-      - geneservice.elasticsearch.delete-on-start.orthology=true
-    profiles:
-      - update
 
   genomicsservice:
-    image: ghcr.io/emobase/emobase-genomics:v0.4.0
+    image: ghcr.io/emobase/emobase-genomics:v0.4.1
     container_name: genomicsservice
     restart: unless-stopped
     command: ["api", "-c", "/app/config.yaml"]
@@ -357,7 +314,7 @@ services:
         condition: service_healthy
 
   genomicsworker-1:
-    image: ghcr.io/emobase/emobase-genomics:v0.4.0
+    image: ghcr.io/emobase/emobase-genomics:v0.4.1
     container_name: genomicsworker-1
     restart: unless-stopped
     command: ["worker", "-c", "/app/config.yaml"]
@@ -384,7 +341,7 @@ services:
         condition: service_healthy
 
   genomicsworker-2:
-    image: ghcr.io/emobase/emobase-genomics:v0.4.0
+    image: ghcr.io/emobase/emobase-genomics:v0.4.1
     container_name: genomicsworker-2
     restart: unless-stopped
     command: ["worker", "-c", "/app/config.yaml"]
@@ -411,7 +368,7 @@ services:
         condition: service_healthy
 
   migrate-genomics-db:
-    image: ghcr.io/emobase/emobase-genomics:v0.4.0
+    image: ghcr.io/emobase/emobase-genomics:v0.4.1
     container_name: migrate-genomics-db
     restart: no
     command: ["db:migrate", "-c", "/app/config.yaml"]
@@ -428,7 +385,7 @@ services:
       - update
 
   migrate-genomics-es:
-    image: ghcr.io/emobase/emobase-genomics:v0.4.0
+    image: ghcr.io/emobase/emobase-genomics:v0.4.1
     container_name: migrate-genomics-es
     restart: no
     command: ["es:migrate", "-c", "/app/config.yaml"]
