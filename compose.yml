@@ -274,7 +274,7 @@ services:
       - setup
 
   setup-jbrowse2-web:
-    image: ghcr.io/emobase/emobase-genomics:v0.4.1
+    image: ghcr.io/emobase/emobase-genomics:v0.4.2
     entrypoint: []
     command: ["jbrowse", "create", "/web"]
     volumes:
@@ -283,7 +283,7 @@ services:
       - setup
 
   genomicsservice:
-    image: ghcr.io/emobase/emobase-genomics:v0.4.1
+    image: ghcr.io/emobase/emobase-genomics:v0.4.2
     container_name: genomicsservice
     restart: unless-stopped
     command: ["api", "-c", "/app/config.yaml"]
@@ -314,7 +314,7 @@ services:
         condition: service_healthy
 
   genomicsworker-1:
-    image: ghcr.io/emobase/emobase-genomics:v0.4.1
+    image: ghcr.io/emobase/emobase-genomics:v0.4.2
     container_name: genomicsworker-1
     restart: unless-stopped
     command: ["worker", "-c", "/app/config.yaml"]
@@ -341,7 +341,7 @@ services:
         condition: service_healthy
 
   genomicsworker-2:
-    image: ghcr.io/emobase/emobase-genomics:v0.4.1
+    image: ghcr.io/emobase/emobase-genomics:v0.4.2
     container_name: genomicsworker-2
     restart: unless-stopped
     command: ["worker", "-c", "/app/config.yaml"]
@@ -368,7 +368,7 @@ services:
         condition: service_healthy
 
   migrate-genomics-db:
-    image: ghcr.io/emobase/emobase-genomics:v0.4.1
+    image: ghcr.io/emobase/emobase-genomics:v0.4.2
     container_name: migrate-genomics-db
     restart: no
     command: ["db:migrate", "-c", "/app/config.yaml"]
@@ -385,7 +385,7 @@ services:
       - update
 
   migrate-genomics-es:
-    image: ghcr.io/emobase/emobase-genomics:v0.4.1
+    image: ghcr.io/emobase/emobase-genomics:v0.4.2
     container_name: migrate-genomics-es
     restart: no
     command: ["es:migrate", "-c", "/app/config.yaml"]
