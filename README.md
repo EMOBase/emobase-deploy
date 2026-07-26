@@ -9,16 +9,10 @@ Requirements:
 
 ```bash
 bash init.sh
-<<<<<<< HEAD
 docker compose run --rm migrate-genomics-db
 docker compose run --rm migrate-genomics-es
 docker compose run --rm setup-directus
 docker compose run --rm setup-jbrowse2-web
-=======
-docker compose run --rm setup-directus
-docker compose run --rm setup-blast
-docker compose run --rm setup-jbrowse2
->>>>>>> main
 docker compose up -d --wait
 ```
 
