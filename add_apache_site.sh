@@ -25,9 +25,10 @@
 
 set -eo pipefail
 
-DOMAIN="otau.emobase.uni-goettingen.de"
-PORT="9094"
-CONF="/etc/apache2/sites-available/otau.conf"
+SPECIES="tdom"
+DOMAIN="${SPECIES}.emobase.uni-goettingen.de"
+PORT="9096"
+CONF="/etc/apache2/sites-available/${SPECIES}.conf"
 
 echo "Creating Apache configuration..."
 
@@ -45,8 +46,8 @@ cat > "$CONF" <<EOF
     ProxyPass / http://localhost:${PORT}/
     ProxyPassReverse / http://localhost:${PORT}/
 
-    ErrorLog \${APACHE_LOG_DIR}/otau_error.log
-    CustomLog \${APACHE_LOG_DIR}/otau_access.log combined
+    ErrorLog \${APACHE_LOG_DIR}/${SPECIES}_error.log
+    CustomLog \${APACHE_LOG_DIR}/${SPECIES}_access.log combined
 </VirtualHost>
 EOF
 
@@ -60,7 +61,7 @@ echo "Starting Apache..."
 systemctl start apache2
 
 echo "Enabling site..."
-a2ensite otau.conf
+a2ensite ${SPECIES}.conf
 
 echo "Testing Apache configuration..."
 apache2ctl configtest
