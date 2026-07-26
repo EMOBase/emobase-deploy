@@ -9,9 +9,11 @@ Requirements:
 
 ```bash
 bash init.sh
-docker compose run --rm migrate-genomics-db && docker compose run --rm migrate-genomics-es
+docker compose run --rm migrate-genomics-db
+docker compose run --rm migrate-genomics-es
+docker compose run --rm setup-directus
+docker compose run --rm setup-jbrowse2-web
 docker compose up -d --wait
-docker compose run --rm setup-directus setup-blast setup-jbrowse2
 ```
 
 For Tcas, replace `docker compose` with `docker compose -f compose.yml -f compose.tcas.yml`
