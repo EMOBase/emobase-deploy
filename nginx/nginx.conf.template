@@ -39,11 +39,8 @@ http {
       add_header Access-Control-Allow-Origin *;
     }
 
-    # BLAST is served by the central emobase-portal deployment. Proxy it
-    # through this host so the browser stays on one origin: the
-    # SequenceServer session cookie is then first-party and the iframe form
-    # submission does not depend on third-party/same-site cookie behaviour.
-    # JBrowse2 is used via the portal's public URL and is not proxied.
+    # Proxy BLAST through this origin so SequenceServer's session cookie is
+    # first-party.
     location /ibb/blast/ {
       proxy_pass ${PORTAL_SERVER}/ibb/blast/;
       proxy_set_header Host $http_host;
