@@ -25,9 +25,11 @@ http {
     resolver 127.0.0.11 valid=30s;
 
     # Auth.js/Keycloak/Directus cookies can exceed nginx's 8k default header
-    # buffer, especially after several login attempts.
-    client_header_buffer_size 16k;
-    large_client_header_buffers 4 32k;
+    # buffer. Keep the initial buffer small; large headers use the on-demand
+    # large buffers.
+    client_header_buffer_size 4k;
+    large_client_header_buffers 4 16k;
+    client_header_timeout 10s;
 
     location / {
       # Using the variable trick, nginx will now start even if the upstream host is not yet reachable.
