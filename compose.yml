@@ -15,7 +15,7 @@ services:
       - ${HTTP_PORT:-80}:80
     environment:
       # Substituted into nginx.conf.template by the image entrypoint.
-      - GENOMICS_SERVER=${GENOMICS_SERVER}
+      - PORTAL_SERVER=${PORTAL_SERVER}
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
     volumes:
       - ./nginx/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
@@ -29,13 +29,13 @@ services:
       - PUBLIC_MAIN_SPECIES=${MAIN_SPECIES}
       - PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
       # Genomics, JBrowse2 and BLAST are served by the portal deployment.
-      - PUBLIC_API_GENOMICS_SERVICE=${GENOMICS_SERVER}/ibb/api/genomicsservice/v1
+      - PUBLIC_API_GENOMICS_SERVICE=${PORTAL_SERVER}/ibb/api/genomicsservice/v1
       # BLAST is proxied through this deployment's nginx so its iframe stays
       # same-origin (SequenceServer's CSRF cookie must be first-party).
       - PUBLIC_UI_PAGE_BLAST=${PUBLIC_SERVER}/ibb/blast/
       # JBrowse2 is served by the portal and needs no session cookie, so it
       # uses the public URL directly.
-      - PUBLIC_UI_PAGE_GENOMEBROWSER=${GENOMICS_SERVER}/ibb/jbrowse2/
+      - PUBLIC_UI_PAGE_GENOMEBROWSER=${PORTAL_SERVER}/ibb/jbrowse2/
       - PUBLIC_DIRECTUS_URL=${PUBLIC_SERVER}/ibb/directus/
       - AUTH_SECRET=${SSR_OIDC_SESSION_SECRET}
       - AUTH_TRUST_HOST=true
@@ -50,7 +50,7 @@ services:
     environment:
       - BASE_URL=/ibb/swagger-ui
       - "URLS=[
-        { url: '${GENOMICS_SERVER}/ibb/api/genomicsservice/v1/docs', name: 'Genomics Service' },
+        { url: '${PORTAL_SERVER}/ibb/api/genomicsservice/v1/docs', name: 'Genomics Service' },
         { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' }
         ]" 
 

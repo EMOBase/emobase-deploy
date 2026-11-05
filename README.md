@@ -45,12 +45,12 @@ docker compose -f compose.yml -f compose.local.yml up -d --build
 
 This single-species stack does not run `emobase-genomics`, JBrowse2 or BLAST.
 Those are provided by the multi-species portal deployment. Set
-`GENOMICS_SERVER` in `.env` to the portal's public origin (no trailing slash),
+`PORTAL_SERVER` in `.env` to the portal's public origin (no trailing slash),
 for example `https://portal.example.com`. The web UI uses it for the genomics
 API and for the public JBrowse2 URL.
 
 `nginx/nginx.conf.template` is rendered by the nginx image entrypoint at
-container start, substituting `GENOMICS_SERVER`. Only `/ibb/blast/` is proxied
+container start, substituting `PORTAL_SERVER`. Only `/ibb/blast/` is proxied
 through this deployment's own origin, because SequenceServer's CSRF session
 cookie must be first-party. JBrowse2 needs no session cookie, so the web UI
 loads it directly from the portal.
@@ -59,14 +59,14 @@ The compose file therefore sets:
 
 ```text
 PUBLIC_UI_PAGE_BLAST         = ${PUBLIC_SERVER}/ibb/blast/        (proxied)
-PUBLIC_UI_PAGE_GENOMEBROWSER = ${GENOMICS_SERVER}/ibb/jbrowse2/   (portal)
+PUBLIC_UI_PAGE_GENOMEBROWSER = ${PORTAL_SERVER}/ibb/jbrowse2/     (portal)
 ```
 
 Local example:
 
 ```env
 PUBLIC_SERVER=http://127.0.0.1:9090
-GENOMICS_SERVER=http://192.168.6.17:9091
+PORTAL_SERVER=http://192.168.6.17:9091
 ```
 
 `PUBLIC_SERVER` must match the host you use in the browser, because the BLAST
@@ -77,7 +77,7 @@ Production example:
 
 ```env
 PUBLIC_SERVER=https://ptep.emobase.uni-goettingen.de
-GENOMICS_SERVER=https://emobase.uni-goettingen.de
+PORTAL_SERVER=https://emobase.uni-goettingen.de
 ```
 
 The portal must contain the assemblies for `MAIN_SPECIES`. Note that the

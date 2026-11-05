@@ -7,7 +7,7 @@ FORCE=false
 YES=false
 MAIN_SPECIES=
 PUBLIC_SERVER=
-GENOMICS_SERVER=
+PORTAL_SERVER=
 COCO_USERNAME=
 CONTAINER_PREFIX=
 
@@ -55,8 +55,8 @@ while [[ $# -gt 0 ]]; do
       PUBLIC_SERVER="$2"
       shift 2
       ;;
-    --genomics-server)
-      GENOMICS_SERVER="$2"
+    --portal-server)
+      PORTAL_SERVER="$2"
       shift 2
       ;;
     --container-prefix)
@@ -76,10 +76,10 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
-      echo "Usage: $0 [-f|--force] [-p|--print] [-y|--yes] [-s|--species SPECIES] [--public-server URL] [--genomics-server URL] [--container-prefix PREFIX]"
+      echo "Usage: $0 [-f|--force] [-p|--print] [-y|--yes] [-s|--species SPECIES] [--public-server URL] [--portal-server URL] [--container-prefix PREFIX]"
       echo "  -s, --species       4-letter species code (e.g. Tcas, Dmel, Ptep)"
       echo "  --public-server     Public server address (default: ${DEFAULT_PUBLIC_SERVER})"
-      echo "  --genomics-server   Portal origin serving genomics, JBrowse2 and BLAST"
+      echo "  --portal-server     Portal origin serving genomics, JBrowse2 and BLAST"
       echo "  --container-prefix  Prefix for docker compose containers (default: current directory)"
       echo "  -f, --force         Overwrite existing .env file"
       echo "  -y, --yes           Use default values without prompting"
@@ -111,12 +111,12 @@ if [[ -z "$PUBLIC_SERVER" ]]; then
   fi
 fi
 
-if [[ -z "$GENOMICS_SERVER" ]]; then
+if [[ -z "$PORTAL_SERVER" ]]; then
   if [[ "$YES" == true ]]; then
-    fatal "GENOMICS_SERVER is required; pass --genomics-server URL"
+    fatal "PORTAL_SERVER is required; pass --portal-server URL"
   fi
-  read -rp "🌐 Enter portal origin serving genomics/JBrowse2/BLAST: " GENOMICS_SERVER
-  [[ -z "$GENOMICS_SERVER" ]] && fatal "GENOMICS_SERVER cannot be empty"
+  read -rp "🌐 Enter portal origin serving genomics/JBrowse2/BLAST: " PORTAL_SERVER
+  [[ -z "$PORTAL_SERVER" ]] && fatal "PORTAL_SERVER cannot be empty"
 fi
 
 if [[ -z "$COCO_USERNAME" ]]; then
@@ -138,7 +138,7 @@ EMOBASE_WEB_IMAGE=ghcr.io/emobase/emobase-web:dev
 PUBLIC_SERVER=${PUBLIC_SERVER}
 
 # Public origin of the portal deployment that serves genomics, JBrowse2 and BLAST
-GENOMICS_SERVER=${GENOMICS_SERVER}
+PORTAL_SERVER=${PORTAL_SERVER}
 
 # The port to access the app from localhost
 HTTP_PORT=9090

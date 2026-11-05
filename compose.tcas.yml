@@ -5,7 +5,7 @@ services:
     environment:
       - BASE_URL=/ibb/swagger-ui
       - "URLS=[
-        { url: '${GENOMICS_SERVER}/ibb/api/genomicsservice/v1/docs', name: 'Genomics Service' },
+        { url: '${PORTAL_SERVER}/ibb/api/genomicsservice/v1/docs', name: 'Genomics Service' },
         { url: '$PUBLIC_SERVER/ibb/api/phenotypeservice/v1/q/openapi/', name: 'Phenotype Service' },
         { url: '$PUBLIC_SERVER/ibb/api/publicationservice/v1/q/openapi/', name: 'Publication Service' },
         { url: '$PUBLIC_SERVER/ibb/api/goannotationservice/v1/q/openapi/', name: 'GO Annotation Service' },
