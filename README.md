@@ -8,17 +8,6 @@ Requirements:
 - docker compose
 - a public domain with SSL
 
-Application images are published by GitHub Actions to GitHub Container
-Registry, so only this repository is needed on the deployment server — no
-sibling `emobase-web` source tree.
-
-| Variable | Default |
-| --- | --- |
-| `EMOBASE_WEB_IMAGE` | `ghcr.io/emobase/emobase-web:dev` |
-
-Pin a release tag (`vX.Y.Z`) or an immutable `sha-<short>` tag in `.env` for
-production.
-
 ## Start the services
 
 ```bash
@@ -41,47 +30,9 @@ docker compose -f compose.yml -f compose.local.yml up -d --build
 `compose.local.yml` is not loaded automatically, so a plain
 `docker compose up -d` always uses the published image.
 
-## Genomics, JBrowse2 and BLAST
+## Notes
 
-This single-species stack does not run `emobase-genomics`, JBrowse2 or BLAST.
-Those are provided by the multi-species portal deployment. Set
-`PORTAL_SERVER` in `.env` to the portal's public origin (no trailing slash),
-for example `https://portal.example.com`. The web UI uses it for the genomics
-API and for the public JBrowse2 URL.
-
-`nginx/nginx.conf.template` is rendered by the nginx image entrypoint at
-container start, substituting `PORTAL_SERVER`. Only `/ibb/blast/` is proxied
-through this deployment's own origin, because SequenceServer's CSRF session
-cookie must be first-party. JBrowse2 needs no session cookie, so the web UI
-loads it directly from the portal.
-
-The compose file therefore sets:
-
-```text
-PUBLIC_UI_PAGE_BLAST         = ${PUBLIC_SERVER}/ibb/blast/        (proxied)
-PUBLIC_UI_PAGE_GENOMEBROWSER = ${PORTAL_SERVER}/ibb/jbrowse2/     (portal)
-```
-
-Local example:
-
-```env
-PUBLIC_SERVER=http://127.0.0.1:9090
-PORTAL_SERVER=http://192.168.6.17:9091
-```
-
-`PUBLIC_SERVER` must match the host you use in the browser, because the BLAST
-iframe uses it as an absolute URL. Use `http://localhost:9090` or
-`http://127.0.0.1:9090` consistently.
-
-Production example:
-
-```env
-PUBLIC_SERVER=https://ptep.emobase.uni-goettingen.de
-PORTAL_SERVER=https://emobase.uni-goettingen.de
-```
-
-The portal must contain the assemblies for `MAIN_SPECIES`. Note that the
-portal's `/public/versions` endpoint is global: until species filtering is
+The portal's `/public/versions` endpoint is global: until species filtering is
 added, the version selector may also list READY versions that belong to other
 species hosted on the same portal.
 
