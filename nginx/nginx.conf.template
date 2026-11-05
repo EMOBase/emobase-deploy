@@ -38,6 +38,27 @@ http {
       autoindex on;
       add_header Access-Control-Allow-Origin *;
     }
+
+    # BLAST and JBrowse2 are served by the central emobase-portal deployment.
+    # Proxy them through this host so the browser stays on one origin: the
+    # SequenceServer session cookie is then first-party and the iframe form
+    # submission does not depend on third-party/same-site cookie behaviour.
+    location /ibb/blast/ {
+      proxy_pass ${GENOMICS_SERVER}/ibb/blast/;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-Host $forwarded_host;
+      proxy_set_header X-Forwarded-Proto $forwarded_proto;
+      proxy_read_timeout 180s;
+      proxy_ssl_server_name on;
+    }
+
+    location /ibb/jbrowse2/ {
+      proxy_pass ${GENOMICS_SERVER}/ibb/jbrowse2/;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-Host $forwarded_host;
+      proxy_set_header X-Forwarded-Proto $forwarded_proto;
+      proxy_ssl_server_name on;
+    }
     # # Uncomment to allow access to elasticsearch from outside, useful for data backup or restore.
     # # Very insecure so turn off when not needed
     # location /ibb/es {

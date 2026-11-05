@@ -47,7 +47,28 @@ This single-species stack does not run `emobase-genomics`, JBrowse2 or BLAST.
 Those are provided by the multi-species portal deployment. Set
 `GENOMICS_SERVER` in `.env` to the portal's public origin (no trailing slash),
 for example `https://portal.example.com`. The web UI uses it for the genomics
-API, JBrowse2 and BLAST links.
+API, and nginx proxies the portal's `/ibb/blast/` and `/ibb/jbrowse2/` through
+this deployment's own origin.
+
+`nginx/nginx.conf.template` is rendered by the nginx image entrypoint at
+container start, substituting `GENOMICS_SERVER`. Proxying BLAST and JBrowse
+this way keeps the browser on one origin: the SequenceServer session cookie is
+first-party, and the iframe form submission does not depend on third-party or
+same-site cookie behaviour.
+
+Local example:
+
+```env
+PUBLIC_SERVER=http://localhost:9090
+GENOMICS_SERVER=http://192.168.6.17:9091
+```
+
+Production example:
+
+```env
+PUBLIC_SERVER=https://ptep.emobase.uni-goettingen.de
+GENOMICS_SERVER=https://emobase.uni-goettingen.de
+```
 
 The portal must contain the assemblies for `MAIN_SPECIES`. Note that the
 portal's `/public/versions` endpoint is global: until species filtering is
