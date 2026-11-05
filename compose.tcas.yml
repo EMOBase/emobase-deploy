@@ -5,7 +5,7 @@ services:
     environment:
       - BASE_URL=/ibb/swagger-ui
       - "URLS=[
-        { url: '$PUBLIC_SERVER/ibb/api/geneservice/v1/q/openapi/', name: 'Gene Service' },
+        { url: '${GENOMICS_SERVER}/ibb/api/genomicsservice/v1/docs', name: 'Genomics Service' },
         { url: '$PUBLIC_SERVER/ibb/api/phenotypeservice/v1/q/openapi/', name: 'Phenotype Service' },
         { url: '$PUBLIC_SERVER/ibb/api/publicationservice/v1/q/openapi/', name: 'Publication Service' },
         { url: '$PUBLIC_SERVER/ibb/api/goannotationservice/v1/q/openapi/', name: 'GO Annotation Service' },
@@ -21,38 +21,3 @@ services:
   ontoscope:
     image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ibb-ontoscope:latest
     restart: always
-
-  blast:
-    # The current version is 3.0.1 but they have not provided the docker image with this tag.
-    image: wurmlab/sequenceserver:latest
-    tty: true
-    mem_limit: 1g
-    restart: always
-    # Fix the redirection link after a job is submitted in BLAST page.
-    command: ["sh", "-c", "sed -i 's|redirect to(\"/#{job.id}\")|redirect to(\"'$${PUBLIC_SERVER}'/ibb/blast/#{job.id}\")|g' /sequenceserver/lib/sequenceserver/routes.rb; sequenceserver"]
-    environment:
-      - PUBLIC_SERVER
-    volumes:
-      - blast-data:/db/
-      - ./blast/tcas/links.rb:/sequenceserver/lib/sequenceserver/links.rb
-
-  setup-jbrowse2:
-    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/ibb-jbrowse2:2.0.0
-    command: ["/bin/sh", "/work/setup.sh"]
-    volumes:
-      - jbrowse2-data:/web/
-      - ./jbrowse2/tcas:/work/
-    profiles:
-      - setup
-      - update
-
-  setup-blast:
-    image: wurmlab/sequenceserver:latest
-    command: ["/bin/sh", "/work/create-db.sh"]
-    volumes:
-      - ${PUBLIC_DATA_DIR}/blast/:/data/
-      - ./blast/tcas/:/work/
-      - blast-data:/db/
-
-    profiles:
-      - setup

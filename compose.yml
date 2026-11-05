@@ -3,10 +3,6 @@ volumes:
     driver: local
   mysql-data:
     driver: local
-  blast-data:
-    driver: local
-  jbrowse2-data:
-    driver: local
   directus-data:
     driver: local
 
@@ -20,16 +16,18 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ${PUBLIC_DATA_DIR}:/download/:ro
-      - jbrowse2-data:/ibb/jbrowse2/:ro
 
   fe:
-    image: ghcr.io/emobase/emobase-web:dev
+    image: ${EMOBASE_WEB_IMAGE:-ghcr.io/emobase/emobase-web:dev}
     restart: always
     environment:
+      - PUBLIC_SERVER=${PUBLIC_SERVER}
       - PUBLIC_MAIN_SPECIES=${MAIN_SPECIES}
       - PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
-      - PUBLIC_UI_PAGE_GENOMEBROWSER=${PUBLIC_SERVER}/ibb/jbrowse2/
-      - PUBLIC_UI_PAGE_BLAST=${PUBLIC_SERVER}/ibb/blast/
+      # Genomics, JBrowse2 and BLAST are served by the portal deployment.
+      - PUBLIC_API_GENOMICS_SERVICE=${GENOMICS_SERVER}/ibb/api/genomicsservice/v1
+      - PUBLIC_UI_PAGE_GENOMEBROWSER=${GENOMICS_SERVER}/ibb/jbrowse2/
+      - PUBLIC_UI_PAGE_BLAST=${GENOMICS_SERVER}/ibb/blast/
       - PUBLIC_DIRECTUS_URL=${PUBLIC_SERVER}/ibb/directus/
       - AUTH_SECRET=${SSR_OIDC_SESSION_SECRET}
       - AUTH_TRUST_HOST=true
@@ -44,7 +42,7 @@ services:
     environment:
       - BASE_URL=/ibb/swagger-ui
       - "URLS=[
-        { url: '$PUBLIC_SERVER/ibb/api/geneservice/v1/q/openapi/', name: 'Gene Service' },
+        { url: '${GENOMICS_SERVER}/ibb/api/genomicsservice/v1/docs', name: 'Genomics Service' },
         { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' }
         ]" 
 
@@ -240,19 +238,6 @@ services:
       timeout: 10s
       retries: 18
 
-  blast:
-    # The current version is 3.0.1 but they have not provided the docker image with this tag.
-    image: wurmlab/sequenceserver:latest
-    tty: true
-    mem_limit: 1g
-    restart: always
-    # Fix the redirection link after a job is submitted in BLAST page.
-    command: ["sh", "-c", "sed -i 's|redirect to(\"/#{job.id}\")|redirect to(\"'$${PUBLIC_SERVER}'/ibb/blast/#{job.id}\")|g' /sequenceserver/lib/sequenceserver/routes.rb; sequenceserver"]
-    environment:
-      - PUBLIC_SERVER
-    volumes:
-      - blast-data:/db/
-
   setup-directus:
     extends:
       service: directus
@@ -272,138 +257,3 @@ services:
         condition: service_healthy
     profiles:
       - setup
-
-  setup-jbrowse2-web:
-    image: ghcr.io/emobase/emobase-genomics:v0.5.2
-    entrypoint: []
-    command: ["jbrowse", "create", "/web"]
-    volumes:
-      - jbrowse2-data:/web/
-    profiles:
-      - setup
-
-  genomicsservice:
-    image: ghcr.io/emobase/emobase-genomics:v0.5.2
-    container_name: genomicsservice
-    restart: unless-stopped
-    command: ["api", "-c", "/app/config.yaml"]
-    environment:
-      - EMOBASE_GENOMICS_ENV_PREFIX=emobase_genomics
-      - EMOBASE_GENOMICS_MAIN_SPECIES=${MAIN_SPECIES}
-      - EMOBASE_GENOMICS_MYSQL__HOST=mysql
-      - EMOBASE_GENOMICS_MYSQL__PORT=${EMOBASE_GENOMICS_MYSQL__PORT:-3306}
-      - EMOBASE_GENOMICS_MYSQL__USER=${EMOBASE_GENOMICS_MYSQL__USER:-root}
-      - EMOBASE_GENOMICS_MYSQL__PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - EMOBASE_GENOMICS_MYSQL__DATABASE=${EMOBASE_GENOMICS_MYSQL__DATABASE:-emobase_genomics}
-      - EMOBASE_GENOMICS_KEYCLOAK__URL=http://keycloak:8080/ibb/keycloak
-      - EMOBASE_GENOMICS_KEYCLOAK__REALM=ibb
-      - EMOBASE_GENOMICS_KEYCLOAK__ISSUER=${PUBLIC_SERVER}/ibb/keycloak/realms/ibb
-      - EMOBASE_GENOMICS_KEYCLOAK__REQUIRED_ROLE=default-roles-ibb
-      - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
-      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=${EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX:-genomics}
-      - EMOBASE_GENOMICS_BLAST__DISPLAY_NAME=${EMOBASE_GENOMICS_BLAST__DISPLAY_NAME:-OGS3}
-      - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=${EMOBASE_GENOMICS_BLAST__CONTAINER_NAME:-blast-1}
-      - EMOBASE_GENOMICS_UPLOADS__TUS_BASE_PATH=/ibb/api/genomicsservice/v1/uploads
-      - EMOBASE_GENOMICS_JBROWSE2__GENE_LINK_BASE=${EMOBASE_GENOMICS_JBROWSE2__GENE_LINK_BASE:-https://ibeetle-base.uni-goettingen.de/details/}
-    volumes:
-      - ${PUBLIC_DATA_DIR}/emobase-genomics:/app/public/uploads
-      - jbrowse2-data:/web/
-      - blast-data:/db/
-    depends_on:
-      mysql:
-        condition: service_healthy
-      es:
-        condition: service_healthy
-
-  genomicsworker-1:
-    image: ghcr.io/emobase/emobase-genomics:v0.5.2
-    container_name: genomicsworker-1
-    restart: unless-stopped
-    command: ["worker", "-c", "/app/config.yaml"]
-    environment:
-      - EMOBASE_GENOMICS_ENV_PREFIX=emobase_genomics
-      - EMOBASE_GENOMICS_MAIN_SPECIES=${MAIN_SPECIES}
-      - EMOBASE_GENOMICS_MYSQL__HOST=mysql
-      - EMOBASE_GENOMICS_MYSQL__PORT=${EMOBASE_GENOMICS_MYSQL__PORT:-3306}
-      - EMOBASE_GENOMICS_MYSQL__USER=${EMOBASE_GENOMICS_MYSQL__USER:-root}
-      - EMOBASE_GENOMICS_MYSQL__PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - EMOBASE_GENOMICS_MYSQL__DATABASE=${EMOBASE_GENOMICS_MYSQL__DATABASE:-emobase_genomics}
-      - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
-      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=${EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX:-genomics}
-      - EMOBASE_GENOMICS_BLAST__DISPLAY_NAME=${EMOBASE_GENOMICS_BLAST__DISPLAY_NAME:-OGS3}
-      - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=${EMOBASE_GENOMICS_BLAST__CONTAINER_NAME:-emobase-deploy-blast-1}
-      - EMOBASE_GENOMICS_JBROWSE2__GENE_LINK_BASE=${EMOBASE_GENOMICS_JBROWSE2__GENE_LINK_BASE:-https://ibeetle-base.uni-goettingen.de/details/}
-    volumes:
-      - ${PUBLIC_DATA_DIR}/emobase-genomics:/app/public/uploads
-      - jbrowse2-data:/web/
-      - blast-data:/db/
-      - /var/run/docker.sock:/var/run/docker.sock
-    depends_on:
-      mysql:
-        condition: service_healthy
-      es:
-        condition: service_healthy
-
-  genomicsworker-2:
-    image: ghcr.io/emobase/emobase-genomics:v0.5.2
-    container_name: genomicsworker-2
-    restart: unless-stopped
-    command: ["worker", "-c", "/app/config.yaml"]
-    environment:
-      - EMOBASE_GENOMICS_ENV_PREFIX=emobase_genomics
-      - EMOBASE_GENOMICS_MAIN_SPECIES=${MAIN_SPECIES}
-      - EMOBASE_GENOMICS_MYSQL__HOST=mysql
-      - EMOBASE_GENOMICS_MYSQL__PORT=${EMOBASE_GENOMICS_MYSQL__PORT:-3306}
-      - EMOBASE_GENOMICS_MYSQL__USER=${EMOBASE_GENOMICS_MYSQL__USER:-root}
-      - EMOBASE_GENOMICS_MYSQL__PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - EMOBASE_GENOMICS_MYSQL__DATABASE=${EMOBASE_GENOMICS_MYSQL__DATABASE:-emobase_genomics}
-      - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
-      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=${EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX:-genomics}
-      - EMOBASE_GENOMICS_BLAST__DISPLAY_NAME=${EMOBASE_GENOMICS_BLAST__DISPLAY_NAME:-OGS3}
-      - EMOBASE_GENOMICS_BLAST__CONTAINER_NAME=${EMOBASE_GENOMICS_BLAST__CONTAINER_NAME:-emobase-deploy-blast-1}
-      - EMOBASE_GENOMICS_JBROWSE2__GENE_LINK_BASE=${EMOBASE_GENOMICS_JBROWSE2__GENE_LINK_BASE:-https://ibeetle-base.uni-goettingen.de/details/}
-    volumes:
-      - ${PUBLIC_DATA_DIR}/emobase-genomics:/app/public/uploads
-      - jbrowse2-data:/web/
-      - blast-data:/db/
-      - /var/run/docker.sock:/var/run/docker.sock
-    depends_on:
-      mysql:
-        condition: service_healthy
-      es:
-        condition: service_healthy
-
-  migrate-genomics-db:
-    image: ghcr.io/emobase/emobase-genomics:v0.5.2
-    container_name: migrate-genomics-db
-    restart: no
-    command: ["db:migrate", "-c", "/app/config.yaml"]
-    environment:
-      - EMOBASE_GENOMICS_ENV_PREFIX=emobase_genomics
-      - EMOBASE_GENOMICS_MAIN_SPECIES=${MAIN_SPECIES}
-      - EMOBASE_GENOMICS_MYSQL__HOST=mysql
-      - EMOBASE_GENOMICS_MYSQL__PORT=${EMOBASE_GENOMICS_MYSQL__PORT:-3306}
-      - EMOBASE_GENOMICS_MYSQL__USER=${EMOBASE_GENOMICS_MYSQL__USER:-root}
-      - EMOBASE_GENOMICS_MYSQL__PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - EMOBASE_GENOMICS_MYSQL__DATABASE=${EMOBASE_GENOMICS_MYSQL__DATABASE:-emobase_genomics}
-    depends_on:
-      mysql:
-        condition: service_healthy
-    profiles:
-      - update
-
-  migrate-genomics-es:
-    image: ghcr.io/emobase/emobase-genomics:v0.5.2
-    container_name: migrate-genomics-es
-    restart: no
-    command: ["es:migrate", "-c", "/app/config.yaml"]
-    environment:
-      - EMOBASE_GENOMICS_ENV_PREFIX=emobase_genomics
-      - EMOBASE_GENOMICS_MAIN_SPECIES=${MAIN_SPECIES}
-      - EMOBASE_GENOMICS_ELASTICSEARCH__ADDRESSES=http://es:9200
-      - EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX=${EMOBASE_GENOMICS_ELASTICSEARCH__INDEX_PREFIX:-genomics}
-    depends_on:
-      es:
-        condition: service_healthy
-    profiles:
-      - update

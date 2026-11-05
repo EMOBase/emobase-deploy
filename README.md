@@ -9,14 +9,24 @@ Requirements:
 
 ```bash
 bash init.sh
-docker compose run --rm migrate-genomics-db
-docker compose run --rm migrate-genomics-es
 docker compose run --rm setup-directus
-docker compose run --rm setup-jbrowse2-web
 docker compose up -d --wait
 ```
 
 For Tcas, replace `docker compose` with `docker compose -f compose.yml -f compose.tcas.yml`
+
+## Genomics, JBrowse2 and BLAST
+
+This single-species stack does not run `emobase-genomics`, JBrowse2 or BLAST.
+Those are provided by the multi-species portal deployment. Set
+`GENOMICS_SERVER` in `.env` to the portal's public origin (no trailing slash),
+for example `https://portal.example.com`. The web UI uses it for the genomics
+API, JBrowse2 and BLAST links.
+
+The portal must contain the assemblies for `MAIN_SPECIES`. Note that the
+portal's `/public/versions` endpoint is global: until species filtering is
+added, the version selector may also list READY versions that belong to other
+species hosted on the same portal.
 
 ## Remove all docker containers and their data
 
