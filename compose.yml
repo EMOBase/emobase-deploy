@@ -39,7 +39,8 @@ services:
       - PUBLIC_DIRECTUS_URL=${PUBLIC_SERVER}/ibb/directus/
       - AUTH_SECRET=${SSR_OIDC_SESSION_SECRET}
       - AUTH_TRUST_HOST=true
-      # Match the nginx header buffers; Auth.js session cookies can grow.
+      # nginx allows 16k per header line; Node limits all headers together.
+      # The extra Node headroom covers the request line and the other headers.
       - NODE_OPTIONS=--max-http-header-size=32768
       - KEYCLOAK_ISSUER=${PUBLIC_SERVER}/ibb/keycloak/realms/ibb
       - KEYCLOAK_CLIENT_ID=ibb-client
