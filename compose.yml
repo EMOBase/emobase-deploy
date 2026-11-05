@@ -39,6 +39,8 @@ services:
       - PUBLIC_DIRECTUS_URL=${PUBLIC_SERVER}/ibb/directus/
       - AUTH_SECRET=${SSR_OIDC_SESSION_SECRET}
       - AUTH_TRUST_HOST=true
+      # Match the nginx header buffers; Auth.js session cookies can grow.
+      - NODE_OPTIONS=--max-http-header-size=32768
       - KEYCLOAK_ISSUER=${PUBLIC_SERVER}/ibb/keycloak/realms/ibb
       - KEYCLOAK_CLIENT_ID=ibb-client
       - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}

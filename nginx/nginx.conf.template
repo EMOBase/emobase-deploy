@@ -24,6 +24,11 @@ http {
     # This is the internal docker dns server, cache for 30 seconds
     resolver 127.0.0.11 valid=30s;
 
+    # Auth.js/Keycloak/Directus cookies can exceed nginx's 8k default header
+    # buffer, especially after several login attempts.
+    client_header_buffer_size 16k;
+    large_client_header_buffers 4 32k;
+
     location / {
       # Using the variable trick, nginx will now start even if the upstream host is not yet reachable.
       # Inside docker, need the resolver to work.
@@ -32,6 +37,8 @@ http {
 
       # Needed for keycloak authentication, don't know why
       proxy_set_header Host $http_host;
+      # Astro only trusts the public scheme when this is forwarded.
+      proxy_set_header X-Forwarded-Proto $forwarded_proto;
     }
     location /download/ {
       alias /download/;
