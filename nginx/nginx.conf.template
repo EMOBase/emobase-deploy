@@ -39,8 +39,8 @@ http {
       add_header Access-Control-Allow-Origin *;
     }
 
-    # Proxy BLAST through this origin so SequenceServer's session cookie is
-    # first-party.
+    # Proxy BLAST only: SequenceServer's CSRF session cookie must stay
+    # first-party inside the iframe.
     location /ibb/blast/ {
       proxy_pass ${PORTAL_SERVER}/ibb/blast/;
       proxy_set_header Host $http_host;
