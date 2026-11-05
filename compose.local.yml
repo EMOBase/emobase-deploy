@@ -1,0 +1,15 @@
+# Local development only.
+#
+# Build the web UI from the sibling source repository instead of pulling it
+# from GHCR:
+#
+#   docker compose -f compose.yml -f compose.local.yml up -d --build
+#
+# This file is not loaded automatically (Compose only auto-loads
+# compose.override.yml), so a normal `docker compose up -d` always uses the
+# published images.
+services:
+  fe:
+    image: emobase-web:local
+    build:
+      context: ../emobase-web

@@ -1,9 +1,23 @@
 # EMOBase deploy scripts and configurations
 
+Single-species deployment (`emobase-web` frontend in front of the ES-backed
+species services). The multi-species stack lives in `emobase-portal-deploy`.
+
 Requirements:
 - docker
 - docker compose
 - a public domain with SSL
+
+Application images are published by GitHub Actions to GitHub Container
+Registry, so only this repository is needed on the deployment server — no
+sibling `emobase-web` source tree.
+
+| Variable | Default |
+| --- | --- |
+| `EMOBASE_WEB_IMAGE` | `ghcr.io/emobase/emobase-web:dev` |
+
+Pin a release tag (`vX.Y.Z`) or an immutable `sha-<short>` tag in `.env` for
+production.
 
 ## Start the services
 
@@ -14,6 +28,18 @@ docker compose up -d --wait
 ```
 
 For Tcas, replace `docker compose` with `docker compose -f compose.yml -f compose.tcas.yml`
+
+## Local development
+
+To build the web UI from the sibling source tree instead of pulling the
+published image:
+
+```bash
+docker compose -f compose.yml -f compose.local.yml up -d --build
+```
+
+`compose.local.yml` is not loaded automatically, so a plain
+`docker compose up -d` always uses the published image.
 
 ## Genomics, JBrowse2 and BLAST
 
