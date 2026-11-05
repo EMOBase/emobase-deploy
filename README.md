@@ -47,21 +47,31 @@ This single-species stack does not run `emobase-genomics`, JBrowse2 or BLAST.
 Those are provided by the multi-species portal deployment. Set
 `GENOMICS_SERVER` in `.env` to the portal's public origin (no trailing slash),
 for example `https://portal.example.com`. The web UI uses it for the genomics
-API, and nginx proxies the portal's `/ibb/blast/` and `/ibb/jbrowse2/` through
-this deployment's own origin.
+API and for the public JBrowse2 URL.
 
 `nginx/nginx.conf.template` is rendered by the nginx image entrypoint at
-container start, substituting `GENOMICS_SERVER`. Proxying BLAST and JBrowse
-this way keeps the browser on one origin: the SequenceServer session cookie is
-first-party, and the iframe form submission does not depend on third-party or
-same-site cookie behaviour.
+container start, substituting `GENOMICS_SERVER`. Only `/ibb/blast/` is proxied
+through this deployment's own origin, because SequenceServer's CSRF session
+cookie must be first-party. JBrowse2 needs no session cookie, so the web UI
+loads it directly from the portal.
+
+The compose file therefore sets:
+
+```text
+PUBLIC_UI_PAGE_BLAST         = ${PUBLIC_SERVER}/ibb/blast/        (proxied)
+PUBLIC_UI_PAGE_GENOMEBROWSER = ${GENOMICS_SERVER}/ibb/jbrowse2/   (portal)
+```
 
 Local example:
 
 ```env
-PUBLIC_SERVER=http://localhost:9090
+PUBLIC_SERVER=http://127.0.0.1:9090
 GENOMICS_SERVER=http://192.168.6.17:9091
 ```
+
+`PUBLIC_SERVER` must match the host you use in the browser, because the BLAST
+iframe uses it as an absolute URL. Use `http://localhost:9090` or
+`http://127.0.0.1:9090` consistently.
 
 Production example:
 
