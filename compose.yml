@@ -15,8 +15,10 @@ services:
       - ${HTTP_PORT:-80}:80
     environment:
       # Substituted into nginx.conf.template by the image entrypoint.
-      - PORTAL_SERVER=${PORTAL_SERVER}
+      - PORTAL_INTERNAL_URL=${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./nginx/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
       - ${PUBLIC_DATA_DIR}:/download/:ro
@@ -30,6 +32,17 @@ services:
       - PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
       # Genomics, JBrowse2 and BLAST are served by the portal deployment.
       - PUBLIC_API_GENOMICS_SERVICE=${PORTAL_SERVER}/ibb/api/genomicsservice/v1
+      # Server-side calls use these internal URLs instead of the public URL.
+      # They fall back to the matching PUBLIC_* URL when omitted.
+      - INTERNAL_API_GENOMICS_SERVICE=${INTERNAL_API_GENOMICS_SERVICE:-${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}/ibb/api/genomicsservice/v1}
+      - INTERNAL_API_PHENOTYPE_SERVICE=${INTERNAL_API_PHENOTYPE_SERVICE:-http://phenotypeservice:8080}
+      - INTERNAL_API_IMAGE_SERVICE=${INTERNAL_API_IMAGE_SERVICE:-http://imageservice:8080}
+      - INTERNAL_API_ONTOLOGY_SERVICE=${INTERNAL_API_ONTOLOGY_SERVICE:-http://ontologyservice:8080}
+      - INTERNAL_API_GO_ANNOTATION_SERVICE=${INTERNAL_API_GO_ANNOTATION_SERVICE:-http://goannotationservice:8080}
+      - INTERNAL_API_PUBLICATION_SERVICE=${INTERNAL_API_PUBLICATION_SERVICE:-http://publicationservice:8080}
+      - INTERNAL_API_QUERY_PIPELINE_SERVICE=${INTERNAL_API_QUERY_PIPELINE_SERVICE:-http://querypipelineservice:8080}
+      - INTERNAL_KEYCLOAK_ISSUER=${INTERNAL_KEYCLOAK_ISSUER:-http://keycloak:8080/ibb/keycloak/realms/ibb}
+      - INTERNAL_DIRECTUS_URL=${INTERNAL_DIRECTUS_URL:-http://directus:8055}
       # BLAST is proxied through this deployment's nginx so its iframe stays
       # same-origin (SequenceServer's CSRF cookie must be first-party).
       - PUBLIC_UI_PAGE_BLAST=${PUBLIC_SERVER}/ibb/blast/
@@ -45,6 +58,8 @@ services:
       - KEYCLOAK_ISSUER=${PUBLIC_SERVER}/ibb/keycloak/realms/ibb
       - KEYCLOAK_CLIENT_ID=ibb-client
       - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 
   swagger-ui:

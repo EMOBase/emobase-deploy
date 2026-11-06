@@ -51,9 +51,10 @@ http {
     # Proxy BLAST instead of using the portal URL directly: its iframe
     # submits a CSRF-protected form tied to a SequenceServer session cookie,
     # which the browser would not send across origins. Same-origin keeps the
-    # cookie first-party.
+    # cookie first-party. Use the internal portal URL so this works when the
+    # browser uses localhost and the portal is on the same Docker host.
     location /ibb/blast/ {
-      proxy_pass ${PORTAL_SERVER}/ibb/blast/;
+      proxy_pass ${PORTAL_INTERNAL_URL}/ibb/blast/;
       proxy_set_header Host $http_host;
       proxy_set_header X-Forwarded-Host $forwarded_host;
       proxy_set_header X-Forwarded-Proto $forwarded_proto;

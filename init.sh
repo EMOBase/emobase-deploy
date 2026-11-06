@@ -9,6 +9,7 @@ LOCAL=false
 MAIN_SPECIES=
 PUBLIC_SERVER=
 PORTAL_SERVER=
+PORTAL_INTERNAL_URL=
 PORTAL_DIR=
 HTTP_PORT=
 COCO_USERNAME=
@@ -49,27 +50,17 @@ generate_password() {
              for(i=1;i<=length;i++) printf a[i]; printf "\n"}'
 }
 
-# Best-effort non-loopback IPv4 used by --local. The address has to be
-# reachable from inside Docker as well, so 127.0.0.1/localhost is not enough.
-detect_local_ip() {
-  local ip=""
-
-  if command -v ipconfig >/dev/null 2>&1; then
-    ip=$(ipconfig getifaddr en0 2>/dev/null || true)
-    [[ -n "$ip" ]] || ip=$(ipconfig getifaddr en1 2>/dev/null || true)
+# Extract the port from an http(s) URL. Used to build the internal portal URL
+# for local mode (host.docker.internal:<portal-port>).
+url_port() {
+  local url="$1"
+  if [[ "$url" =~ ^https?://[^/:]+:([0-9]+)(/|$) ]]; then
+    echo "${BASH_REMATCH[1]}"
+  elif [[ "$url" == https://* ]]; then
+    echo 443
+  else
+    echo 80
   fi
-
-  if [[ -z "$ip" ]] && command -v ip >/dev/null 2>&1; then
-    ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')
-  fi
-
-  if [[ -z "$ip" ]] && command -v hostname >/dev/null 2>&1; then
-    ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-  fi
-
-  [[ -n "$ip" ]] || return 1
-  [[ "$ip" == 127.* ]] && return 1
-  echo "$ip"
 }
 
 # Read a value from a dotenv file without sourcing it (so the portal .env's
@@ -108,6 +99,10 @@ while [[ $# -gt 0 ]]; do
       PORTAL_SERVER="$2"
       shift 2
       ;;
+    --portal-internal-url)
+      PORTAL_INTERNAL_URL="$2"
+      shift 2
+      ;;
     --portal-dir)
       PORTAL_DIR="$2"
       shift 2
@@ -133,15 +128,17 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
-      echo "Usage: $0 [-f|--force] [-p|--print] [-y|--yes] [--local] [-s|--species SPECIES] [--public-server URL] [--http-port PORT] [--portal-server URL] [--portal-dir DIR] [--container-prefix PREFIX]"
+      echo "Usage: $0 [-f|--force] [-p|--print] [-y|--yes] [--local] [-s|--species SPECIES] [--public-server URL] [--http-port PORT] [--portal-server URL] [--portal-internal-url URL] [--portal-dir DIR] [--container-prefix PREFIX]"
       echo "  -s, --species       4-letter species code (e.g. Tcas, Dmel, Ptep)"
       echo "  --public-server     Public server address (default: http://localhost:<http-port>)"
       echo "  --http-port         Host port for nginx (default: ${DEFAULT_HTTP_PORT})"
-      echo "  --portal-server     Portal origin serving genomics, JBrowse2 and BLAST"
+      echo "  --portal-server     Public portal origin used by browsers (genomics, JBrowse2, BLAST)"
+      echo "  --portal-internal-url"
+      echo "                      Portal origin used from inside containers (BLAST proxy, SSR)"
       echo "  --portal-dir        Portal checkout whose .env holds PUBLIC_SERVER"
       echo "                      (default: ${DEFAULT_PORTAL_DIR} when present)"
       echo "  --container-prefix  Prefix for docker compose containers (default: current directory)"
-      echo "  --local             Use the machine's LAN IP for PUBLIC_SERVER (local trial)"
+      echo "  --local             Use localhost for browser URLs and an internal host URL"
       echo "  -f, --force         Overwrite existing .env file"
       echo "  -y, --yes           Use default values without prompting"
       echo "  -p, --print         Print credentials to screen instead of writing to .env"
@@ -174,8 +171,7 @@ fi
 DEFAULT_PUBLIC_SERVER="http://localhost:${HTTP_PORT}"
 
 if [[ "$LOCAL" == true ]] && [[ -z "$PUBLIC_SERVER" ]]; then
-  local_ip=$(detect_local_ip) || fatal "Could not detect a LAN IP; pass --public-server URL"
-  PUBLIC_SERVER="http://${local_ip}:${HTTP_PORT}"
+  PUBLIC_SERVER="http://localhost:${HTTP_PORT}"
   >&2 echo "🏠 Local mode: using ${PUBLIC_SERVER}"
 fi
 
@@ -202,6 +198,8 @@ if [[ -z "$PORTAL_SERVER" ]]; then
     [[ -n "$PORTAL_SERVER" ]] \
       || fatal "Could not read PUBLIC_SERVER from ${PORTAL_DIR}/.env; pass --portal-server URL"
     >&2 echo "🔗 Using portal URL from ${PORTAL_DIR}/.env"
+  elif [[ "$YES" == true ]] && [[ "$LOCAL" == true ]]; then
+    PORTAL_SERVER="http://localhost:9091"
   elif [[ "$YES" == true ]]; then
     fatal "PORTAL_SERVER is required; pass --portal-server URL or --portal-dir DIR"
   else
@@ -210,9 +208,22 @@ if [[ -z "$PORTAL_SERVER" ]]; then
 fi
 PORTAL_SERVER="${PORTAL_SERVER%/}"
 [[ -z "$PORTAL_SERVER" ]] && fatal "PORTAL_SERVER cannot be empty"
-if [[ "$PORTAL_SERVER" == *localhost* ]] || [[ "$PORTAL_SERVER" == *127.0.0.1* ]]; then
-  >&2 echo "⚠️  PORTAL_SERVER points at localhost. The species nginx container cannot"
-  >&2 echo "   reach the portal there; use a LAN IP or DNS name instead."
+
+if [[ -z "$PORTAL_INTERNAL_URL" ]]; then
+  if [[ "$LOCAL" == true ]]; then
+    PORTAL_INTERNAL_URL="http://host.docker.internal:$(url_port "$PORTAL_SERVER")"
+  else
+    PORTAL_INTERNAL_URL="$PORTAL_SERVER"
+  fi
+fi
+PORTAL_INTERNAL_URL="${PORTAL_INTERNAL_URL%/}"
+[[ -z "$PORTAL_INTERNAL_URL" ]] && fatal "PORTAL_INTERNAL_URL cannot be empty"
+
+if [[ "$PORTAL_SERVER" == *localhost* || "$PORTAL_SERVER" == *127.0.0.1* ]] \
+  && [[ "$PORTAL_INTERNAL_URL" == "$PORTAL_SERVER" ]]; then
+  >&2 echo "⚠️  PORTAL_SERVER points at localhost and PORTAL_INTERNAL_URL is the same."
+  >&2 echo "   Containers cannot reach the portal there. Use --local, or set"
+  >&2 echo "   --portal-internal-url to an address reachable from inside Docker."
 fi
 
 if [[ -z "$COCO_USERNAME" ]]; then
@@ -235,6 +246,23 @@ PUBLIC_SERVER=${PUBLIC_SERVER}
 
 # Public origin of the portal deployment that serves genomics, JBrowse2 and BLAST
 PORTAL_SERVER=${PORTAL_SERVER}
+
+# Portal origin used from inside this stack's containers (BLAST proxy, SSR API
+# calls). Use an internal hostname/URL when the portal is on the same Docker
+# host; otherwise this may be the same as PORTAL_SERVER.
+PORTAL_INTERNAL_URL=${PORTAL_INTERNAL_URL}
+
+# Internal service URLs used for server-side calls. These must be absolute.
+# They fall back to the matching PUBLIC_* URL if omitted.
+INTERNAL_API_GENOMICS_SERVICE=${PORTAL_INTERNAL_URL}/ibb/api/genomicsservice/v1
+INTERNAL_API_PHENOTYPE_SERVICE=http://phenotypeservice:8080
+INTERNAL_API_IMAGE_SERVICE=http://imageservice:8080
+INTERNAL_API_ONTOLOGY_SERVICE=http://ontologyservice:8080
+INTERNAL_API_GO_ANNOTATION_SERVICE=http://goannotationservice:8080
+INTERNAL_API_PUBLICATION_SERVICE=http://publicationservice:8080
+INTERNAL_API_QUERY_PIPELINE_SERVICE=http://querypipelineservice:8080
+INTERNAL_KEYCLOAK_ISSUER=http://keycloak:8080/ibb/keycloak/realms/ibb
+INTERNAL_DIRECTUS_URL=http://directus:8055
 
 # The port to access the app from localhost
 HTTP_PORT=${HTTP_PORT}
@@ -277,4 +305,5 @@ else
   >&2 echo "✅ .env file generated successfully"
   >&2 echo "   Species URL: ${PUBLIC_SERVER}"
   >&2 echo "   Portal URL:  ${PORTAL_SERVER}"
+  >&2 echo "   Internal URL: ${PORTAL_INTERNAL_URL}"
 fi

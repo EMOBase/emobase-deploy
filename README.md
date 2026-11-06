@@ -42,7 +42,9 @@ If the portal is not running yet, follow its
    ```
 
    If the portal checkout is named `../emobase-portal-deploy`, the flag can be
-   omitted; `init.sh` finds it automatically.
+   omitted; `init.sh` finds it automatically. When both stacks are on the same
+   Docker host, add `--portal-internal-url http://host.docker.internal:9091` to
+   keep container-to-portal traffic off the public domain.
 
 2. Initialise Directus, then start the stack:
 
@@ -65,34 +67,52 @@ docker compose run --rm setup-directus
 docker compose up -d --wait
 ```
 
-`--local` puts the machine's LAN IP in `PUBLIC_SERVER`, and the portal URL is
-copied from `../emobase-portal-deploy/.env` into `PORTAL_SERVER`. Open the URL
-printed by `init.sh`.
+`--local` uses `localhost` for the browser URLs and sets the internal URLs
+needed by the containers. Open the URL printed by `init.sh`.
 
-Do not use `localhost` for `PORTAL_SERVER`: the species nginx runs in a
-container and proxies `/ibb/blast/` to it, so `localhost` would mean the
-container itself. For the full local walkthrough, see
+The species nginx uses `PORTAL_INTERNAL_URL` for BLAST, and SSR calls use
+`INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER` and `INTERNAL_DIRECTUS_URL`.
+That is why `localhost` in `PUBLIC_SERVER`/`PORTAL_SERVER` does not have to
+work inside the containers. For the full local walkthrough, see
 [Local setup](../emobase-portal-deploy/DEPLOYMENT.md#local-setup-no-public-server).
 
 For Tcas-specific services (OBA, Ontoscope and the extended Swagger UI), append
 `-f compose.tcas.yml` to the Compose commands.
 
-## The two URLs
+## The public and internal URLs
 
-`emobase-deploy` uses two independent public URLs:
+`emobase-deploy` uses two public URLs and a set of internal container URLs:
 
 | Variable | Meaning | Example |
 | --- | --- | --- |
 | `PUBLIC_SERVER` | The URL users open for **this species site** | `https://tcas.example.org` |
-| `PORTAL_SERVER` | The **portal** URL serving genomics/JBrowse2/BLAST | `https://portal.example.org` |
+| `PORTAL_SERVER` | The **public portal** URL used for browser links | `https://portal.example.org` |
+| `PORTAL_INTERNAL_URL` | Portal origin used by nginx for the BLAST proxy | `http://host.docker.internal:9091` |
+| `INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER`, `INTERNAL_DIRECTUS_URL` | Full server-side service URLs | `http://phenotypeservice:8080` |
 
 `PORTAL_SERVER` must be exactly the portal's `PUBLIC_SERVER` (same scheme,
 host and port, no trailing slash). `init.sh` strips a trailing slash for you.
 
-- BLAST is proxied through this stack's nginx so its iframe stays same-origin;
-  therefore this server must be able to reach `PORTAL_SERVER`.
-- JBrowse2 and genomics links point at `PORTAL_SERVER` directly, so browsers
-  must be able to reach it as well.
+`PORTAL_INTERNAL_URL` defaults to `PORTAL_SERVER` when not set. Set it to an
+internal address when the portal runs on the same Docker host, so containers
+do not go out through the public domain:
+
+- `--local` sets it automatically to
+  `http://host.docker.internal:<portal-port>`.
+- For a same-host production deployment, set it explicitly, for example
+  `http://host.docker.internal:9091`, or use a name on a shared Docker network
+  if you attach both stacks to it.
+- On a separate server, leave it equal to `PORTAL_SERVER`.
+
+BLAST is proxied through this stack's nginx so its iframe stays same-origin;
+the proxy uses `PORTAL_INTERNAL_URL`. JBrowse2 and browser-facing genomics
+links use `PORTAL_SERVER`.
+
+Server-side calls prefer `INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER` and
+`INTERNAL_DIRECTUS_URL`. When those are not set, they fall back to the matching
+public URL. The fallback is correct for a separate server; the app only warns
+when the public URL is a loopback address and therefore cannot work from inside
+a container.
 
 ## Deploying on a separate server (another species later)
 
@@ -134,8 +154,10 @@ distinct `--http-port` (and matching `--public-server`) and a
 | Setting | Notes |
 | --- | --- |
 | `MAIN_SPECIES` | 4-letter species code, passed with `--species` |
-| `PUBLIC_SERVER` | Species site URL; `http://localhost:<HTTP_PORT>`, or the LAN IP with `--local` |
-| `PORTAL_SERVER` | Portal URL; read from `--portal-server` or `--portal-dir` |
+| `PUBLIC_SERVER` | Species site URL; `http://localhost:<HTTP_PORT>` with `--local` |
+| `PORTAL_SERVER` | Public portal URL; read from `--portal-server` or `--portal-dir` |
+| `PORTAL_INTERNAL_URL` | Portal URL for containers; local mode uses `host.docker.internal` |
+| `INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER`, `INTERNAL_DIRECTUS_URL` | Server-side URLs; generated with Docker service names |
 | `HTTP_PORT` | Host port for this stack; defaults to `9090` |
 | `PUBLIC_DATA_DIR`, `PRIVATE_DATA_DIR`, `IMAGE_DIR` | Host data directories |
 | Secrets and credentials | Generated on every run |
@@ -143,8 +165,10 @@ distinct `--http-port` (and matching `--public-server`) and a
 The image tags and other optional values remain in `.env`; edit them to pin a
 release or SHA. See `example.env` for comments.
 
-`--local` is a local-trial convenience: it detects the machine's LAN IP and
-uses it for `PUBLIC_SERVER`. Use it in the portal checkout first, then here.
+`--local` is a local-trial convenience: it uses `localhost` for the browser and
+sets `PORTAL_INTERNAL_URL` and the `INTERNAL_*` URLs so containers can still
+reach the portal and the local services. Use it in the portal checkout first,
+then here.
 
 ## Local development
 
