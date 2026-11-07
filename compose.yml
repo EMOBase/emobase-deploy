@@ -46,9 +46,11 @@ services:
       # BLAST is proxied through this deployment's nginx so its iframe stays
       # same-origin (SequenceServer's CSRF cookie must be first-party).
       - PUBLIC_UI_PAGE_BLAST=${PUBLIC_SERVER}/ibb/blast/
-      # JBrowse2 is served by the portal and needs no session cookie, so it
-      # uses the public URL directly.
+      # JBrowse2 is served by the portal. The browser uses the public URL;
+      # server-side config fetches use the internal portal URL, since a public
+      # localhost URL would point at this web container itself.
       - PUBLIC_UI_PAGE_GENOMEBROWSER=${PORTAL_SERVER}/ibb/jbrowse2/
+      - INTERNAL_UI_PAGE_GENOMEBROWSER=${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}/ibb/jbrowse2/
       - PUBLIC_DIRECTUS_URL=${PUBLIC_SERVER}/ibb/directus/
       - AUTH_SECRET=${SSR_OIDC_SESSION_SECRET}
       - AUTH_TRUST_HOST=true
