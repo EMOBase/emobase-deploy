@@ -199,7 +199,7 @@ if [[ -z "$PORTAL_SERVER" ]]; then
       || fatal "Could not read PUBLIC_SERVER from ${PORTAL_DIR}/.env; pass --portal-server URL"
     >&2 echo "🔗 Using portal URL from ${PORTAL_DIR}/.env"
   elif [[ "$YES" == true ]] && [[ "$LOCAL" == true ]]; then
-    PORTAL_SERVER="http://localhost:9091"
+    PORTAL_SERVER="http://localhost:9080"
   elif [[ "$YES" == true ]]; then
     fatal "PORTAL_SERVER is required; pass --portal-server URL or --portal-dir DIR"
   else
