@@ -248,6 +248,12 @@ fi
 PORTAL_SERVER="${PORTAL_SERVER%/}"
 [[ -z "$PORTAL_SERVER" ]] && fatal "PORTAL_SERVER cannot be empty"
 
+if [[ -n "$INFRA_PORTAL_SERVER" ]] && [[ "${INFRA_PORTAL_SERVER%/}" != "$PORTAL_SERVER" ]]; then
+  >&2 echo "⚠️  PORTAL_SERVER (${PORTAL_SERVER}) does not match"
+  >&2 echo "   ${INFRA_DIR}/.env PORTAL_PUBLIC_SERVER (${INFRA_PORTAL_SERVER})."
+  >&2 echo "   Keycloak redirects will fail until both values are identical."
+fi
+
 if [[ -z "$PORTAL_INTERNAL_URL" ]]; then
   if [[ "$LOCAL" == true ]]; then
     PORTAL_INTERNAL_URL="http://host.docker.internal:$(url_port "$PORTAL_SERVER")"
