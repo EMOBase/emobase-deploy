@@ -332,8 +332,14 @@ if [[ -z "$KEYCLOAK_REALM" ]]; then
     >&2 echo "      Separate users and administrators from the portal and other species."
     read -rp "Choose [1]: " realm_choice
     case "$realm_choice" in
-      2) KEYCLOAK_REALM="ibb_${species_slug}" ;;
-      *) KEYCLOAK_REALM=shared ;;
+      2)
+        default_realm="ibb_${species_slug}"
+        read -rp "Dedicated realm name [${default_realm}]: " realm_name
+        KEYCLOAK_REALM="${realm_name:-$default_realm}"
+        ;;
+      *)
+        KEYCLOAK_REALM=shared
+        ;;
     esac
   fi
 fi
