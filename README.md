@@ -2,11 +2,11 @@
 
 Single-species deployment: the **emobase-web** frontend plus its own
 Elasticsearch and Directus. MySQL and Keycloak are shared: they run once in
-[`emobase-infra`](../emobase-infra) and are used by the portal and every species
+[`emobase-infra`](https://github.com/EMOBase/emobase-infra) and are used by the portal and every species
 stack.
 
 Genomics, JBrowse2 and BLAST are **not** run here. They come from a running
-[`emobase-portal-deploy`](../emobase-portal-deploy) stack. The multi-species
+[`emobase-portal-deploy`](https://github.com/EMOBase/emobase-portal-deploy) stack. The multi-species
 portal itself lives in that repository.
 
 > **Starting from an empty server?** The complete three-repository procedure is
