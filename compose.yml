@@ -25,7 +25,7 @@ x-directus-environment: &directus-environment
   AUTH_KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
   # Directus joins the shared infra network, so it uses Keycloak's internal
   # service URL. The browser-facing issuer is KEYCLOAK_PUBLIC_URL.
-  AUTH_KEYCLOAK_ISSUER_URL: ${DIRECTUS_KEYCLOAK_ISSUER_URL:-${KEYCLOAK_INTERNAL_URL:-http://keycloak:8080/ibb/keycloak}/realms/${KEYCLOAK_REALM:-ibb}}
+  AUTH_KEYCLOAK_ISSUER_URL: ${DIRECTUS_KEYCLOAK_ISSUER_URL:-${KEYCLOAK_INTERNAL_URL:-http://keycloak:8080/keycloak}/realms/${KEYCLOAK_REALM:-ibb}}
   AUTH_KEYCLOAK_IDENTIFIER_KEY: preferred_username
   AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION: "true"
   AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST: ${PUBLIC_SERVER}/ibb/directus
@@ -57,17 +57,17 @@ services:
       - PUBLIC_MAIN_SPECIES=${MAIN_SPECIES}
       - PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
       # Genomics, JBrowse2 and BLAST are served by the portal deployment.
-      - PUBLIC_API_GENOMICS_SERVICE=${PORTAL_SERVER}/ibb/api/genomicsservice/v1
+      - PUBLIC_API_GENOMICS_SERVICE=${PORTAL_SERVER}/api/genomicsservice/v1
       # Server-side calls use these internal URLs instead of the public URL.
       # They fall back to the matching PUBLIC_* URL when omitted.
-      - INTERNAL_API_GENOMICS_SERVICE=${INTERNAL_API_GENOMICS_SERVICE:-${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}/ibb/api/genomicsservice/v1}
+      - INTERNAL_API_GENOMICS_SERVICE=${INTERNAL_API_GENOMICS_SERVICE:-${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}/api/genomicsservice/v1}
       - INTERNAL_API_PHENOTYPE_SERVICE=${INTERNAL_API_PHENOTYPE_SERVICE:-http://phenotypeservice:8080}
       - INTERNAL_API_IMAGE_SERVICE=${INTERNAL_API_IMAGE_SERVICE:-http://imageservice:8080}
       - INTERNAL_API_ONTOLOGY_SERVICE=${INTERNAL_API_ONTOLOGY_SERVICE:-http://ontologyservice:8080}
       - INTERNAL_API_GO_ANNOTATION_SERVICE=${INTERNAL_API_GO_ANNOTATION_SERVICE:-http://goannotationservice:8080}
       - INTERNAL_API_PUBLICATION_SERVICE=${INTERNAL_API_PUBLICATION_SERVICE:-http://publicationservice:8080}
       - INTERNAL_API_QUERY_PIPELINE_SERVICE=${INTERNAL_API_QUERY_PIPELINE_SERVICE:-http://querypipelineservice:8080}
-      - INTERNAL_KEYCLOAK_ISSUER=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
+      - INTERNAL_KEYCLOAK_ISSUER=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
       - INTERNAL_DIRECTUS_URL=${INTERNAL_DIRECTUS_URL:-http://directus:8055}
       # BLAST is proxied through this deployment's nginx so its iframe stays
       # same-origin (SequenceServer's CSRF cookie must be first-party).
@@ -75,8 +75,8 @@ services:
       # JBrowse2 is served by the portal. The browser uses the public URL;
       # server-side config fetches use the internal portal URL, since a public
       # localhost URL would point at this web container itself.
-      - PUBLIC_UI_PAGE_GENOMEBROWSER=${PORTAL_SERVER}/ibb/jbrowse2/
-      - INTERNAL_UI_PAGE_GENOMEBROWSER=${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}/ibb/jbrowse2/
+      - PUBLIC_UI_PAGE_GENOMEBROWSER=${PORTAL_SERVER}/jbrowse/
+      - INTERNAL_UI_PAGE_GENOMEBROWSER=${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}/jbrowse/
       - PUBLIC_DIRECTUS_URL=${PUBLIC_SERVER}/ibb/directus/
       - AUTH_SECRET=${SSR_OIDC_SESSION_SECRET}
       - AUTH_TRUST_HOST=true
@@ -97,7 +97,7 @@ services:
     environment:
       - BASE_URL=/ibb/swagger-ui
       - "URLS=[
-        { url: '${PORTAL_SERVER}/ibb/api/genomicsservice/v1/docs', name: 'Genomics Service' },
+        { url: '${PORTAL_SERVER}/api/genomicsservice/v1/docs', name: 'Genomics Service' },
         { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' }
         ]" 
 
@@ -143,7 +143,7 @@ services:
     user: "${UID}:${GID}"
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -163,7 +163,7 @@ services:
         condition: service_started
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -175,7 +175,7 @@ services:
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -187,7 +187,7 @@ services:
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

@@ -233,9 +233,9 @@ INFRA_KEYCLOAK_CLIENT_ID="${INFRA_KEYCLOAK_CLIENT_ID:-$DEFAULT_KEYCLOAK_CLIENT_I
 INFRA_KEYCLOAK_HOST_PORT=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_HOST_PORT || true)
 INFRA_KEYCLOAK_HOST_PORT="${INFRA_KEYCLOAK_HOST_PORT:-8081}"
 INFRA_KEYCLOAK_PUBLIC_URL=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL || true)
-INFRA_KEYCLOAK_PUBLIC_URL="${INFRA_KEYCLOAK_PUBLIC_URL:-http://localhost:${INFRA_KEYCLOAK_HOST_PORT}/ibb/keycloak}"
+INFRA_KEYCLOAK_PUBLIC_URL="${INFRA_KEYCLOAK_PUBLIC_URL:-http://localhost:${INFRA_KEYCLOAK_HOST_PORT}/keycloak}"
 INFRA_KEYCLOAK_INTERNAL_URL=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_INTERNAL_URL || true)
-INFRA_KEYCLOAK_INTERNAL_URL="${INFRA_KEYCLOAK_INTERNAL_URL:-http://keycloak:8080/ibb/keycloak}"
+INFRA_KEYCLOAK_INTERNAL_URL="${INFRA_KEYCLOAK_INTERNAL_URL:-http://keycloak:8080/keycloak}"
 INFRA_COCO_USERNAME=$(read_env_value "$INFRA_DIR/.env" COCO_USERNAME || true)
 INFRA_COCO_USERNAME="${INFRA_COCO_USERNAME:-coco}"
 INFRA_COCO_PASSWORD=$(read_env_value "$INFRA_DIR/.env" COCO_PASSWORD || true)
@@ -388,7 +388,7 @@ if is_loopback_url "$KEYCLOAK_PUBLIC_URL" \
   >&2 echo "   Set --keycloak-public-url in emobase-infra/init.sh."
 fi
 if is_loopback_url "$KEYCLOAK_PUBLIC_URL"; then
-  INTERNAL_KEYCLOAK_ISSUER="http://host.docker.internal:${INFRA_KEYCLOAK_HOST_PORT}/ibb/keycloak/realms/${KEYCLOAK_REALM}"
+  INTERNAL_KEYCLOAK_ISSUER="http://host.docker.internal:${INFRA_KEYCLOAK_HOST_PORT}/keycloak/realms/${KEYCLOAK_REALM}"
 else
   INTERNAL_KEYCLOAK_ISSUER="${KEYCLOAK_PUBLIC_URL}/realms/${KEYCLOAK_REALM}"
 fi
@@ -434,7 +434,7 @@ KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
 
 # Internal service URLs used for server-side calls. These must be absolute.
 # They fall back to the matching PUBLIC_* URL if omitted.
-INTERNAL_API_GENOMICS_SERVICE=${PORTAL_INTERNAL_URL}/ibb/api/genomicsservice/v1
+INTERNAL_API_GENOMICS_SERVICE=${PORTAL_INTERNAL_URL}/api/genomicsservice/v1
 INTERNAL_API_PHENOTYPE_SERVICE=http://phenotypeservice:8080
 INTERNAL_API_IMAGE_SERVICE=http://imageservice:8080
 INTERNAL_API_ONTOLOGY_SERVICE=http://ontologyservice:8080

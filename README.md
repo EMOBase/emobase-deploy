@@ -132,7 +132,7 @@ container URLs:
 | `PUBLIC_SERVER` | The URL users open for **this species site** | `https://tcas.example.org` |
 | `PORTAL_SERVER` | The **public portal** URL used for genomics/JBrowse2/BLAST links | `https://portal.example.org` |
 | `PORTAL_INTERNAL_URL` | Portal origin used by nginx for the BLAST proxy | `http://host.docker.internal:9080` |
-| `KEYCLOAK_PUBLIC_URL` | This server's browser-facing Keycloak base URL | `https://auth.example.org/ibb/keycloak` |
+| `KEYCLOAK_PUBLIC_URL` | This server's browser-facing Keycloak base URL | `https://auth.example.org/keycloak` |
 | `KEYCLOAK_REALM` | Shared portal realm or this species' dedicated realm | `ibb` / `ibb_tcas` |
 | `KEYCLOAK_CLIENT_ID` | Client ID in that realm | `ibb-client` |
 | `DIRECTUS_DB_DATABASE` | This species' database in the local MySQL | `directus_tcas` |
@@ -208,7 +208,7 @@ server's Keycloak:
 Check that the portal is reachable before starting:
 
 ```bash
-curl -fsS https://portal.example.org/ibb/api/genomicsservice/v1/public/versions?status=READY >/dev/null
+curl -fsS https://portal.example.org/api/genomicsservice/v1/public/versions?status=READY >/dev/null
 ```
 
 ## What `init.sh` sets

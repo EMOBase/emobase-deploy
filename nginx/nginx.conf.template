@@ -54,7 +54,7 @@ http {
     # cookie first-party. Use the internal portal URL so this works when the
     # browser uses localhost and the portal is on the same Docker host.
     location /ibb/blast/ {
-      proxy_pass ${PORTAL_INTERNAL_URL}/ibb/blast/;
+      proxy_pass ${PORTAL_INTERNAL_URL}/blast/;
       proxy_set_header Host $http_host;
       proxy_set_header X-Forwarded-Host $forwarded_host;
       proxy_set_header X-Forwarded-Proto $forwarded_proto;
@@ -69,7 +69,7 @@ http {
     #   rewrite ^/ibb/es/(.*)$ /$1 break;
     # }
     # Keycloak has a single public origin: the portal. Browser sign-in on this
-    # site redirects there, so no local /ibb/keycloak/ proxy is needed.
+    # site redirects there, so no local /keycloak/ proxy is needed.
 
     location /ibb/directus/ {
       set $upstream http://directus:8055;
