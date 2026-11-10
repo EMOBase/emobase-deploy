@@ -11,14 +11,16 @@ PUBLIC_SERVER=
 PORTAL_SERVER=
 PORTAL_INTERNAL_URL=
 PORTAL_DIR=
+INFRA_DIR=
 HTTP_PORT=
-COCO_USERNAME=
 CONTAINER_PREFIX=
+DIRECTUS_DB_DATABASE=
 
-DEFAULT_COCO_USERNAME=coco
 DEFAULT_HTTP_PORT=9090
 DEFAULT_PUBLIC_SERVER="http://localhost:${DEFAULT_HTTP_PORT}"
 DEFAULT_PORTAL_DIR="../emobase-portal-deploy"
+DEFAULT_INFRA_DIR="../emobase-infra"
+DEFAULT_INFRA_NETWORK="emobase-infra"
 
 fatal() {
   >&2 echo "❌ $1"
@@ -107,6 +109,14 @@ while [[ $# -gt 0 ]]; do
       PORTAL_DIR="$2"
       shift 2
       ;;
+    --infra-dir)
+      INFRA_DIR="$2"
+      shift 2
+      ;;
+    --directus-db)
+      DIRECTUS_DB_DATABASE="$2"
+      shift 2
+      ;;
     --container-prefix)
       CONTAINER_PREFIX="$2"
       shift 2
@@ -128,7 +138,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
-      echo "Usage: $0 [-f|--force] [-p|--print] [-y|--yes] [--local] [-s|--species SPECIES] [--public-server URL] [--http-port PORT] [--portal-server URL] [--portal-internal-url URL] [--portal-dir DIR] [--container-prefix PREFIX]"
+      echo "Usage: $0 [-f|--force] [-p|--print] [-y|--yes] [--local] [-s|--species SPECIES] [--public-server URL] [--http-port PORT] [--portal-server URL] [--portal-internal-url URL] [--portal-dir DIR] [--infra-dir DIR] [--directus-db NAME] [--container-prefix PREFIX]"
       echo "  -s, --species       4-letter species code (e.g. Tcas, Dmel, Ptep)"
       echo "  --public-server     Public server address (default: http://localhost:<http-port>)"
       echo "  --http-port         Host port for nginx (default: ${DEFAULT_HTTP_PORT})"
@@ -137,6 +147,9 @@ while [[ $# -gt 0 ]]; do
       echo "                      Portal origin used from inside containers (BLAST proxy, SSR)"
       echo "  --portal-dir        Portal checkout whose .env holds PUBLIC_SERVER"
       echo "                      (default: ${DEFAULT_PORTAL_DIR} when present)"
+      echo "  --infra-dir         emobase-infra checkout whose .env holds the shared"
+      echo "                      MySQL/Keycloak secrets (default: ${DEFAULT_INFRA_DIR} when present)"
+      echo "  --directus-db       Directus database name (default: directus_<species>)"
       echo "  --container-prefix  Prefix for docker compose containers (default: current directory)"
       echo "  --local             Use localhost for browser URLs and an internal host URL"
       echo "  -f, --force         Overwrite existing .env file"
@@ -153,6 +166,29 @@ if [[ "$PRINT" != true ]]; then
     exit 1
   fi
 fi
+
+# Resolve the shared MySQL/Keycloak secrets from emobase-infra. Every species
+# uses the same MySQL root password and Keycloak client secret.
+if [[ -z "$INFRA_DIR" ]] && [[ -f "${DEFAULT_INFRA_DIR}/.env" ]]; then
+  INFRA_DIR="$DEFAULT_INFRA_DIR"
+fi
+if [[ -z "$INFRA_DIR" ]]; then
+  fatal "Shared infrastructure .env not found. Run emobase-infra/init.sh first, or pass --infra-dir DIR."
+fi
+[[ -f "$INFRA_DIR/.env" ]] || fatal "No .env in ${INFRA_DIR}; run emobase-infra/init.sh first."
+
+MYSQL_ROOT_PASSWORD=$(read_env_value "$INFRA_DIR/.env" MYSQL_ROOT_PASSWORD || true)
+[[ -n "$MYSQL_ROOT_PASSWORD" ]] \
+  || fatal "${INFRA_DIR}/.env has no MYSQL_ROOT_PASSWORD; re-run emobase-infra/init.sh."
+KEYCLOAK_CLIENT_SECRET=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_CLIENT_SECRET || true)
+[[ -n "$KEYCLOAK_CLIENT_SECRET" ]] \
+  || fatal "${INFRA_DIR}/.env has no KEYCLOAK_CLIENT_SECRET; re-run emobase-infra/init.sh."
+
+INFRA_NETWORK=$(read_env_value "$INFRA_DIR/.env" EMOBASE_INFRA_NETWORK || true)
+INFRA_NETWORK="${INFRA_NETWORK:-$DEFAULT_INFRA_NETWORK}"
+INFRA_PORTAL_SERVER=$(read_env_value "$INFRA_DIR/.env" PORTAL_PUBLIC_SERVER || true)
+
+>&2 echo "🔗 Using shared MySQL/Keycloak secrets from ${INFRA_DIR}/.env"
 
 # Ask for inputs
 if [[ -z "$MAIN_SPECIES" ]]; then
@@ -198,6 +234,9 @@ if [[ -z "$PORTAL_SERVER" ]]; then
     [[ -n "$PORTAL_SERVER" ]] \
       || fatal "Could not read PUBLIC_SERVER from ${PORTAL_DIR}/.env; pass --portal-server URL"
     >&2 echo "🔗 Using portal URL from ${PORTAL_DIR}/.env"
+  elif [[ -n "$INFRA_PORTAL_SERVER" ]]; then
+    PORTAL_SERVER="$INFRA_PORTAL_SERVER"
+    >&2 echo "🔗 Using portal URL from ${INFRA_DIR}/.env"
   elif [[ "$YES" == true ]] && [[ "$LOCAL" == true ]]; then
     PORTAL_SERVER="http://localhost:9080"
   elif [[ "$YES" == true ]]; then
@@ -226,14 +265,12 @@ if [[ "$PORTAL_SERVER" == *localhost* || "$PORTAL_SERVER" == *127.0.0.1* ]] \
   >&2 echo "   --portal-internal-url to an address reachable from inside Docker."
 fi
 
-if [[ -z "$COCO_USERNAME" ]]; then
-  if [[ "$YES" == true ]]; then
-    COCO_USERNAME=${DEFAULT_COCO_USERNAME}
-  else
-    read -rp "🌐 Enter Community Coordinator username [${DEFAULT_COCO_USERNAME}]: " COCO_USERNAME
-    COCO_USERNAME="${COCO_USERNAME:-${DEFAULT_COCO_USERNAME}}"
-  fi
+if [[ -z "$DIRECTUS_DB_DATABASE" ]]; then
+  species_slug=$(printf '%s' "$MAIN_SPECIES" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_')
+  DIRECTUS_DB_DATABASE="directus_${species_slug:-species}"
 fi
+[[ "$DIRECTUS_DB_DATABASE" =~ ^[A-Za-z0-9_]+$ ]] \
+  || fatal "DIRECTUS_DB_DATABASE may only contain letters, digits and underscores"
 
 ENV_CONTENT="# 4-letter code of your species (e.g. Tcas, Dmel, Ptep)
 MAIN_SPECIES=${MAIN_SPECIES}
@@ -252,6 +289,15 @@ PORTAL_SERVER=${PORTAL_SERVER}
 # host; otherwise this may be the same as PORTAL_SERVER.
 PORTAL_INTERNAL_URL=${PORTAL_INTERNAL_URL}
 
+# ── Shared infrastructure ───────────────────────────────────────────────────
+# MySQL and Keycloak run in the sibling emobase-infra stack. Start it first.
+# This stack joins its Docker network; the service names below resolve there.
+EMOBASE_INFRA_NETWORK=${INFRA_NETWORK}
+DIRECTUS_DB_HOST=mysql
+DIRECTUS_DB_PORT=3306
+DIRECTUS_DB_USER=root
+DIRECTUS_DB_DATABASE=${DIRECTUS_DB_DATABASE}
+
 # Internal service URLs used for server-side calls. These must be absolute.
 # They fall back to the matching PUBLIC_* URL if omitted.
 INTERNAL_API_GENOMICS_SERVICE=${PORTAL_INTERNAL_URL}/ibb/api/genomicsservice/v1
@@ -261,7 +307,10 @@ INTERNAL_API_ONTOLOGY_SERVICE=http://ontologyservice:8080
 INTERNAL_API_GO_ANNOTATION_SERVICE=http://goannotationservice:8080
 INTERNAL_API_PUBLICATION_SERVICE=http://publicationservice:8080
 INTERNAL_API_QUERY_PIPELINE_SERVICE=http://querypipelineservice:8080
-INTERNAL_KEYCLOAK_ISSUER=http://keycloak:8080/ibb/keycloak/realms/ibb
+# Server-side Keycloak calls go through the portal origin, which proxies the
+# shared Keycloak. This keeps species containers off the shared infra network,
+# where identical service names from several species would otherwise collide.
+INTERNAL_KEYCLOAK_ISSUER=${PORTAL_INTERNAL_URL}/ibb/keycloak/realms/ibb
 INTERNAL_DIRECTUS_URL=http://directus:8055
 
 # The port to access the app from localhost
@@ -284,18 +333,16 @@ UID=$(id -u)
 GID=$(id -g)
 
 # Secrets
+# MYSQL_ROOT_PASSWORD and KEYCLOAK_CLIENT_SECRET are copied from
+# ${INFRA_DIR}/.env so this stack uses the shared MySQL and Keycloak.
 SSR_OIDC_SESSION_SECRET=$(generate_secret_key 48)
-KEYCLOAK_CLIENT_SECRET=$(generate_secret_key 32)
+KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
 DIRECTUS_SECRET=$(generate_secret_key 32)
+MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
 
 # Credentials
-MYSQL_ROOT_PASSWORD=$(generate_password)
-KEYCLOAK_ADMIN=admin
-KEYCLOAK_ADMIN_PASSWORD=$(generate_password)
 DIRECTUS_ADMIN_EMAIL=admin@emobase.org
-DIRECTUS_ADMIN_PASSWORD=$(generate_password)
-COCO_USERNAME=${COCO_USERNAME}
-COCO_PASSWORD=$(generate_password)"
+DIRECTUS_ADMIN_PASSWORD=$(generate_password)"
 
 if [[ "$PRINT" == true ]]; then
   echo "$ENV_CONTENT"
@@ -303,7 +350,17 @@ else
   printf '%s\n' "$ENV_CONTENT" > .env
   chmod 600 .env
   >&2 echo "✅ .env file generated successfully"
-  >&2 echo "   Species URL: ${PUBLIC_SERVER}"
-  >&2 echo "   Portal URL:  ${PORTAL_SERVER}"
+  >&2 echo "   Species URL:  ${PUBLIC_SERVER}"
+  >&2 echo "   Portal URL:   ${PORTAL_SERVER}"
   >&2 echo "   Internal URL: ${PORTAL_INTERNAL_URL}"
+  >&2 echo "   Directus DB:  ${DIRECTUS_DB_DATABASE}"
+  >&2 echo
+  >&2 echo "Next:"
+  >&2 echo "  1. Make sure emobase-infra is running."
+  >&2 echo "  2. Create this species' Directus database:"
+  >&2 echo "       ${INFRA_DIR}/scripts/create-database.sh ${DIRECTUS_DB_DATABASE}"
+  >&2 echo "  3. Register this site with the shared Keycloak:"
+  >&2 echo "       ${INFRA_DIR}/scripts/allow-origin.sh ${PUBLIC_SERVER}"
+  >&2 echo "  4. docker compose run --rm setup-directus"
+  >&2 echo "  5. docker compose up -d --wait"
 fi

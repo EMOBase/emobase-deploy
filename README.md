@@ -1,19 +1,30 @@
 # EMOBase species deployment
 
-Single-species deployment: the **emobase-web** frontend plus its own MySQL,
-Elasticsearch, Keycloak and Directus.
+Single-species deployment: the **emobase-web** frontend plus its own
+Elasticsearch and Directus. MySQL and Keycloak are shared: they run once in
+[`emobase-infra`](../emobase-infra) and are used by the portal and every species
+stack.
 
 Genomics, JBrowse2 and BLAST are **not** run here. They come from a running
 [`emobase-portal-deploy`](../emobase-portal-deploy) stack. The multi-species
 portal itself lives in that repository.
 
-> **Starting from an empty server?** The complete two-repository procedure is
+> **Upgrading an existing species deployment?** MySQL and Keycloak moved into
+> `emobase-infra`. Start it first, then regenerate `.env` with `./init.sh -f` so
+> it reads the shared secrets and the new per-species `DIRECTUS_DB_DATABASE`.
+> Create that database in the shared MySQL and register the species origin with
+> `allow-origin.sh` before starting Directus.
+
+> **Starting from an empty server?** The complete three-repository procedure is
 > in [`../emobase-portal-deploy/DEPLOYMENT.md`](../emobase-portal-deploy/DEPLOYMENT.md).
-> Deploy the portal first, then use the quick start below.
+> Deploy the shared infrastructure and the portal first, then use the quick
+> start below.
 
 ## Prerequisites
 
 - Docker Engine 24+ with Compose v2
+- A running `emobase-infra` stack with its `.env`
+- `python3` on the Docker host for `emobase-infra/scripts/allow-origin.sh`
 - A running portal deployment
 - A public URL (or host:port) for this species site
 - A public URL for the portal, reachable from this server and from browsers
@@ -32,7 +43,8 @@ If the portal is not running yet, follow its
 [README](../emobase-portal-deploy/README.md) first.
 
 1. Generate `.env`. `--portal-dir` copies the portal's `PUBLIC_SERVER` into
-   this stack's `PORTAL_SERVER`, so the two values cannot drift:
+   this stack's `PORTAL_SERVER`, so the two values cannot drift. The shared
+   MySQL/Keycloak secrets are read from `../emobase-infra/.env` automatically:
 
    ```bash
    ./init.sh \
@@ -46,23 +58,40 @@ If the portal is not running yet, follow its
    Docker host, add `--portal-internal-url http://host.docker.internal:9080` to
    keep container-to-portal traffic off the public domain.
 
-2. Initialise Directus, then start the stack:
+   `init.sh` derives `DIRECTUS_DB_DATABASE=directus_tcas` (one database per
+   species). Use `--directus-db` to override it.
+
+2. Create the Directus database and register this site with the shared
+   Keycloak:
+
+   ```bash
+   ../emobase-infra/scripts/create-database.sh directus_tcas
+   ../emobase-infra/scripts/allow-origin.sh https://tcas.example.org
+   ```
+
+   `allow-origin.sh` adds this species origin to the shared `ibb-client` and is
+   safe to run again.
+
+3. Initialise Directus, then start the stack:
 
    ```bash
    docker compose run --rm setup-directus
    docker compose up -d --wait
    ```
 
-3. Open `${PUBLIC_SERVER}` and sign in with the seeded `COCO_USERNAME` /
-   `COCO_PASSWORD` from `.env`. The password is temporary; Keycloak asks for a
-   new one on first login.
+4. Open `${PUBLIC_SERVER}` and sign in with the seeded `COCO_USERNAME` /
+   `COCO_PASSWORD` from `../emobase-infra/.env`. The password is temporary;
+   Keycloak asks for a new one on first login.
 
 ### Local trial (no domain)
 
-If the portal is already running locally, start the species stack the same way:
+Start `emobase-infra` and the portal locally first. Then start the species
+stack:
 
 ```bash
 ./init.sh --local --species Tcas
+../emobase-infra/scripts/create-database.sh directus_tcas
+../emobase-infra/scripts/allow-origin.sh http://localhost:9090
 docker compose run --rm setup-directus
 docker compose up -d --wait
 ```
@@ -72,8 +101,10 @@ needed by the containers. Open the URL printed by `init.sh`.
 
 The species nginx uses `PORTAL_INTERNAL_URL` for BLAST, and SSR calls use
 `INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER` and `INTERNAL_DIRECTUS_URL`.
-That is why `localhost` in `PUBLIC_SERVER`/`PORTAL_SERVER` does not have to
-work inside the containers. For the full local walkthrough, see
+`INTERNAL_KEYCLOAK_ISSUER` points at the portal origin, which proxies the
+shared Keycloak; the browser also signs in through the portal origin. That is
+why `localhost` in `PUBLIC_SERVER`/`PORTAL_SERVER` does not have to work inside
+the containers. For the full local walkthrough, see
 [Local setup](../emobase-portal-deploy/DEPLOYMENT.md#local-setup-no-public-server).
 
 For Tcas-specific services (OBA, Ontoscope and the extended Swagger UI), append
@@ -86,9 +117,14 @@ For Tcas-specific services (OBA, Ontoscope and the extended Swagger UI), append
 | Variable | Meaning | Example |
 | --- | --- | --- |
 | `PUBLIC_SERVER` | The URL users open for **this species site** | `https://tcas.example.org` |
-| `PORTAL_SERVER` | The **public portal** URL used for browser links | `https://portal.example.org` |
+| `PORTAL_SERVER` | The **public portal** URL used for browser links and Keycloak sign-in | `https://portal.example.org` |
 | `PORTAL_INTERNAL_URL` | Portal origin used by nginx for the BLAST proxy | `http://host.docker.internal:9080` |
+| `DIRECTUS_DB_DATABASE` | This species' database in the shared MySQL | `directus_tcas` |
 | `INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER`, `INTERNAL_DIRECTUS_URL` | Full server-side service URLs | `http://phenotypeservice:8080` |
+
+`KEYCLOAK_ISSUER` is derived from `PORTAL_SERVER` because the shared Keycloak
+has one public origin: the portal. Every species origin must be registered with
+`emobase-infra/scripts/allow-origin.sh` before users sign in.
 
 `PORTAL_SERVER` must be exactly the portal's `PUBLIC_SERVER` (same scheme,
 host and port, no trailing slash). `init.sh` strips a trailing slash for you.
@@ -100,8 +136,8 @@ do not go out through the public domain:
 - `--local` sets it automatically to
   `http://host.docker.internal:<portal-port>`.
 - For a same-host production deployment, set it explicitly, for example
-  `http://host.docker.internal:9080`, or use a name on a shared Docker network
-  if you attach both stacks to it.
+  `http://host.docker.internal:9080` (or another hostname that is reachable
+  from this stack's default Docker network).
 - On a separate server, leave it equal to `PORTAL_SERVER`.
 
 BLAST is proxied through this stack's nginx so its iframe stays same-origin;
@@ -114,31 +150,11 @@ public URL. The fallback is correct for a separate server; the app only warns
 when the public URL is a loopback address and therefore cannot work from inside
 a container.
 
-## Deploying on a separate server (another species later)
+## Adding another species on the same Docker host
 
-The portal is the only shared dependency. On a new species server:
-
-```bash
-git clone https://github.com/EMOBase/emobase-deploy.git
-cd emobase-deploy
-./init.sh \
-  --species <SpeciesCode> \
-  --public-server https://<species>.example.org \
-  --portal-server https://portal.example.org
-docker compose run --rm setup-directus
-docker compose up -d --wait
-```
-
-Check that the portal is reachable before starting:
-
-```bash
-curl -fsS https://portal.example.org/ibb/api/genomicsservice/v1/public/versions?status=READY >/dev/null
-```
-
-Each species checkout needs its own `.env`, data directories, Directus data and
-containers. If two species stacks share one Docker host, give each one a
-distinct `--http-port` (and matching `--public-server`) and a
-`--container-prefix`:
+Each species checkout needs its own `.env`, data directories, Directus
+database/data and containers. Give each stack a distinct `--http-port` (and
+matching `--public-server`) and a `--container-prefix`:
 
 ```bash
 ./init.sh \
@@ -147,6 +163,35 @@ distinct `--http-port` (and matching `--public-server`) and a
   --portal-dir ../emobase-portal-deploy \
   --http-port 9092 \
   --container-prefix dmel
+
+../emobase-infra/scripts/create-database.sh directus_dmel
+../emobase-infra/scripts/allow-origin.sh https://dmel.example.org
+docker compose run --rm setup-directus
+docker compose up -d --wait
+```
+
+## Running a species on another Docker host
+
+The default layout assumes one Docker host: `emobase-infra` creates a private
+Docker network and does not publish MySQL/Keycloak host ports. To use a
+different host:
+
+1. Make the shared services reachable (private network/VPN, or explicit port
+   mappings and firewall rules for MySQL and Keycloak).
+2. Create a Docker network named `emobase-infra` on the species host (the
+   compose file declares it external), or use a compose override that removes
+   that network.
+3. Copy `emobase-infra/.env` to the new host (or pass `--infra-dir` to a
+   directory holding it) so `init.sh` can read the shared secrets. Set
+   `DIRECTUS_DB_HOST` / `DIRECTUS_DB_PORT` and `INTERNAL_KEYCLOAK_ISSUER` to
+   the reachable addresses.
+4. Run `init.sh` with `--portal-server https://portal.example.org`.
+5. On the infra host, create the species database and allow its origin.
+
+Check that the portal is reachable before starting:
+
+```bash
+curl -fsS https://portal.example.org/ibb/api/genomicsservice/v1/public/versions?status=READY >/dev/null
 ```
 
 ## What `init.sh` sets
@@ -155,12 +200,16 @@ distinct `--http-port` (and matching `--public-server`) and a
 | --- | --- |
 | `MAIN_SPECIES` | 4-letter species code, passed with `--species` |
 | `PUBLIC_SERVER` | Species site URL; `http://localhost:<HTTP_PORT>` with `--local` |
-| `PORTAL_SERVER` | Public portal URL; read from `--portal-server` or `--portal-dir` |
+| `PORTAL_SERVER` | Public portal URL; read from `--portal-server`, `--portal-dir` or `emobase-infra/.env` |
 | `PORTAL_INTERNAL_URL` | Portal URL for containers; local mode uses `host.docker.internal` |
-| `INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER`, `INTERNAL_DIRECTUS_URL` | Server-side URLs; generated with Docker service names |
+| `DIRECTUS_DB_DATABASE` | `directus_<species>` by default; one database per species |
+| `EMOBASE_INFRA_NETWORK` | External Docker network shared with infra and the portal |
+| `INTERNAL_API_*`, `INTERNAL_DIRECTUS_URL` | Server-side URLs; generated with Docker service names |
+| `INTERNAL_KEYCLOAK_ISSUER` | Portal origin + `/ibb/keycloak/realms/ibb` (server-side) |
 | `HTTP_PORT` | Host port for this stack; defaults to `9090` |
 | `PUBLIC_DATA_DIR`, `PRIVATE_DATA_DIR`, `IMAGE_DIR` | Host data directories |
-| Secrets and credentials | Generated on every run |
+| `MYSQL_ROOT_PASSWORD`, `KEYCLOAK_CLIENT_SECRET` | Copied from `emobase-infra/.env` |
+| Other secrets and credentials | Generated on every run |
 
 The image tags and other optional values remain in `.env`; edit them to pin a
 release or SHA. See `example.env` for comments.
@@ -172,8 +221,9 @@ then here.
 
 ## Local development
 
-To build the web UI from the sibling source tree instead of pulling the
-published image:
+Start `emobase-infra` first so the external `emobase-infra` Docker network and
+the shared MySQL/Keycloak containers exist. Then build the web UI from the
+sibling source tree instead of pulling the published image:
 
 ```bash
 docker compose -f compose.yml -f compose.local.yml up -d --build
@@ -184,7 +234,8 @@ docker compose -f compose.yml -f compose.local.yml up -d --build
 
 ## Updating
 
-Update the portal first so its API and database migrations are current, then:
+Update `emobase-infra` first, then the portal so its API and database
+migrations are current, then:
 
 ```bash
 git pull
@@ -198,12 +249,23 @@ The portal's `/public/versions` endpoint is global: until species filtering is
 added, the version selector may also list READY versions that belong to other
 species hosted on the same portal.
 
+Directus data lives in the shared MySQL database named by
+`DIRECTUS_DB_DATABASE`; uploaded files still use this stack's `directus-data`
+volume. Back up both.
+
 ## Remove all docker containers and their data
 
-This is DANGEROUS!
+This is DANGEROUS! It removes this species' containers and volumes, but the
+shared MySQL database remains in `emobase-infra`.
 
 ```bash
 docker compose --profile '*' down -v
+```
+
+To drop the species database too:
+
+```bash
+../emobase-infra/scripts/drop-database.sh directus_tcas
 ```
 
 ## Snapshot and restore Elasticsearch

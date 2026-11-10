@@ -1,10 +1,36 @@
 volumes:
   es-data:
     driver: local
-  mysql-data:
-    driver: local
   directus-data:
     driver: local
+
+# Shared by the Directus service and its one-shot setup job. The setup job
+# reuses Directus's network namespace (to reach its API on localhost), so it
+# must not declare its own networks/network_mode conflict.
+x-directus-environment: &directus-environment
+  SECRET: ${DIRECTUS_SECRET}
+  DB_CLIENT: mysql
+  DB_HOST: ${DIRECTUS_DB_HOST:-mysql}
+  DB_PORT: ${DIRECTUS_DB_PORT:-3306}
+  DB_DATABASE: ${DIRECTUS_DB_DATABASE:-directus}
+  DB_USER: ${DIRECTUS_DB_USER:-root}
+  DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+  ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
+  ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
+  PROJECT_OWNER: ${DIRECTUS_ADMIN_EMAIL}
+  PUBLIC_URL: ${PUBLIC_SERVER}/ibb/directus
+  AUTH_PROVIDERS: keycloak
+  AUTH_KEYCLOAK_DRIVER: openid
+  AUTH_KEYCLOAK_CLIENT_ID: ibb-client
+  AUTH_KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+  # Directus joins the shared infra network, so it can use Keycloak's service
+  # name directly. The browser-facing issuer remains the portal origin.
+  AUTH_KEYCLOAK_ISSUER_URL: ${DIRECTUS_KEYCLOAK_ISSUER_URL:-http://keycloak:8080/ibb/keycloak/realms/ibb}
+  AUTH_KEYCLOAK_IDENTIFIER_KEY: preferred_username
+  AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION: "true"
+  AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST: ${PUBLIC_SERVER}/ibb/directus
+  AUTH_KEYCLOAK_DEFAULT_ROLE_ID: 64f31dc8-7465-4416-b1eb-ef6efd990de9
+  TELEMETRY: "false"
 
 services:
 
@@ -41,7 +67,7 @@ services:
       - INTERNAL_API_GO_ANNOTATION_SERVICE=${INTERNAL_API_GO_ANNOTATION_SERVICE:-http://goannotationservice:8080}
       - INTERNAL_API_PUBLICATION_SERVICE=${INTERNAL_API_PUBLICATION_SERVICE:-http://publicationservice:8080}
       - INTERNAL_API_QUERY_PIPELINE_SERVICE=${INTERNAL_API_QUERY_PIPELINE_SERVICE:-http://querypipelineservice:8080}
-      - INTERNAL_KEYCLOAK_ISSUER=${INTERNAL_KEYCLOAK_ISSUER:-http://keycloak:8080/ibb/keycloak/realms/ibb}
+      - INTERNAL_KEYCLOAK_ISSUER=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:9080/ibb/keycloak/realms/ibb}
       - INTERNAL_DIRECTUS_URL=${INTERNAL_DIRECTUS_URL:-http://directus:8055}
       # BLAST is proxied through this deployment's nginx so its iframe stays
       # same-origin (SequenceServer's CSRF cookie must be first-party).
@@ -57,7 +83,9 @@ services:
       # nginx allows 16k per header line; Node limits all headers together.
       # The extra Node headroom covers the request line and the other headers.
       - NODE_OPTIONS=--max-http-header-size=32768
-      - KEYCLOAK_ISSUER=${PUBLIC_SERVER}/ibb/keycloak/realms/ibb
+      # The shared Keycloak is proxied by the portal, so both the browser-facing
+      # issuer and server-side issuer use the portal origin.
+      - KEYCLOAK_ISSUER=${PORTAL_SERVER}/ibb/keycloak/realms/ibb
       - KEYCLOAK_CLIENT_ID=ibb-client
       - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
     extra_hosts:
@@ -116,13 +144,16 @@ services:
     user: "${UID}:${GID}"
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:9080/ibb/keycloak/realms/ibb}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       es:
         condition: service_healthy
     volumes:
       - ${IMAGE_DIR}:/images
       - ${PRIVATE_DATA_DIR}/imageservice:/data:ro
-         
+
   phenotypeservice:
     image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/phenotypeservice:1.6.0
     restart: always
@@ -133,7 +164,9 @@ services:
         condition: service_started
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=http://keycloak:8080/ibb/keycloak/realms/ibb
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:9080/ibb/keycloak/realms/ibb}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${IMAGE_DIR}:/images
       - ${PRIVATE_DATA_DIR}/phenotypeservice:/data:ro
@@ -143,7 +176,9 @@ services:
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=http://keycloak:8080/ibb/keycloak/realms/ibb
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:9080/ibb/keycloak/realms/ibb}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       es:
         condition: service_healthy
@@ -153,7 +188,9 @@ services:
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=http://keycloak:8080/ibb/keycloak/realms/ibb
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:9080/ibb/keycloak/realms/ibb}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       es:
         condition: service_healthy
@@ -164,100 +201,17 @@ services:
     environment:
       - PUBLIC_SERVER=$PUBLIC_SERVER/ibb/api/querypipelineservice/v1/
 
-  mysql:
-    image: mysql:8.0
-    restart: always
-    environment:
-      - MYSQL_ROOT_PASSWORD
-    volumes:
-      - mysql-data:/var/lib/mysql
-      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "mysqladmin ping -u root -p$$MYSQL_ROOT_PASSWORD --silent"
-        ]
-      interval: 10s
-      timeout: 10s
-      retries: 18
-
-  keycloak:
-    image: quay.io/keycloak/keycloak:24.0.3
-    restart: always
-    command: ["start", "--import-realm", "--health-enabled=true"]
-    volumes:
-      - ./keycloak/ibb-realm.json:/opt/keycloak/data/import/ibb-realm.json:ro
-    environment:
-      - KEYCLOAK_ADMIN
-      - KEYCLOAK_ADMIN_PASSWORD
-      - KC_HOSTNAME_URL=${PUBLIC_SERVER}/ibb/keycloak/
-      - KC_HOSTNAME_ADMIN_URL=${PUBLIC_SERVER}/ibb/keycloak/
-      - KC_HOSTNAME_STRICT=false
-      - KC_HOSTNAME_STRICT_HTTPS=false
-      - KC_HTTP_RELATIVE_PATH=/ibb/keycloak/
-      - KC_HTTP_ENABLED=true
-      - KC_PROXY_HEADERS=xforwarded
-      - KC_DB=mysql
-      - KC_DB_URL_HOST=mysql
-      - KC_DB_USERNAME=root
-      - KC_DB_PASSWORD=$MYSQL_ROOT_PASSWORD
-      - KC_DB_SCHEMA=keycloak
-
-      - KEYCLOAK_CLIENT_SECRET
-      - PUBLIC_SERVER
-      - COCO_USERNAME
-      - COCO_PASSWORD
-      - JAVA_OPTS=-Xms256m -Xmx768m
-    depends_on:
-      mysql:
-        condition: service_healthy
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "{ printf 'HEAD /ibb/keycloak/health/ready HTTP/1.0\r\n\r\n' >&0; grep -q 'HTTP/1.0 200'; } 0<>/dev/tcp/localhost/8080"
-        ]
-      interval: 10s
-      timeout: 10s
-      retries: 18
+  # Directus uses the shared MySQL in emobase-infra and therefore joins that
+  # stack's external Docker network. The web UI and Quarkus services reach the
+  # shared Keycloak through the portal origin instead, so their service names
+  # do not collide with other species on the shared network.
 
   directus:
     restart: always
     image: directus/directus:11
-    environment:
-      - SECRET=${DIRECTUS_SECRET}
-
-      - DB_CLIENT=mysql
-      - DB_HOST=mysql
-      - DB_PORT=3306
-      - DB_DATABASE=directus
-      - DB_USER=root
-      - DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
-
-      - ADMIN_EMAIL=${DIRECTUS_ADMIN_EMAIL}
-      - ADMIN_PASSWORD=${DIRECTUS_ADMIN_PASSWORD}
-      - PROJECT_OWNER=${DIRECTUS_ADMIN_EMAIL}
-
-      - PUBLIC_URL=${PUBLIC_SERVER}/ibb/directus
-
-      - AUTH_PROVIDERS=keycloak
-      - AUTH_KEYCLOAK_DRIVER=openid
-      - AUTH_KEYCLOAK_CLIENT_ID=ibb-client
-      - AUTH_KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
-      - AUTH_KEYCLOAK_ISSUER_URL=http://keycloak:8080/ibb/keycloak/realms/ibb 
-      - AUTH_KEYCLOAK_IDENTIFIER_KEY=preferred_username
-      - AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION=true
-      - AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST=${PUBLIC_SERVER}/ibb/directus
-      - AUTH_KEYCLOAK_DEFAULT_ROLE_ID=64f31dc8-7465-4416-b1eb-ef6efd990de9
-      - TELEMETRY=false
+    environment: *directus-environment
     volumes:
       - directus-data:/directus/uploads
-    depends_on:
-      mysql:
-        condition: service_healthy
-      keycloak:
-        condition: service_healthy
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -265,10 +219,14 @@ services:
       interval: 10s
       timeout: 10s
       retries: 18
+    networks:
+      - default
+      - emobase-infra
 
   setup-directus:
-    extends:
-      service: directus
+    image: directus/directus:11
+    # Reuse Directus's network namespace so the bootstrap script can reach the
+    # API at 127.0.0.1:8055 and so this job inherits the shared infra network.
     network_mode: "service:directus"
     restart: no
     command: >
@@ -279,9 +237,17 @@ services:
       - ./directus/scripts:/directus/scripts
       - ./directus/schema.yaml:/directus/schema.yaml
     environment:
-      - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+      <<: *directus-environment
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
     depends_on:
       directus:
         condition: service_healthy
     profiles:
       - setup
+
+networks:
+  # Created by emobase-infra. Use the same EMOBASE_INFRA_NETWORK value in all
+  # three stacks.
+  emobase-infra:
+    external: true
+    name: ${EMOBASE_INFRA_NETWORK:-emobase-infra}

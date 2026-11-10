@@ -68,10 +68,8 @@ http {
     #   proxy_pass http://$upstream:9200;
     #   rewrite ^/ibb/es/(.*)$ /$1 break;
     # }
-    location /ibb/keycloak/ {
-      set $upstream keycloak;
-      proxy_pass http://$upstream:8080;
-    }
+    # Keycloak has a single public origin: the portal. Browser sign-in on this
+    # site redirects there, so no local /ibb/keycloak/ proxy is needed.
 
     location /ibb/directus/ {
       set $upstream http://directus:8055;
