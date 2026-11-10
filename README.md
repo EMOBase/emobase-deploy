@@ -39,8 +39,8 @@ If the local infrastructure or portal is not running yet, follow their READMEs
 first.
 
 1. Generate `.env`. `--portal-dir` copies the portal's `PUBLIC_SERVER` into
-   this stack's `PORTAL_SERVER`, so the two values cannot drift. The shared
-   MySQL secrets are read from `../emobase-infra/.env` automatically:
+   this stack's `PORTAL_SERVER`. The shared MySQL secrets are read from
+   `../emobase-infra/.env` automatically:
 
    ```bash
    ./init.sh \
