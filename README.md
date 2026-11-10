@@ -10,7 +10,7 @@ Genomics, JBrowse2 and BLAST are **not** run here. They come from a running
 portal itself lives in that repository.
 
 > **Starting from an empty server?** The complete three-repository procedure is
-> in [`../emobase-portal-deploy/DEPLOYMENT.md`](../emobase-portal-deploy/DEPLOYMENT.md).
+> in the [EMOBase deployment guide](https://github.com/EMOBase/emobase-docs/blob/main/DEPLOYMENT.md).
 > Deploy the shared infrastructure and the portal first, then use the quick
 > start below.
 
@@ -116,7 +116,7 @@ The species nginx uses `PORTAL_INTERNAL_URL` for BLAST, and SSR calls use
 shared Keycloak; the browser also signs in through the portal origin. That is
 why `localhost` in `PUBLIC_SERVER`/`PORTAL_SERVER` does not have to work inside
 the containers. For the full local walkthrough, see
-[Local setup](../emobase-portal-deploy/DEPLOYMENT.md#local-setup-no-public-server).
+[Local setup](https://github.com/EMOBase/emobase-docs/blob/main/DEPLOYMENT.md#local-setup-no-public-server).
 
 For Tcas-specific services (OBA, Ontoscope and the extended Swagger UI), append
 `-f compose.tcas.yml` to the Compose commands.
