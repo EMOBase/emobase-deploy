@@ -18,7 +18,7 @@ portal itself lives in that repository.
 
 - Docker Engine 24+ with Compose v2
 - A running `emobase-infra` stack with its `.env`
-- `python3` on the Docker host for `emobase-infra/scripts/allow-origin.sh`
+- `python3` on the Docker host for the Keycloak helper scripts
 - A running portal deployment
 - A public URL (or host:port) for this species site
 - A public URL for the portal, reachable from this server and from browsers
@@ -39,7 +39,7 @@ first.
 
 1. Generate `.env`. `--portal-dir` copies the portal's `PUBLIC_SERVER` into
    this stack's `PORTAL_SERVER`, so the two values cannot drift. The shared
-   MySQL/Keycloak secrets are read from `../emobase-infra/.env` automatically:
+   MySQL secrets are read from `../emobase-infra/.env` automatically:
 
    ```bash
    ./init.sh \
@@ -53,19 +53,32 @@ first.
    Docker host, add `--portal-internal-url http://host.docker.internal:9080` to
    keep container-to-portal traffic off the public domain.
 
-   `init.sh` derives `DIRECTUS_DB_DATABASE=directus_tcas` (one database per
-   species). Use `--directus-db` to override it.
+   `init.sh` also asks which Keycloak realm this species should use:
 
-2. Create the Directus database and register this site with the shared
-   Keycloak:
+   1. **Shared realm** — reuse the portal's realm. One team manages users for
+      the portal and every species site.
+   2. **Dedicated realm** — create `ibb_<species>` with its own client, users
+      and `coco` administrator. Use this when different people manage each
+      website.
+
+   For non-interactive runs, pass `--keycloak-realm shared` or
+   `--keycloak-realm ibb_tcas`. `init.sh` derives
+   `DIRECTUS_DB_DATABASE=directus_tcas`; use `--directus-db` to override it.
+
+2. Create the Directus database:
 
    ```bash
    ../emobase-infra/scripts/create-database.sh directus_tcas
+   ```
+
+   If you chose the shared realm, also register this site's origin:
+
+   ```bash
    ../emobase-infra/scripts/allow-origin.sh https://tcas.example.org
    ```
 
-   `allow-origin.sh` adds this species origin to the shared `ibb-client` and is
-   safe to run again.
+   `allow-origin.sh` adds the origin to the shared client and is safe to run
+   again. A dedicated realm was already created and configured by `init.sh`.
 
 3. Initialise Directus, then start the stack:
 
@@ -74,9 +87,11 @@ first.
    docker compose up -d --wait
    ```
 
-4. Open `${PUBLIC_SERVER}` and sign in with the seeded `COCO_USERNAME` /
-   `COCO_PASSWORD` from `../emobase-infra/.env`. The password is temporary;
-   Keycloak asks for a new one on first login.
+4. Open `${PUBLIC_SERVER}` and sign in with `COCO_USERNAME` /
+   `COCO_PASSWORD` from this stack's `.env`. The password is temporary;
+   Keycloak asks for a new one on first login. For a shared realm the
+   credentials are the ones from `../emobase-infra/.env`; for a dedicated realm
+   they belong only to this species.
 
 ### Local trial (no domain)
 
@@ -86,6 +101,7 @@ stack:
 ```bash
 ./init.sh --local --species Tcas
 ../emobase-infra/scripts/create-database.sh directus_tcas
+# Only for the shared realm; a dedicated realm is configured by init.sh.
 ../emobase-infra/scripts/allow-origin.sh http://localhost:9090
 docker compose run --rm setup-directus
 docker compose up -d --wait
@@ -107,19 +123,23 @@ For Tcas-specific services (OBA, Ontoscope and the extended Swagger UI), append
 
 ## The public and internal URLs
 
-`emobase-deploy` uses two public URLs and a set of internal container URLs:
+`emobase-deploy` uses two public URLs, a Keycloak realm and a set of internal
+container URLs:
 
 | Variable | Meaning | Example |
 | --- | --- | --- |
 | `PUBLIC_SERVER` | The URL users open for **this species site** | `https://tcas.example.org` |
 | `PORTAL_SERVER` | The **public portal** URL used for browser links and Keycloak sign-in | `https://portal.example.org` |
 | `PORTAL_INTERNAL_URL` | Portal origin used by nginx for the BLAST proxy | `http://host.docker.internal:9080` |
+| `KEYCLOAK_REALM` | Shared portal realm or this species' dedicated realm | `ibb` / `ibb_tcas` |
+| `KEYCLOAK_CLIENT_ID` | Client ID in that realm | `ibb-client` |
 | `DIRECTUS_DB_DATABASE` | This species' database in the shared MySQL | `directus_tcas` |
 | `INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER`, `INTERNAL_DIRECTUS_URL` | Full server-side service URLs | `http://phenotypeservice:8080` |
 
-`KEYCLOAK_ISSUER` is derived from `PORTAL_SERVER` because the shared Keycloak
-has one public origin: the portal. Every species origin must be registered with
-`emobase-infra/scripts/allow-origin.sh` before users sign in.
+`KEYCLOAK_ISSUER` is derived from `PORTAL_SERVER` and `KEYCLOAK_REALM` because
+Keycloak has one public origin: the portal. For a **shared** realm, register the
+species origin with `emobase-infra/scripts/allow-origin.sh` before users sign
+in. A **dedicated** realm is created with the species origin already allowed.
 
 `PORTAL_SERVER` must be exactly the portal's `PUBLIC_SERVER` (same scheme,
 host and port, no trailing slash). `init.sh` strips a trailing slash for you.
@@ -160,6 +180,7 @@ matching `--public-server`) and a `--container-prefix`:
   --container-prefix dmel
 
 ../emobase-infra/scripts/create-database.sh directus_dmel
+# Only for the shared realm; choose a dedicated realm in init.sh to skip this.
 ../emobase-infra/scripts/allow-origin.sh https://dmel.example.org
 docker compose run --rm setup-directus
 docker compose up -d --wait
@@ -181,7 +202,10 @@ different host:
    `DIRECTUS_DB_HOST` / `DIRECTUS_DB_PORT` and `INTERNAL_KEYCLOAK_ISSUER` to
    the reachable addresses.
 4. Run `init.sh` with `--portal-server https://portal.example.org`.
-5. On the infra host, create the species database and allow its origin.
+5. On the infra host, create the species database. For a shared realm also run
+   `allow-origin.sh`. For a dedicated realm, run `create-realm.sh` on the infra
+   host first and pass its `--client-secret` to the species `init.sh` with
+   `--keycloak-client-secret`.
 
 Check that the portal is reachable before starting:
 
@@ -198,12 +222,16 @@ curl -fsS https://portal.example.org/ibb/api/genomicsservice/v1/public/versions?
 | `PORTAL_SERVER` | Public portal URL; read from `--portal-server`, `--portal-dir` or `emobase-infra/.env` |
 | `PORTAL_INTERNAL_URL` | Portal URL for containers; local mode uses `host.docker.internal` |
 | `DIRECTUS_DB_DATABASE` | `directus_<species>` by default; one database per species |
+| `KEYCLOAK_REALM` | Portal's shared realm or `ibb_<species>` for a dedicated realm |
+| `KEYCLOAK_CLIENT_ID` | Client ID in the selected realm |
+| `KEYCLOAK_CLIENT_SECRET` | Shared-realm secret, or a new secret for a dedicated realm |
+| `COCO_USERNAME` / `COCO_PASSWORD` | Seed user; shared from infra or created for a dedicated realm |
 | `EMOBASE_INFRA_NETWORK` | External Docker network shared with infra and the portal |
 | `INTERNAL_API_*`, `INTERNAL_DIRECTUS_URL` | Server-side URLs; generated with Docker service names |
-| `INTERNAL_KEYCLOAK_ISSUER` | Portal origin + `/ibb/keycloak/realms/ibb` (server-side) |
+| `INTERNAL_KEYCLOAK_ISSUER` | Portal origin + `/ibb/keycloak/realms/<realm>` (server-side) |
 | `HTTP_PORT` | Host port for this stack; defaults to `9090` |
 | `PUBLIC_DATA_DIR`, `PRIVATE_DATA_DIR`, `IMAGE_DIR` | Host data directories |
-| `MYSQL_ROOT_PASSWORD`, `KEYCLOAK_CLIENT_SECRET` | Copied from `emobase-infra/.env` |
+| `MYSQL_ROOT_PASSWORD` | Copied from `emobase-infra/.env` |
 | Other secrets and credentials | Generated on every run |
 
 The image tags and other optional values remain in `.env`; edit them to pin a
