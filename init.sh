@@ -353,6 +353,9 @@ if [[ "$KEYCLOAK_REALM" == "shared" ]]; then
   COCO_PASSWORD="${COCO_PASSWORD:-$INFRA_COCO_PASSWORD}"
   >&2 echo "🔐 Using shared Keycloak realm '${KEYCLOAK_REALM}'."
 else
+  if [[ "$KEYCLOAK_REALM" == "$INFRA_KEYCLOAK_REALM" ]]; then
+    fatal "Realm '${KEYCLOAK_REALM}' is the shared portal realm. Use --keycloak-realm shared to reuse it instead of creating a dedicated realm."
+  fi
   KEYCLOAK_CLIENT_ID="${KEYCLOAK_CLIENT_ID:-$DEFAULT_KEYCLOAK_CLIENT_ID}"
   KEYCLOAK_CLIENT_SECRET="${KEYCLOAK_CLIENT_SECRET:-$(generate_secret_key 32)}"
   COCO_USERNAME="${COCO_USERNAME:-coco}"
