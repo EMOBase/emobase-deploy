@@ -31,16 +31,17 @@ portal itself lives in that repository.
 
 ## Quick start (portal on the same server)
 
-Both repositories are expected side by side:
+The infrastructure, portal and species repositories are expected side by side:
 
 ```text
 emobase/
+├── emobase-infra/
 ├── emobase-portal-deploy/
 └── emobase-deploy/
 ```
 
-If the portal is not running yet, follow its
-[README](../emobase-portal-deploy/README.md) first.
+If the shared infrastructure or portal is not running yet, follow their READMEs
+first.
 
 1. Generate `.env`. `--portal-dir` copies the portal's `PUBLIC_SERVER` into
    this stack's `PORTAL_SERVER`, so the two values cannot drift. The shared
