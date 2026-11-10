@@ -54,6 +54,15 @@ http {
     # cookie first-party. Use the internal portal URL so this works when the
     # browser uses localhost and the portal is on the same Docker host.
     # The Astro BLAST page is served at /blast; /blast/... is SequenceServer.
+    # The exact match prevents nginx's automatic /blast -> /blast/ redirect,
+    # which would drop the host port and bypass the Astro page.
+    location = /blast {
+      set $upstream http://fe:8080;
+      proxy_pass $upstream;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-Proto $forwarded_proto;
+    }
+
     location /blast/ {
       proxy_pass ${PORTAL_INTERNAL_URL}/blast/;
       proxy_set_header Host $http_host;
