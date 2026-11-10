@@ -73,6 +73,12 @@ url_port() {
   fi
 }
 
+# True when the URL points at localhost/127.0.0.1, where a container cannot
+# reach the host's published ports without host.docker.internal.
+is_loopback_url() {
+  [[ "$1" =~ ^https?://(localhost|127\.0\.0\.1)([:/]|$) ]]
+}
+
 # Read a value from a dotenv file without sourcing it (so the portal .env's
 # secrets never enter this process).
 read_env_value() {
@@ -224,15 +230,20 @@ INFRA_KEYCLOAK_REALM=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_REALM || true)
 INFRA_KEYCLOAK_REALM="${INFRA_KEYCLOAK_REALM:-$DEFAULT_KEYCLOAK_REALM}"
 INFRA_KEYCLOAK_CLIENT_ID=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_CLIENT_ID || true)
 INFRA_KEYCLOAK_CLIENT_ID="${INFRA_KEYCLOAK_CLIENT_ID:-$DEFAULT_KEYCLOAK_CLIENT_ID}"
+INFRA_KEYCLOAK_HOST_PORT=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_HOST_PORT || true)
+INFRA_KEYCLOAK_HOST_PORT="${INFRA_KEYCLOAK_HOST_PORT:-8081}"
+INFRA_KEYCLOAK_PUBLIC_URL=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL || true)
+INFRA_KEYCLOAK_PUBLIC_URL="${INFRA_KEYCLOAK_PUBLIC_URL:-http://localhost:${INFRA_KEYCLOAK_HOST_PORT}/ibb/keycloak}"
+INFRA_KEYCLOAK_INTERNAL_URL=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_INTERNAL_URL || true)
+INFRA_KEYCLOAK_INTERNAL_URL="${INFRA_KEYCLOAK_INTERNAL_URL:-http://keycloak:8080/ibb/keycloak}"
 INFRA_COCO_USERNAME=$(read_env_value "$INFRA_DIR/.env" COCO_USERNAME || true)
 INFRA_COCO_USERNAME="${INFRA_COCO_USERNAME:-coco}"
 INFRA_COCO_PASSWORD=$(read_env_value "$INFRA_DIR/.env" COCO_PASSWORD || true)
 
 INFRA_NETWORK=$(read_env_value "$INFRA_DIR/.env" EMOBASE_INFRA_NETWORK || true)
 INFRA_NETWORK="${INFRA_NETWORK:-$DEFAULT_INFRA_NETWORK}"
-INFRA_PORTAL_SERVER=$(read_env_value "$INFRA_DIR/.env" PORTAL_PUBLIC_SERVER || true)
 
->&2 echo "🔗 Using shared MySQL/Keycloak secrets from ${INFRA_DIR}/.env"
+>&2 echo "🔗 Using local MySQL/Keycloak configuration from ${INFRA_DIR}/.env"
 
 # Ask for inputs
 if [[ -z "$MAIN_SPECIES" ]]; then
@@ -280,9 +291,6 @@ if [[ -z "$PORTAL_SERVER" ]]; then
     [[ -n "$PORTAL_SERVER" ]] \
       || fatal "Could not read PUBLIC_SERVER from ${PORTAL_DIR}/.env; pass --portal-server URL"
     >&2 echo "🔗 Using portal URL from ${PORTAL_DIR}/.env"
-  elif [[ -n "$INFRA_PORTAL_SERVER" ]]; then
-    PORTAL_SERVER="$INFRA_PORTAL_SERVER"
-    >&2 echo "🔗 Using portal URL from ${INFRA_DIR}/.env"
   elif [[ "$YES" == true ]] && [[ "$LOCAL" == true ]]; then
     PORTAL_SERVER="http://localhost:9080"
   elif [[ "$YES" == true ]]; then
@@ -293,12 +301,6 @@ if [[ -z "$PORTAL_SERVER" ]]; then
 fi
 PORTAL_SERVER="${PORTAL_SERVER%/}"
 [[ -z "$PORTAL_SERVER" ]] && fatal "PORTAL_SERVER cannot be empty"
-
-if [[ -n "$INFRA_PORTAL_SERVER" ]] && [[ "${INFRA_PORTAL_SERVER%/}" != "$PORTAL_SERVER" ]]; then
-  >&2 echo "⚠️  PORTAL_SERVER (${PORTAL_SERVER}) does not match"
-  >&2 echo "   ${INFRA_DIR}/.env PORTAL_PUBLIC_SERVER (${INFRA_PORTAL_SERVER})."
-  >&2 echo "   Keycloak redirects will fail until both values are identical."
-fi
 
 if [[ -z "$PORTAL_INTERNAL_URL" ]]; then
   if [[ "$LOCAL" == true ]]; then
@@ -376,6 +378,21 @@ fi
 [[ "$KEYCLOAK_CLIENT_ID" =~ ^[a-zA-Z0-9_.-]+$ ]] \
   || fatal "Keycloak client IDs may only contain letters, digits, dot, underscore and hyphen."
 
+KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL:-$INFRA_KEYCLOAK_PUBLIC_URL}"
+KEYCLOAK_INTERNAL_URL="${KEYCLOAK_INTERNAL_URL:-$INFRA_KEYCLOAK_INTERNAL_URL}"
+KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL%/}"
+KEYCLOAK_INTERNAL_URL="${KEYCLOAK_INTERNAL_URL%/}"
+if is_loopback_url "$KEYCLOAK_PUBLIC_URL" \
+  && [[ "$PUBLIC_SERVER" != *localhost* && "$PUBLIC_SERVER" != *127.0.0.1* ]]; then
+  >&2 echo "⚠️  KEYCLOAK_PUBLIC_URL points at localhost but PUBLIC_SERVER does not."
+  >&2 echo "   Set --keycloak-public-url in emobase-infra/init.sh."
+fi
+if is_loopback_url "$KEYCLOAK_PUBLIC_URL"; then
+  INTERNAL_KEYCLOAK_ISSUER="http://host.docker.internal:${INFRA_KEYCLOAK_HOST_PORT}/ibb/keycloak/realms/${KEYCLOAK_REALM}"
+else
+  INTERNAL_KEYCLOAK_ISSUER="${KEYCLOAK_PUBLIC_URL}/realms/${KEYCLOAK_REALM}"
+fi
+
 if [[ -z "$DIRECTUS_DB_DATABASE" ]]; then
   DIRECTUS_DB_DATABASE="directus_${species_slug}"
 fi
@@ -408,8 +425,10 @@ DIRECTUS_DB_PORT=3306
 DIRECTUS_DB_USER=root
 DIRECTUS_DB_DATABASE=${DIRECTUS_DB_DATABASE}
 
-# Keycloak realm/client. The realm is either the portal's shared realm or a
-# dedicated realm created for this species.
+# Keycloak endpoint/realm/client. The realm is either the portal's shared
+# realm or a dedicated realm created for this species.
+KEYCLOAK_PUBLIC_URL=${KEYCLOAK_PUBLIC_URL}
+KEYCLOAK_INTERNAL_URL=${KEYCLOAK_INTERNAL_URL}
 KEYCLOAK_REALM=${KEYCLOAK_REALM}
 KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
 
@@ -422,10 +441,9 @@ INTERNAL_API_ONTOLOGY_SERVICE=http://ontologyservice:8080
 INTERNAL_API_GO_ANNOTATION_SERVICE=http://goannotationservice:8080
 INTERNAL_API_PUBLICATION_SERVICE=http://publicationservice:8080
 INTERNAL_API_QUERY_PIPELINE_SERVICE=http://querypipelineservice:8080
-# Server-side Keycloak calls go through the portal origin, which proxies the
-# shared Keycloak. This keeps species containers off the shared infra network,
-# where identical service names from several species would otherwise collide.
-INTERNAL_KEYCLOAK_ISSUER=${PORTAL_INTERNAL_URL}/ibb/keycloak/realms/${KEYCLOAK_REALM}
+# Server-side Keycloak calls go to this server's emobase-infra Keycloak. They
+# do not depend on the portal being reachable.
+INTERNAL_KEYCLOAK_ISSUER=${INTERNAL_KEYCLOAK_ISSUER}
 INTERNAL_DIRECTUS_URL=http://directus:8055
 
 # The port to access the app from localhost
@@ -474,6 +492,7 @@ else
   >&2 echo "   Portal URL:   ${PORTAL_SERVER}"
   >&2 echo "   Internal URL: ${PORTAL_INTERNAL_URL}"
   >&2 echo "   Directus DB:  ${DIRECTUS_DB_DATABASE}"
+  >&2 echo "   Keycloak URL: ${KEYCLOAK_PUBLIC_URL}"
   >&2 echo "   Keycloak realm: ${KEYCLOAK_REALM}"
   >&2 echo
   >&2 echo "Next:"

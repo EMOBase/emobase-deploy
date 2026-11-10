@@ -23,9 +23,9 @@ x-directus-environment: &directus-environment
   AUTH_KEYCLOAK_DRIVER: openid
   AUTH_KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-ibb-client}
   AUTH_KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
-  # Directus joins the shared infra network, so it can use Keycloak's service
-  # name directly. The browser-facing issuer remains the portal origin.
-  AUTH_KEYCLOAK_ISSUER_URL: ${DIRECTUS_KEYCLOAK_ISSUER_URL:-http://keycloak:8080/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
+  # Directus joins the shared infra network, so it uses Keycloak's internal
+  # service URL. The browser-facing issuer is KEYCLOAK_PUBLIC_URL.
+  AUTH_KEYCLOAK_ISSUER_URL: ${DIRECTUS_KEYCLOAK_ISSUER_URL:-${KEYCLOAK_INTERNAL_URL:-http://keycloak:8080/ibb/keycloak}/realms/${KEYCLOAK_REALM:-ibb}}
   AUTH_KEYCLOAK_IDENTIFIER_KEY: preferred_username
   AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION: "true"
   AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST: ${PUBLIC_SERVER}/ibb/directus
@@ -67,7 +67,7 @@ services:
       - INTERNAL_API_GO_ANNOTATION_SERVICE=${INTERNAL_API_GO_ANNOTATION_SERVICE:-http://goannotationservice:8080}
       - INTERNAL_API_PUBLICATION_SERVICE=${INTERNAL_API_PUBLICATION_SERVICE:-http://publicationservice:8080}
       - INTERNAL_API_QUERY_PIPELINE_SERVICE=${INTERNAL_API_QUERY_PIPELINE_SERVICE:-http://querypipelineservice:8080}
-      - INTERNAL_KEYCLOAK_ISSUER=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:9080/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
+      - INTERNAL_KEYCLOAK_ISSUER=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
       - INTERNAL_DIRECTUS_URL=${INTERNAL_DIRECTUS_URL:-http://directus:8055}
       # BLAST is proxied through this deployment's nginx so its iframe stays
       # same-origin (SequenceServer's CSRF cookie must be first-party).
@@ -83,9 +83,8 @@ services:
       # nginx allows 16k per header line; Node limits all headers together.
       # The extra Node headroom covers the request line and the other headers.
       - NODE_OPTIONS=--max-http-header-size=32768
-      # Keycloak is proxied by the portal, so both the browser-facing issuer and
-      # server-side issuer use the portal origin plus this species' realm.
-      - KEYCLOAK_ISSUER=${PORTAL_SERVER}/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}
+      # Keycloak has its own per-server public URL, independent of the portal.
+      - KEYCLOAK_ISSUER=${KEYCLOAK_PUBLIC_URL}/realms/${KEYCLOAK_REALM:-ibb}
       - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-ibb-client}
       - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
     extra_hosts:
@@ -144,7 +143,7 @@ services:
     user: "${UID}:${GID}"
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:9080/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -164,7 +163,7 @@ services:
         condition: service_started
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:9080/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -176,7 +175,7 @@ services:
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:9080/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -188,7 +187,7 @@ services:
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:9080/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8081/ibb/keycloak/realms/${KEYCLOAK_REALM:-ibb}}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
