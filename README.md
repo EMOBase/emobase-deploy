@@ -189,27 +189,12 @@ docker compose run --rm setup-directus
 docker compose up -d --wait
 ```
 
-## Running species on another server
+## Multiple servers
 
-Each server runs its own `emobase-infra` for the portal and species deployed
-there. A species on a new server should use the local Keycloak, not the portal
-server's Keycloak:
-
-1. Clone `emobase-infra` on the new server and run its `init.sh` and
-   `docker compose up -d --wait`.
-2. Run the species `init.sh` with `--infra-dir` pointing at that local
-   `emobase-infra` checkout.
-3. Create the Directus database and configure the realm on the local infra
-   (`create-database.sh`, and `allow-origin.sh` for a shared realm).
-4. If the portal is on another server, pass its public URL with
-   `--portal-server https://portal.example.org`. Genomics/JBrowse2/BLAST still
-   come from the portal; authentication and Directus data are local.
-
-Check that the portal is reachable before starting:
-
-```bash
-curl -fsS https://portal.example.org/api/genomicsservice/v1/public/versions?status=READY >/dev/null
-```
+Each server runs its own `emobase-infra`; only the portal URL is shared between
+servers. See the
+[deployment guide](https://github.com/EMOBase/emobase-docs/blob/main/DEPLOYMENT.md)
+for adding another server.
 
 ## What `init.sh` sets
 
@@ -254,10 +239,10 @@ docker compose -f compose.yml -f compose.local.yml up -d --build
 `compose.local.yml` is not loaded automatically, so a plain
 `docker compose up -d` always uses the published image.
 
-## Updating
+## Updating the species stack
 
-Update `emobase-infra` first, then the portal so its API and database
-migrations are current, then:
+The [deployment guide](https://github.com/EMOBase/emobase-docs/blob/main/DEPLOYMENT.md)
+covers the update order across repositories. To update this stack:
 
 ```bash
 git pull
