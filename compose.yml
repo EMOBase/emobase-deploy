@@ -71,7 +71,7 @@ services:
       - INTERNAL_DIRECTUS_URL=${INTERNAL_DIRECTUS_URL:-http://directus:8055}
       # BLAST is proxied through this deployment's nginx so its iframe stays
       # same-origin (SequenceServer's CSRF cookie must be first-party).
-      - PUBLIC_UI_PAGE_BLAST=${PUBLIC_SERVER}/ibb/blast/
+      - PUBLIC_UI_PAGE_BLAST=${PUBLIC_SERVER}/blast/
       # JBrowse2 is served by the portal. The browser uses the public URL;
       # server-side config fetches use the internal portal URL, since a public
       # localhost URL would point at this web container itself.

@@ -53,7 +53,8 @@ http {
     # which the browser would not send across origins. Same-origin keeps the
     # cookie first-party. Use the internal portal URL so this works when the
     # browser uses localhost and the portal is on the same Docker host.
-    location /ibb/blast/ {
+    # The Astro BLAST page is served at /blast; /blast/... is SequenceServer.
+    location /blast/ {
       proxy_pass ${PORTAL_INTERNAL_URL}/blast/;
       proxy_set_header Host $http_host;
       proxy_set_header X-Forwarded-Host $forwarded_host;
