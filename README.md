@@ -9,12 +9,6 @@ Genomics, JBrowse2 and BLAST are **not** run here. They come from a running
 [`emobase-portal-deploy`](../emobase-portal-deploy) stack. The multi-species
 portal itself lives in that repository.
 
-> **Upgrading an existing species deployment?** MySQL and Keycloak moved into
-> `emobase-infra`. Start it first, then regenerate `.env` with `./init.sh -f` so
-> it reads the shared secrets and the new per-species `DIRECTUS_DB_DATABASE`.
-> Create that database in the shared MySQL and register the species origin with
-> `allow-origin.sh` before starting Directus.
-
 > **Starting from an empty server?** The complete three-repository procedure is
 > in [`../emobase-portal-deploy/DEPLOYMENT.md`](../emobase-portal-deploy/DEPLOYMENT.md).
 > Deploy the shared infrastructure and the portal first, then use the quick
