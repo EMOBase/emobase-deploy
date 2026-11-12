@@ -38,21 +38,30 @@ emobase/
 If the local infrastructure or portal is not running yet, follow their READMEs
 first.
 
-1. Generate `.env`. `--portal-dir` copies the portal's `PUBLIC_SERVER` into
-   this stack's `PORTAL_SERVER`. The shared MySQL secrets are read from
-   `../emobase-infra/.env` automatically:
+1. Generate `.env`:
 
    ```bash
-   ./init.sh \
-     --species Tcas \
-     --public-server https://tcas.example.org \
-     --portal-dir ../emobase-portal-deploy
+   ./init.sh
    ```
 
-   If the portal checkout is named `../emobase-portal-deploy`, the flag can be
-   omitted; `init.sh` finds it automatically. When both stacks are on the same
-   Docker host, add `--portal-internal-url http://host.docker.internal:9080` to
-   keep container-to-portal traffic off the public domain.
+   The species code is required and has no default; for example, enter `Tcas`.
+   The script then asks for the host port, public server address, internal
+   portal URL, Directus database and Compose project prefix, showing a default
+   for each. `--portal-dir` copies the portal's `PUBLIC_SERVER` into this
+   stack's `PORTAL_SERVER`; when the portal checkout is named
+   `../emobase-portal-deploy`, `init.sh` finds it automatically. Shared MySQL
+   secrets are read from `../emobase-infra/.env`.
+
+   To answer a question in advance, pass its flag; `--yes` accepts every
+   default without prompting. For example:
+
+   ```bash
+   ./init.sh --species Tcas --public-server https://tcas.example.org
+   ```
+
+   When both stacks are on the same Docker host, set
+   `--portal-internal-url http://host.docker.internal:9080` to keep
+   container-to-portal traffic off the public domain.
 
    `init.sh` also asks which Keycloak realm this species should use:
 

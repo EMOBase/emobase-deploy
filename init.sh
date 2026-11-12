@@ -23,7 +23,6 @@ COCO_PASSWORD=
 KEYCLOAK_SHARED=false
 
 DEFAULT_HTTP_PORT=9090
-DEFAULT_PUBLIC_SERVER="http://localhost:${DEFAULT_HTTP_PORT}"
 DEFAULT_PORTAL_DIR="../emobase-portal-deploy"
 DEFAULT_INFRA_DIR="../emobase-infra"
 DEFAULT_INFRA_NETWORK="emobase-infra"
@@ -33,6 +32,27 @@ DEFAULT_KEYCLOAK_CLIENT_ID="ibb-client"
 fatal() {
   >&2 echo "❌ $1"
   exit 1
+}
+
+# ask VAR "label" "default"
+# Keeps an explicit flag or discovered value; otherwise asks with a default.
+# --yes uses the default without prompting. A non-terminal without --yes aborts.
+ask() {
+  local var="$1" label="$2" default="$3" value
+  [[ -n "${!var:-}" ]] && return 0
+  if [[ "$YES" == true ]]; then
+    printf -v "$var" '%s' "$default"
+    return 0
+  fi
+  if [[ ! -t 0 ]]; then
+    fatal "Cannot ask for ${label}: stdin is not a terminal. Pass --yes or the matching option."
+  fi
+  if [[ -n "$default" ]]; then
+    read -rp "${label} [${default}]: " value
+  else
+    read -rp "${label}: " value
+  fi
+  printf -v "$var" '%s' "${value:-$default}"
 }
 
 generate_secret_key() {
@@ -173,6 +193,8 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       echo "Usage: $0 [-f|--force] [-p|--print] [-y|--yes] [--local] [-s|--species SPECIES] [--public-server URL] [--http-port PORT] [--portal-server URL] [--portal-internal-url URL] [--portal-dir DIR] [--infra-dir DIR] [--directus-db NAME] [--keycloak-realm shared|REALM] [--keycloak-client-id ID] [--keycloak-client-secret SECRET] [--coco-username USER] [--coco-password PASSWORD] [--container-prefix PREFIX]"
+      echo "Without options, asks each value in order and shows its default."
+      echo "The species code is required and has no default; for example Tcas."
       echo "  -s, --species       4-letter species code (e.g. Tcas, Dmel, Ptep)"
       echo "  --public-server     Public server address (default: http://localhost:<http-port>)"
       echo "  --http-port         Host port for nginx (default: ${DEFAULT_HTTP_PORT})"
@@ -248,17 +270,20 @@ INFRA_NETWORK="${INFRA_NETWORK:-$DEFAULT_INFRA_NETWORK}"
 # Ask for inputs
 if [[ -z "$MAIN_SPECIES" ]]; then
   if [[ "$YES" == true ]]; then
-    fatal "MAIN_SPECIES is required; pass --species SPECIES"
+    fatal "MAIN_SPECIES is required; pass --species CODE (for example Tcas)"
   fi
-  read -rp "🧬 Enter 4-letter species code: " MAIN_SPECIES
-  [[ -z "$MAIN_SPECIES" ]] && fatal "MAIN_SPECIES cannot be empty"
+  if [[ ! -t 0 ]]; then
+    fatal "Cannot ask for the species code: stdin is not a terminal. Pass --species CODE (for example Tcas)."
+  fi
+  while [[ -z "$MAIN_SPECIES" ]]; do
+    read -rp "🧬 Species code (for example Tcas): " MAIN_SPECIES
+    [[ -z "$MAIN_SPECIES" ]] && >&2 echo "   A species code is required."
+  done
 fi
 species_slug=$(printf '%s' "$MAIN_SPECIES" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_')
 species_slug="${species_slug:-species}"
 
-if [[ -z "$HTTP_PORT" ]]; then
-  HTTP_PORT=${DEFAULT_HTTP_PORT}
-fi
+ask HTTP_PORT "🔌 Host port for the web UI" "$DEFAULT_HTTP_PORT"
 [[ "$HTTP_PORT" =~ ^[0-9]+$ ]] && (( 10#$HTTP_PORT >= 1 && 10#$HTTP_PORT <= 65535 )) \
   || fatal "HTTP_PORT must be a number between 1 and 65535"
 DEFAULT_PUBLIC_SERVER="http://localhost:${HTTP_PORT}"
@@ -267,15 +292,7 @@ if [[ "$LOCAL" == true ]] && [[ -z "$PUBLIC_SERVER" ]]; then
   PUBLIC_SERVER="http://localhost:${HTTP_PORT}"
   >&2 echo "🏠 Local mode: using ${PUBLIC_SERVER}"
 fi
-
-if [[ -z "$PUBLIC_SERVER" ]]; then
-  if [[ "$YES" == true ]]; then
-    PUBLIC_SERVER=${DEFAULT_PUBLIC_SERVER}
-  else
-    read -rp "🌐 Enter public server address [${DEFAULT_PUBLIC_SERVER}]: " PUBLIC_SERVER
-    PUBLIC_SERVER="${PUBLIC_SERVER:-${DEFAULT_PUBLIC_SERVER}}"
-  fi
-fi
+ask PUBLIC_SERVER "🌐 Public server address" "$DEFAULT_PUBLIC_SERVER"
 PUBLIC_SERVER="${PUBLIC_SERVER%/}"
 [[ -z "$PUBLIC_SERVER" ]] && fatal "PUBLIC_SERVER cannot be empty"
 
@@ -291,24 +308,29 @@ if [[ -z "$PORTAL_SERVER" ]]; then
     [[ -n "$PORTAL_SERVER" ]] \
       || fatal "Could not read PUBLIC_SERVER from ${PORTAL_DIR}/.env; pass --portal-server URL"
     >&2 echo "🔗 Using portal URL from ${PORTAL_DIR}/.env"
-  elif [[ "$YES" == true ]] && [[ "$LOCAL" == true ]]; then
+  elif [[ "$LOCAL" == true ]]; then
     PORTAL_SERVER="http://localhost:9080"
   elif [[ "$YES" == true ]]; then
     fatal "PORTAL_SERVER is required; pass --portal-server URL or --portal-dir DIR"
   else
-    read -rp "🌐 Enter portal origin serving genomics/JBrowse2/BLAST: " PORTAL_SERVER
+    if [[ ! -t 0 ]]; then
+      fatal "Cannot ask for the portal origin: stdin is not a terminal. Pass --portal-server URL or --portal-dir DIR."
+    fi
+    while [[ -z "$PORTAL_SERVER" ]]; do
+      read -rp "🌐 Portal origin serving genomics/JBrowse2/BLAST: " PORTAL_SERVER
+      [[ -z "$PORTAL_SERVER" ]] && >&2 echo "   A portal origin is required."
+    done
   fi
 fi
 PORTAL_SERVER="${PORTAL_SERVER%/}"
 [[ -z "$PORTAL_SERVER" ]] && fatal "PORTAL_SERVER cannot be empty"
 
-if [[ -z "$PORTAL_INTERNAL_URL" ]]; then
-  if [[ "$LOCAL" == true ]]; then
-    PORTAL_INTERNAL_URL="http://host.docker.internal:$(url_port "$PORTAL_SERVER")"
-  else
-    PORTAL_INTERNAL_URL="$PORTAL_SERVER"
-  fi
+if [[ "$LOCAL" == true ]]; then
+  default_internal="http://host.docker.internal:$(url_port "$PORTAL_SERVER")"
+else
+  default_internal="$PORTAL_SERVER"
 fi
+ask PORTAL_INTERNAL_URL "🔗 Portal origin used from inside containers" "$default_internal"
 PORTAL_INTERNAL_URL="${PORTAL_INTERNAL_URL%/}"
 [[ -z "$PORTAL_INTERNAL_URL" ]] && fatal "PORTAL_INTERNAL_URL cannot be empty"
 
@@ -319,6 +341,14 @@ if [[ "$PORTAL_SERVER" == *localhost* || "$PORTAL_SERVER" == *127.0.0.1* ]] \
   >&2 echo "   --portal-internal-url to an address reachable from inside Docker."
 fi
 
+ask DIRECTUS_DB_DATABASE "🗄️  Directus database" "directus_${species_slug}"
+[[ "$DIRECTUS_DB_DATABASE" =~ ^[A-Za-z0-9_]+$ ]] \
+  || fatal "DIRECTUS_DB_DATABASE may only contain letters, digits and underscores"
+
+ask CONTAINER_PREFIX "📦 Compose project/container prefix" "$species_slug"
+[[ "$CONTAINER_PREFIX" =~ ^[a-zA-Z0-9_.-]+$ ]] \
+  || fatal "CONTAINER_PREFIX may only contain letters, digits, dot, underscore and hyphen"
+
 # ── Keycloak realm choice ───────────────────────────────────────────────────
 # Sharing a realm gives one team a single user directory for the portal and all
 # species. A dedicated realm gives one species its own users and administrators.
@@ -326,6 +356,9 @@ if [[ -z "$KEYCLOAK_REALM" ]]; then
   if [[ "$YES" == true ]]; then
     KEYCLOAK_REALM=shared
   else
+    if [[ ! -t 0 ]]; then
+      fatal "Cannot ask for the Keycloak realm: stdin is not a terminal. Pass --keycloak-realm shared|REALM."
+    fi
     >&2 echo
     >&2 echo "🔐 Keycloak realm for this species:"
     >&2 echo "   1) Reuse the portal's shared realm '${INFRA_KEYCLOAK_REALM}'"
@@ -358,7 +391,7 @@ else
   if [[ "$KEYCLOAK_REALM" == "$INFRA_KEYCLOAK_REALM" ]]; then
     fatal "Realm '${KEYCLOAK_REALM}' is the shared portal realm. Use --keycloak-realm shared to reuse it instead of creating a dedicated realm."
   fi
-  KEYCLOAK_CLIENT_ID="${KEYCLOAK_CLIENT_ID:-$DEFAULT_KEYCLOAK_CLIENT_ID}"
+  ask KEYCLOAK_CLIENT_ID "🔑 Keycloak client ID" "$DEFAULT_KEYCLOAK_CLIENT_ID"
   KEYCLOAK_CLIENT_SECRET="${KEYCLOAK_CLIENT_SECRET:-$(generate_secret_key 32)}"
   COCO_USERNAME="${COCO_USERNAME:-coco}"
   COCO_PASSWORD="${COCO_PASSWORD:-$(generate_password 24)}"
