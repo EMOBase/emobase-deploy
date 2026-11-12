@@ -75,20 +75,32 @@ first.
    `--keycloak-realm ibb_tcas`. `init.sh` derives
    `DIRECTUS_DB_DATABASE=directus_tcas`; use `--directus-db` to override it.
 
+   A shared realm is created on demand with the first site origin. If this
+   server has no portal, create it with the species origin after infra is
+   healthy:
+
+   ```bash
+   ../emobase-infra/scripts/ensure-shared-realm.sh https://tcas.example.org
+   ```
+
+   `emobase species setup` and `emobase bootstrap` do this automatically.
+
 2. Create the Directus database:
 
    ```bash
    ../emobase-infra/scripts/create-database.sh directus_tcas
    ```
 
-   If you chose the shared realm, also register this site's origin:
+   If you chose the shared realm, register this site's origin (this also
+   creates the realm when it does not exist):
 
    ```bash
-   ../emobase-infra/scripts/allow-origin.sh https://tcas.example.org
+   ../emobase-infra/scripts/ensure-shared-realm.sh https://tcas.example.org
    ```
 
-   `allow-origin.sh` adds the origin to the shared client and is safe to run
-   again. A dedicated realm was already created and configured by `init.sh`.
+   `ensure-shared-realm.sh` is idempotent and also adds the origin. For an
+   additional shared-realm site, `allow-origin.sh` adds only its origin. A
+   dedicated realm was already created and configured by `init.sh`.
 
 3. Initialise Directus, then start the stack:
 
@@ -112,7 +124,7 @@ stack:
 ./init.sh --local --species Tcas
 ../emobase-infra/scripts/create-database.sh directus_tcas
 # Only for the shared realm; a dedicated realm is configured by init.sh.
-../emobase-infra/scripts/allow-origin.sh http://localhost:9090
+../emobase-infra/scripts/ensure-shared-realm.sh http://localhost:9090
 docker compose run --rm setup-directus
 docker compose up -d --wait
 ```
@@ -149,9 +161,9 @@ container URLs:
 
 `KEYCLOAK_ISSUER` is derived from `KEYCLOAK_PUBLIC_URL` and `KEYCLOAK_REALM`, so
 it points at the Keycloak on this server, not at the portal. For a **shared**
-realm, register the species origin with
-`emobase-infra/scripts/allow-origin.sh` before users sign in. A **dedicated**
-realm is created with the species origin already allowed.
+realm, create it or add the species origin with
+`emobase-infra/scripts/ensure-shared-realm.sh` before users sign in. A
+**dedicated** realm is created with the species origin already allowed.
 
 `PORTAL_SERVER` must be exactly the portal's `PUBLIC_SERVER` (same scheme,
 host and port, no trailing slash). `init.sh` strips a trailing slash for you.
@@ -193,7 +205,7 @@ matching `--public-server`) and a `--container-prefix`:
 
 ../emobase-infra/scripts/create-database.sh directus_dmel
 # Only for the shared realm; choose a dedicated realm in init.sh to skip this.
-../emobase-infra/scripts/allow-origin.sh https://dmel.example.org
+../emobase-infra/scripts/ensure-shared-realm.sh https://dmel.example.org
 docker compose run --rm setup-directus
 docker compose up -d --wait
 ```
