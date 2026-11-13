@@ -51,8 +51,8 @@ first.
    detected host IPv4 address; use the public IP or domain if this server is
    behind NAT. `--portal-dir` copies the portal's `PUBLIC_SERVER` into this
    stack's `PORTAL_SERVER`; when the portal checkout is named
-   `../emobase-portal-deploy`, `init.sh` finds it automatically. Shared MySQL
-   secrets are read from `../emobase-infra/.env`.
+   `../emobase-portal-deploy`, `init.sh` finds it automatically. The MySQL root
+   password and Keycloak URLs are read from `../emobase-infra/.env`.
 
    To answer a question in advance, pass its flag; `--yes` accepts every
    default without prompting. For example:
@@ -65,44 +65,44 @@ first.
    `--portal-internal-url http://host.docker.internal:9080` to keep
    container-to-portal traffic off the public domain.
 
-   `init.sh` also asks which Keycloak realm this species should use:
+   `init.sh` also asks which Keycloak realm this species should use. It lists
+   the portal realm and the realms of sibling species checkouts:
 
-   1. **Shared realm** — reuse the portal's realm. One team manages users for
-      the portal and every species site.
-   2. **Dedicated realm** — create `ibb_<species>` with its own client, users
-      and `coco` administrator. Use this when different people manage each
-      website.
-
-   For non-interactive runs, pass `--keycloak-realm shared` or
-   `--keycloak-realm ibb_tcas`. `init.sh` derives
-   `DIRECTUS_DB_DATABASE=directus_tcas`; use `--directus-db` to override it.
-
-   A shared realm is created on demand with the first site origin. If this
-   server has no portal, create it with the species origin after infra is
-   healthy:
-
-   ```bash
-   ../emobase-infra/scripts/ensure-shared-realm.sh https://tcas.example.org
+   ```text
+   1) Realm 'emobase-portal' — used by portal
+   2) Realm 'emobase-tcas' — used by Tcas
+   3) Create a new independent realm [emobase-dmel]
    ```
 
-   `emobase species setup` and `emobase bootstrap` do this automatically.
+   Choose an existing realm to share its users, or create a new independent
+   realm. A new realm defaults to `emobase-<species>` and its client to
+   `emobase-<species>-client`.
+
+   For non-interactive runs:
+
+   ```sh
+   --keycloak-realm join:emobase-portal   # reuse an existing realm
+   --keycloak-realm new:emobase-dmel      # create an independent realm
+   ```
+
+   `init.sh` derives `DIRECTUS_DB_DATABASE=directus_tcas`; use `--directus-db`
+   to override it.
+
+   The realm is created later, after infra is healthy, by `emobase species
+   setup`, `emobase up`, `emobase bootstrap`, or manually:
+
+   ```bash
+   ../emobase-infra/scripts/create-realm.sh \
+     --realm emobase-tcas \
+     --origin https://tcas.example.org \
+     --client-id emobase-tcas-client \
+     --client-secret "<KEYCLOAK_CLIENT_SECRET from .env>" \
+     --coco-username coco \
+     --coco-password "<COCO_PASSWORD from .env>" \
+     --keep-password --quiet
+   ```
 
 2. Create the Directus database:
-
-   ```bash
-   ../emobase-infra/scripts/create-database.sh directus_tcas
-   ```
-
-   If you chose the shared realm, register this site's origin (this also
-   creates the realm when it does not exist):
-
-   ```bash
-   ../emobase-infra/scripts/ensure-shared-realm.sh https://tcas.example.org
-   ```
-
-   `ensure-shared-realm.sh` is idempotent and also adds the origin. For an
-   additional shared-realm site, `allow-origin.sh` adds only its origin. A
-   dedicated realm was already created and configured by `init.sh`.
 
 3. Initialise Directus, then start the stack:
 
@@ -112,10 +112,9 @@ first.
    ```
 
 4. Open `${PUBLIC_SERVER}` and sign in with `COCO_USERNAME` /
-   `COCO_PASSWORD` from this stack's `.env`. The password is temporary;
-   Keycloak asks for a new one on first login. For a shared realm the
-   credentials are the ones from `../emobase-infra/.env`; for a dedicated realm
-   they belong only to this species.
+   `COCO_PASSWORD` from this stack's `.env`. For a joined realm these were
+   copied from the realm owner; for a new realm the password is temporary and
+   Keycloak asks for a new one on first login.
 
 ### Local trial (no domain)
 
@@ -125,8 +124,15 @@ stack:
 ```bash
 ./init.sh --local --species Tcas
 ../emobase-infra/scripts/create-database.sh directus_tcas
-# Only for the shared realm; a dedicated realm is configured by init.sh.
-../emobase-infra/scripts/ensure-shared-realm.sh http://localhost:9090
+# Create or update the realm chosen by init.sh.
+../emobase-infra/scripts/create-realm.sh \
+  --realm emobase-tcas \
+  --origin http://localhost:9090 \
+  --client-id emobase-tcas-client \
+  --client-secret "<KEYCLOAK_CLIENT_SECRET from .env>" \
+  --coco-username coco \
+  --coco-password "<COCO_PASSWORD from .env>" \
+  --keep-password --quiet
 docker compose run --rm setup-directus
 docker compose up -d --wait
 ```
@@ -156,16 +162,16 @@ container URLs:
 | `PORTAL_SERVER` | The **public portal** URL used for genomics/JBrowse2/BLAST links | `https://portal.example.org` |
 | `PORTAL_INTERNAL_URL` | Portal origin used by nginx for the BLAST proxy | `http://host.docker.internal:9080` |
 | `KEYCLOAK_PUBLIC_URL` | This server's browser-facing Keycloak base URL | `https://auth.example.org/keycloak` |
-| `KEYCLOAK_REALM` | Shared portal realm or this species' dedicated realm | `ibb` / `ibb_tcas` |
-| `KEYCLOAK_CLIENT_ID` | Client ID in that realm | `ibb-client` |
+| `KEYCLOAK_REALM` | Joined realm or this species' new realm | `emobase-portal` / `emobase-tcas` |
+| `KEYCLOAK_CLIENT_ID` | Client ID in that realm | `emobase-tcas-client` |
 | `DIRECTUS_DB_DATABASE` | This species' database in the local MySQL | `directus_tcas` |
 | `INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER`, `INTERNAL_DIRECTUS_URL` | Full server-side service URLs | `http://phenotypeservice:8080` |
 
 `KEYCLOAK_ISSUER` is derived from `KEYCLOAK_PUBLIC_URL` and `KEYCLOAK_REALM`, so
-it points at the Keycloak on this server, not at the portal. For a **shared**
-realm, create it or add the species origin with
-`emobase-infra/scripts/ensure-shared-realm.sh` before users sign in. A
-**dedicated** realm is created with the species origin already allowed.
+it points at the Keycloak on this server, not at the portal. For a joined
+realm, add this species origin with
+`emobase-infra/scripts/create-realm.sh --keep-password` before users sign in. A
+new realm is created with the species origin already allowed.
 
 `PORTAL_SERVER` must be exactly the portal's `PUBLIC_SERVER` (same scheme,
 host and port, no trailing slash). `init.sh` strips a trailing slash for you.
@@ -206,8 +212,15 @@ matching `--public-server`) and a `--container-prefix`:
   --container-prefix dmel
 
 ../emobase-infra/scripts/create-database.sh directus_dmel
-# Only for the shared realm; choose a dedicated realm in init.sh to skip this.
-../emobase-infra/scripts/ensure-shared-realm.sh https://dmel.example.org
+# Create or update the realm chosen by init.sh.
+../emobase-infra/scripts/create-realm.sh \
+  --realm emobase-dmel \
+  --origin https://dmel.example.org \
+  --client-id emobase-dmel-client \
+  --client-secret "<KEYCLOAK_CLIENT_SECRET from .env>" \
+  --coco-username coco \
+  --coco-password "<COCO_PASSWORD from .env>" \
+  --keep-password --quiet
 docker compose run --rm setup-directus
 docker compose up -d --wait
 ```
@@ -229,10 +242,10 @@ for adding another server.
 | `PORTAL_INTERNAL_URL` | Portal URL for containers; local mode uses `host.docker.internal` |
 | `DIRECTUS_DB_DATABASE` | `directus_<species>` by default; one database per species |
 | `KEYCLOAK_PUBLIC_URL` / `KEYCLOAK_INTERNAL_URL` | Local Keycloak endpoints, copied from `emobase-infra/.env` |
-| `KEYCLOAK_REALM` | Portal's shared realm or `ibb_<species>` for a dedicated realm |
+| `KEYCLOAK_REALM` | Joined realm or a new independent `emobase-<species>` realm |
 | `KEYCLOAK_CLIENT_ID` | Client ID in the selected realm |
-| `KEYCLOAK_CLIENT_SECRET` | Shared-realm secret, or a new secret for a dedicated realm |
-| `COCO_USERNAME` / `COCO_PASSWORD` | Seed user; shared from infra or created for a dedicated realm |
+| `KEYCLOAK_CLIENT_SECRET` | Copied when joining a realm, generated for a new realm |
+| `COCO_USERNAME` / `COCO_PASSWORD` | Seed user; copied when joining, generated for a new realm |
 | `EMOBASE_INFRA_NETWORK` | External Docker network shared with infra and the portal |
 | `INTERNAL_API_*`, `INTERNAL_DIRECTUS_URL` | Server-side URLs; generated with Docker service names |
 | `INTERNAL_KEYCLOAK_ISSUER` | Local Keycloak base URL + `/realms/<realm>` (server-side) |

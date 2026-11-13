@@ -20,14 +20,12 @@ KEYCLOAK_CLIENT_ID=
 KEYCLOAK_CLIENT_SECRET=
 COCO_USERNAME=
 COCO_PASSWORD=
-KEYCLOAK_SHARED=false
+KEYCLOAK_REALM_MODE=
 
 DEFAULT_HTTP_PORT=9090
 DEFAULT_PORTAL_DIR="../emobase-portal-deploy"
 DEFAULT_INFRA_DIR="../emobase-infra"
 DEFAULT_INFRA_NETWORK="emobase-infra"
-DEFAULT_KEYCLOAK_REALM="ibb"
-DEFAULT_KEYCLOAK_CLIENT_ID="ibb-client"
 
 fatal() {
   >&2 echo "❌ $1"
@@ -216,7 +214,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
-      echo "Usage: $0 [-f|--force] [-p|--print] [-y|--yes] [--local] [-s|--species SPECIES] [--public-server URL] [--http-port PORT] [--portal-server URL] [--portal-internal-url URL] [--portal-dir DIR] [--infra-dir DIR] [--directus-db NAME] [--keycloak-realm shared|REALM] [--keycloak-client-id ID] [--keycloak-client-secret SECRET] [--coco-username USER] [--coco-password PASSWORD] [--container-prefix PREFIX]"
+      echo "Usage: $0 [-f|--force] [-p|--print] [-y|--yes] [--local] [-s|--species SPECIES] [--public-server URL] [--http-port PORT] [--portal-server URL] [--portal-internal-url URL] [--portal-dir DIR] [--infra-dir DIR] [--directus-db NAME] [--keycloak-realm join:REALM|new:REALM] [--keycloak-client-id ID] [--keycloak-client-secret SECRET] [--coco-username USER] [--coco-password PASSWORD] [--container-prefix PREFIX]"
       echo "Without options, asks each value in order and shows its default."
       echo "The species code is required and has no default; for example Tcas."
       echo "  -s, --species       4-letter species code (e.g. Tcas, Dmel, Ptep)"
@@ -230,14 +228,14 @@ while [[ $# -gt 0 ]]; do
       echo "  --infra-dir         emobase-infra checkout whose .env holds the shared"
       echo "                      MySQL/Keycloak secrets (default: ${DEFAULT_INFRA_DIR} when present)"
       echo "  --directus-db       Directus database name (default: directus_<species>)"
-      echo "  --keycloak-realm    'shared' to reuse the portal realm, or a realm name"
-      echo "                      to create/update a dedicated realm for this species"
+      echo "  --keycloak-realm    join:REALM to reuse an existing realm, new:REALM"
+      echo "                      to create one, or a plain name for a new realm"
       echo "  --keycloak-client-id"
-      echo "                      Client ID in the chosen realm (default: ${DEFAULT_KEYCLOAK_CLIENT_ID})"
+      echo "                      Client ID (default: emobase-<species>-client)"
       echo "  --keycloak-client-secret"
-      echo "                      Client secret (normally generated or read from infra)"
+      echo "                      Client secret (copied when joining, generated when new)"
       echo "  --coco-username     Seed user name (default: coco)"
-      echo "  --coco-password     Seed user password (normally generated)"
+      echo "  --coco-password     Seed user password (copied when joining, generated when new)"
       echo "  --container-prefix  Prefix for docker compose containers (default: current directory)"
       echo "  --local             Use localhost for browser URLs and an internal host URL"
       echo "  -f, --force         Overwrite existing .env file"
@@ -268,23 +266,12 @@ fi
 MYSQL_ROOT_PASSWORD=$(read_env_value "$INFRA_DIR/.env" MYSQL_ROOT_PASSWORD || true)
 [[ -n "$MYSQL_ROOT_PASSWORD" ]] \
   || fatal "${INFRA_DIR}/.env has no MYSQL_ROOT_PASSWORD; re-run emobase-infra/init.sh."
-INFRA_KEYCLOAK_CLIENT_SECRET=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_CLIENT_SECRET || true)
-[[ -n "$INFRA_KEYCLOAK_CLIENT_SECRET" ]] \
-  || fatal "${INFRA_DIR}/.env has no KEYCLOAK_CLIENT_SECRET; re-run emobase-infra/init.sh."
-
-INFRA_KEYCLOAK_REALM=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_REALM || true)
-INFRA_KEYCLOAK_REALM="${INFRA_KEYCLOAK_REALM:-$DEFAULT_KEYCLOAK_REALM}"
-INFRA_KEYCLOAK_CLIENT_ID=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_CLIENT_ID || true)
-INFRA_KEYCLOAK_CLIENT_ID="${INFRA_KEYCLOAK_CLIENT_ID:-$DEFAULT_KEYCLOAK_CLIENT_ID}"
 INFRA_KEYCLOAK_HOST_PORT=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_HOST_PORT || true)
 INFRA_KEYCLOAK_HOST_PORT="${INFRA_KEYCLOAK_HOST_PORT:-8081}"
 INFRA_KEYCLOAK_PUBLIC_URL=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL || true)
 INFRA_KEYCLOAK_PUBLIC_URL="${INFRA_KEYCLOAK_PUBLIC_URL:-http://localhost:${INFRA_KEYCLOAK_HOST_PORT}/keycloak}"
 INFRA_KEYCLOAK_INTERNAL_URL=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_INTERNAL_URL || true)
 INFRA_KEYCLOAK_INTERNAL_URL="${INFRA_KEYCLOAK_INTERNAL_URL:-http://keycloak:8080/keycloak}"
-INFRA_COCO_USERNAME=$(read_env_value "$INFRA_DIR/.env" COCO_USERNAME || true)
-INFRA_COCO_USERNAME="${INFRA_COCO_USERNAME:-coco}"
-INFRA_COCO_PASSWORD=$(read_env_value "$INFRA_DIR/.env" COCO_PASSWORD || true)
 
 INFRA_NETWORK=$(read_env_value "$INFRA_DIR/.env" EMOBASE_INFRA_NETWORK || true)
 INFRA_NETWORK="${INFRA_NETWORK:-$DEFAULT_INFRA_NETWORK}"
@@ -388,60 +375,168 @@ ask CONTAINER_PREFIX "📦 Compose project/container prefix" "$species_slug"
   || fatal "CONTAINER_PREFIX may only contain letters, digits, dot, underscore and hyphen"
 
 # ── Keycloak realm choice ───────────────────────────────────────────────────
-# Sharing a realm gives one team a single user directory for the portal and all
-# species. A dedicated realm gives one species its own users and administrators.
+# Realms are owned by the portal or by the species that created them. This
+# species can join any realm with locally available credentials or create a
+# new independent realm. Infra does not own a realm.
+REALM_NAMES=()
+REALM_CLIENTS=()
+REALM_SECRETS=()
+REALM_COCO_USERS=()
+REALM_COCO_PASSES=()
+REALM_SOURCES=()
+
+realm_index_of() {
+  local name="$1" i
+  for ((i = 0; i < ${#REALM_NAMES[@]}; i++)); do
+    if [[ "${REALM_NAMES[$i]}" == "$name" ]]; then
+      printf '%s\n' "$i"
+      return 0
+    fi
+  done
+  printf '%s\n' "-1"
+}
+
+add_realm_option() {
+  local file="$1" label="$2" realm client secret user pass idx
+  realm=$(read_env_value "$file" KEYCLOAK_REALM || true)
+  [[ -n "$realm" ]] || return 0
+  idx=$(realm_index_of "$realm")
+  [[ "$idx" == "-1" ]] || return 0
+  client=$(read_env_value "$file" KEYCLOAK_CLIENT_ID || true)
+  secret=$(read_env_value "$file" KEYCLOAK_CLIENT_SECRET || true)
+  user=$(read_env_value "$file" COCO_USERNAME || true)
+  pass=$(read_env_value "$file" COCO_PASSWORD || true)
+  [[ -n "$client" && -n "$secret" ]] || return 0
+  REALM_NAMES+=("$realm")
+  REALM_CLIENTS+=("$client")
+  REALM_SECRETS+=("$secret")
+  REALM_COCO_USERS+=("${user:-coco}")
+  REALM_COCO_PASSES+=("$pass")
+  REALM_SOURCES+=("$label")
+}
+
+portal_candidate="$PORTAL_DIR"
+if [[ -z "$portal_candidate" ]] && [[ -f "${DEFAULT_PORTAL_DIR}/.env" ]]; then
+  portal_candidate="$DEFAULT_PORTAL_DIR"
+fi
+if [[ -n "$portal_candidate" ]] && [[ -f "$portal_candidate/.env" ]]; then
+  add_realm_option "$portal_candidate/.env" "portal"
+fi
+
+workspace_parent="$(dirname "$PWD")"
+for env_file in "$workspace_parent"/emobase-deploy*/.env; do
+  [[ -f "$env_file" ]] || continue
+  [[ "$env_file" == "$PWD/.env" ]] && continue
+  label=$(read_env_value "$env_file" MAIN_SPECIES || true)
+  [[ -n "$label" ]] || label=$(basename "$(dirname "$env_file")")
+  add_realm_option "$env_file" "$label"
+done
+
+default_realm="emobase-${species_slug}"
+ASK_NEW_DETAILS=false
 if [[ -z "$KEYCLOAK_REALM" ]]; then
   if [[ "$YES" == true ]]; then
-    KEYCLOAK_REALM=shared
+    if [[ ${#REALM_NAMES[@]} -gt 0 ]]; then
+      KEYCLOAK_REALM="join:${REALM_NAMES[0]}"
+    else
+      KEYCLOAK_REALM="new:${default_realm}"
+    fi
   else
     if [[ ! -t 0 ]]; then
-      fatal "Cannot ask for the Keycloak realm: stdin is not a terminal. Pass --keycloak-realm shared|REALM."
+      fatal "Cannot ask for the Keycloak realm: stdin is not a terminal. Pass --keycloak-realm join:REALM or new:REALM."
     fi
     >&2 echo
     >&2 echo "🔐 Keycloak realm for this species:"
-    >&2 echo "   1) Reuse the portal's shared realm '${INFRA_KEYCLOAK_REALM}'"
-    >&2 echo "      One team manages users for the portal and every species site."
-    >&2 echo "   2) Create a dedicated realm for this species"
-    >&2 echo "      Separate users and administrators from the portal and other species."
-    read -rp "Choose [1]: " realm_choice
-    case "$realm_choice" in
-      2)
-        default_realm="ibb_${species_slug}"
-        read -rp "Dedicated realm name [${default_realm}]: " realm_name
-        KEYCLOAK_REALM="${realm_name:-$default_realm}"
-        ;;
-      *)
-        KEYCLOAK_REALM=shared
-        ;;
-    esac
+    if [[ ${#REALM_NAMES[@]} -gt 0 ]]; then
+      for ((i = 0; i < ${#REALM_NAMES[@]}; i++)); do
+        >&2 echo "   $((i + 1))) Realm '${REALM_NAMES[$i]}' — used by ${REALM_SOURCES[$i]}"
+      done
+      new_choice=$((${#REALM_NAMES[@]} + 1))
+      >&2 echo "   ${new_choice}) Create a new independent realm [${default_realm}]"
+      while true; do
+        read -rp "Choose [1]: " realm_choice
+        realm_choice="${realm_choice:-1}"
+        if [[ "$realm_choice" =~ ^[0-9]+$ ]] && (( realm_choice >= 1 && realm_choice <= new_choice )); then
+          break
+        fi
+        >&2 echo "   Enter a number between 1 and ${new_choice}."
+      done
+      if (( realm_choice == new_choice )); then
+        KEYCLOAK_REALM="new:${default_realm}"
+        ASK_NEW_DETAILS=true
+      else
+        idx=$((realm_choice - 1))
+        KEYCLOAK_REALM="join:${REALM_NAMES[$idx]}"
+      fi
+    else
+      >&2 echo "   No existing realms found."
+      read -rp "New realm name [${default_realm}]: " realm_name
+      KEYCLOAK_REALM="new:${realm_name:-$default_realm}"
+      ASK_NEW_DETAILS=true
+    fi
   fi
 fi
 
-if [[ "$KEYCLOAK_REALM" == "shared" ]]; then
-  KEYCLOAK_SHARED=true
-  KEYCLOAK_REALM="$INFRA_KEYCLOAK_REALM"
-  KEYCLOAK_CLIENT_ID="${KEYCLOAK_CLIENT_ID:-$INFRA_KEYCLOAK_CLIENT_ID}"
-  KEYCLOAK_CLIENT_SECRET="${KEYCLOAK_CLIENT_SECRET:-$INFRA_KEYCLOAK_CLIENT_SECRET}"
-  COCO_USERNAME="${COCO_USERNAME:-$INFRA_COCO_USERNAME}"
-  COCO_PASSWORD="${COCO_PASSWORD:-$INFRA_COCO_PASSWORD}"
-  >&2 echo "🔐 Using shared Keycloak realm '${KEYCLOAK_REALM}'."
-else
-  if [[ "$KEYCLOAK_REALM" == "$INFRA_KEYCLOAK_REALM" ]]; then
-    fatal "Realm '${KEYCLOAK_REALM}' is the shared portal realm. Use --keycloak-realm shared to reuse it instead of creating a dedicated realm."
+case "$KEYCLOAK_REALM" in
+  shared)
+    if [[ ${#REALM_NAMES[@]} -gt 0 ]]; then
+      KEYCLOAK_REALM="join:${REALM_NAMES[0]}"
+    else
+      KEYCLOAK_REALM="new:${default_realm}"
+    fi
+    ;;
+esac
+
+case "$KEYCLOAK_REALM" in
+  join:*)
+    join_realm="${KEYCLOAK_REALM#join:}"
+    idx=$(realm_index_of "$join_realm")
+    if [[ "$idx" == "-1" ]]; then
+      if [[ -z "$KEYCLOAK_CLIENT_ID" || -z "$KEYCLOAK_CLIENT_SECRET" ]]; then
+        fatal "Realm '${join_realm}' was not found in a local checkout. Pass --keycloak-client-id and --keycloak-client-secret to join it explicitly."
+      fi
+    else
+      KEYCLOAK_CLIENT_ID="${KEYCLOAK_CLIENT_ID:-${REALM_CLIENTS[$idx]}}"
+      KEYCLOAK_CLIENT_SECRET="${KEYCLOAK_CLIENT_SECRET:-${REALM_SECRETS[$idx]}}"
+      COCO_USERNAME="${COCO_USERNAME:-${REALM_COCO_USERS[$idx]}}"
+      COCO_PASSWORD="${COCO_PASSWORD:-${REALM_COCO_PASSES[$idx]}}"
+    fi
+    KEYCLOAK_REALM="$join_realm"
+    KEYCLOAK_REALM_MODE=joined
+    >&2 echo "🔐 Joining existing Keycloak realm '${KEYCLOAK_REALM}'."
+    ;;
+  new:*)
+    KEYCLOAK_REALM="${KEYCLOAK_REALM#new:}"
+    KEYCLOAK_REALM_MODE=dedicated
+    ;;
+  *)
+    idx=$(realm_index_of "$KEYCLOAK_REALM")
+    if [[ "$idx" != "-1" ]]; then
+      KEYCLOAK_CLIENT_ID="${KEYCLOAK_CLIENT_ID:-${REALM_CLIENTS[$idx]}}"
+      KEYCLOAK_CLIENT_SECRET="${KEYCLOAK_CLIENT_SECRET:-${REALM_SECRETS[$idx]}}"
+      COCO_USERNAME="${COCO_USERNAME:-${REALM_COCO_USERS[$idx]}}"
+      COCO_PASSWORD="${COCO_PASSWORD:-${REALM_COCO_PASSES[$idx]}}"
+      KEYCLOAK_REALM_MODE=joined
+      >&2 echo "🔐 Joining existing Keycloak realm '${KEYCLOAK_REALM}'."
+    else
+      KEYCLOAK_REALM_MODE=dedicated
+    fi
+    ;;
+esac
+
+if [[ "$KEYCLOAK_REALM_MODE" == "dedicated" ]]; then
+  if [[ "$ASK_NEW_DETAILS" == true ]]; then
+    read -rp "New realm name [${KEYCLOAK_REALM}]: " realm_name
+    KEYCLOAK_REALM="${realm_name:-$KEYCLOAK_REALM}"
+    default_client="emobase-${species_slug}-client"
+    read -rp "Client ID [${default_client}]: " client_id
+    KEYCLOAK_CLIENT_ID="${client_id:-$default_client}"
   fi
-  ask KEYCLOAK_CLIENT_ID "🔑 Keycloak client ID" "$DEFAULT_KEYCLOAK_CLIENT_ID"
+  KEYCLOAK_CLIENT_ID="${KEYCLOAK_CLIENT_ID:-emobase-${species_slug}-client}"
   KEYCLOAK_CLIENT_SECRET="${KEYCLOAK_CLIENT_SECRET:-$(generate_secret_key 32)}"
   COCO_USERNAME="${COCO_USERNAME:-coco}"
   COCO_PASSWORD="${COCO_PASSWORD:-$(generate_password 24)}"
-  >&2 echo "🔐 Creating dedicated Keycloak realm '${KEYCLOAK_REALM}' for ${MAIN_SPECIES}."
-  "${INFRA_DIR}/scripts/create-realm.sh" \
-    --realm "$KEYCLOAK_REALM" \
-    --origin "$PUBLIC_SERVER" \
-    --client-id "$KEYCLOAK_CLIENT_ID" \
-    --client-secret "$KEYCLOAK_CLIENT_SECRET" \
-    --coco-username "$COCO_USERNAME" \
-    --coco-password "$COCO_PASSWORD" >&2 \
-    || fatal "Could not create realm '${KEYCLOAK_REALM}'. Make sure emobase-infra is running."
+  >&2 echo "🔐 New Keycloak realm '${KEYCLOAK_REALM}' will be created by emobase species setup."
 fi
 
 [[ "$KEYCLOAK_REALM" =~ ^[a-zA-Z0-9_.-]+$ ]] \
@@ -496,11 +591,12 @@ DIRECTUS_DB_PORT=3306
 DIRECTUS_DB_USER=root
 DIRECTUS_DB_DATABASE=${DIRECTUS_DB_DATABASE}
 
-# Keycloak endpoint/realm/client. The realm is either the portal's shared
-# realm or a dedicated realm created for this species.
+# Keycloak endpoint/realm/client. The realm is either an existing realm this
+# species joined or a new independent realm owned by this checkout.
 KEYCLOAK_PUBLIC_URL=${KEYCLOAK_PUBLIC_URL}
 KEYCLOAK_INTERNAL_URL=${KEYCLOAK_INTERNAL_URL}
 KEYCLOAK_REALM=${KEYCLOAK_REALM}
+KEYCLOAK_REALM_MODE=${KEYCLOAK_REALM_MODE}
 KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
 
 # Internal service URLs used for server-side calls. These must be absolute.
@@ -537,8 +633,8 @@ UID=$(id -u)
 GID=$(id -g)
 
 # Secrets
-# MYSQL_ROOT_PASSWORD is shared with emobase-infra. KEYCLOAK_CLIENT_SECRET is
-# the shared-realm secret or the dedicated realm's client secret.
+# MYSQL_ROOT_PASSWORD is shared with emobase-infra. KEYCLOAK_CLIENT_SECRET
+# belongs to this species' chosen realm.
 SSR_OIDC_SESSION_SECRET=$(generate_secret_key 48)
 KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
 DIRECTUS_SECRET=$(generate_secret_key 32)
@@ -548,8 +644,8 @@ MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
 DIRECTUS_ADMIN_EMAIL=admin@emobase.org
 DIRECTUS_ADMIN_PASSWORD=$(generate_password)
 
-# Seed Keycloak user. For a shared realm these come from emobase-infra; for a
-# dedicated realm the password is temporary and must be changed on first login.
+# Seed Keycloak user. For a joined realm these are copied from the owner; for
+# a new realm the password is temporary and must be changed on first login.
 COCO_USERNAME=${COCO_USERNAME}
 COCO_PASSWORD=${COCO_PASSWORD}"
 
@@ -564,19 +660,20 @@ else
   >&2 echo "   Internal URL: ${PORTAL_INTERNAL_URL}"
   >&2 echo "   Directus DB:  ${DIRECTUS_DB_DATABASE}"
   >&2 echo "   Keycloak URL: ${KEYCLOAK_PUBLIC_URL}"
-  >&2 echo "   Keycloak realm: ${KEYCLOAK_REALM}"
+  >&2 echo "   Keycloak realm: ${KEYCLOAK_REALM} (${KEYCLOAK_REALM_MODE})"
   >&2 echo
   >&2 echo "Next:"
   >&2 echo "  1. Make sure emobase-infra is running."
-  >&2 echo "  2. Create this species' Directus database:"
+  >&2 echo "  2. Create or update this species' Keycloak realm and origin:"
+  >&2 echo "       ${INFRA_DIR}/scripts/create-realm.sh \\"
+  >&2 echo "         --realm ${KEYCLOAK_REALM} --origin ${PUBLIC_SERVER} \\"
+  >&2 echo "         --client-id ${KEYCLOAK_CLIENT_ID} \\"
+  >&2 echo "         --client-secret '${KEYCLOAK_CLIENT_SECRET}' \\"
+  >&2 echo "         --coco-username ${COCO_USERNAME} --coco-password '${COCO_PASSWORD}' \\"
+  >&2 echo "         --keep-password --quiet"
+  >&2 echo "     (emobase species setup, up or bootstrap does this automatically.)"
+  >&2 echo "  3. Create this species' Directus database:"
   >&2 echo "       ${INFRA_DIR}/scripts/create-database.sh ${DIRECTUS_DB_DATABASE}"
-  if [[ "$KEYCLOAK_SHARED" == true ]]; then
-    >&2 echo "  3. Register this site with the shared Keycloak:"
-    >&2 echo "       ${INFRA_DIR}/scripts/allow-origin.sh ${PUBLIC_SERVER}"
-  else
-    >&2 echo "  3. Dedicated Keycloak realm '${KEYCLOAK_REALM}' is ready."
-    >&2 echo "       Seed user: ${COCO_USERNAME} (temporary password in .env)"
-  fi
   >&2 echo "  4. docker compose run --rm setup-directus"
   >&2 echo "  5. docker compose up -d --wait"
 fi
