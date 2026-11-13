@@ -47,7 +47,9 @@ first.
    The species code is required and has no default; for example, enter `Tcas`.
    The script then asks for the host port, public server address, internal
    portal URL, Directus database and Compose project prefix, showing a default
-   for each. `--portal-dir` copies the portal's `PUBLIC_SERVER` into this
+   for each. Without `--local`, the species and portal URLs default to the
+   detected host IPv4 address; use the public IP or domain if this server is
+   behind NAT. `--portal-dir` copies the portal's `PUBLIC_SERVER` into this
    stack's `PORTAL_SERVER`; when the portal checkout is named
    `../emobase-portal-deploy`, `init.sh` finds it automatically. Shared MySQL
    secrets are read from `../emobase-infra/.env`.

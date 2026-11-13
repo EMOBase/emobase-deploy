@@ -55,6 +55,30 @@ ask() {
   printf -v "$var" '%s' "${value:-$default}"
 }
 
+# detect_host_ip prints the address used for the default route. It is the
+# server's reachable interface address, not necessarily its internet-facing
+# address when the host is behind NAT.
+detect_host_ip() {
+  local ip
+  ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{
+    for (i = 1; i <= NF; i++) if ($i == "src") { print $(i + 1); exit }
+  }')
+  if [[ -z "$ip" ]]; then
+    ip=$(hostname -I 2>/dev/null | awk '{
+      for (i = 1; i <= NF; i++) if ($i !~ /^127\./) { print $i; exit }
+    }')
+  fi
+  if [[ -z "$ip" ]] && command -v ipconfig >/dev/null 2>&1; then
+    ip=$(ipconfig getifaddr en0 2>/dev/null || true)
+  fi
+  printf '%s\n' "$ip"
+}
+
+is_private_ip() {
+  [[ "$1" =~ ^10\. ]] || [[ "$1" =~ ^192\.168\. ]] || \
+    [[ "$1" =~ ^172\.(1[6-9]|2[0-9]|3[01])\. ]]
+}
+
 generate_secret_key() {
   length="${1:-32}"
   local key # Needed to avoid pipefail
@@ -286,7 +310,17 @@ species_slug="${species_slug:-species}"
 ask HTTP_PORT "🔌 Host port for the web UI" "$DEFAULT_HTTP_PORT"
 [[ "$HTTP_PORT" =~ ^[0-9]+$ ]] && (( 10#$HTTP_PORT >= 1 && 10#$HTTP_PORT <= 65535 )) \
   || fatal "HTTP_PORT must be a number between 1 and 65535"
+host_ip=
+if [[ "$LOCAL" != true ]]; then
+  host_ip=$(detect_host_ip)
+fi
 DEFAULT_PUBLIC_SERVER="http://localhost:${HTTP_PORT}"
+if [[ "$LOCAL" != true ]] && [[ -n "$host_ip" ]]; then
+  DEFAULT_PUBLIC_SERVER="http://${host_ip}:${HTTP_PORT}"
+  if [[ -z "$PUBLIC_SERVER" ]] && is_private_ip "$host_ip"; then
+    >&2 echo "⚠️  Detected host address ${host_ip}; use the public IP or domain if this server is behind NAT."
+  fi
+fi
 
 if [[ "$LOCAL" == true ]] && [[ -z "$PUBLIC_SERVER" ]]; then
   PUBLIC_SERVER="http://localhost:${HTTP_PORT}"
@@ -316,9 +350,13 @@ if [[ -z "$PORTAL_SERVER" ]]; then
     if [[ ! -t 0 ]]; then
       fatal "Cannot ask for the portal origin: stdin is not a terminal. Pass --portal-server URL or --portal-dir DIR."
     fi
+    default_portal="http://localhost:9080"
+    if [[ -n "$host_ip" ]]; then
+      default_portal="http://${host_ip}:9080"
+    fi
     while [[ -z "$PORTAL_SERVER" ]]; do
-      read -rp "🌐 Portal origin serving genomics/JBrowse2/BLAST: " PORTAL_SERVER
-      [[ -z "$PORTAL_SERVER" ]] && >&2 echo "   A portal origin is required."
+      read -rp "🌐 Portal origin serving genomics/JBrowse2/BLAST [${default_portal}]: " PORTAL_SERVER
+      PORTAL_SERVER="${PORTAL_SERVER:-$default_portal}"
     done
   fi
 fi
