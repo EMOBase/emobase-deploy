@@ -26,7 +26,7 @@ portal itself lives in that repository.
 
 ## Quick start (portal on the same server)
 
-The infrastructure, portal and species repositories are expected side by side:
+Keep the repositories side by side:
 
 ```text
 emobase/
@@ -35,118 +35,33 @@ emobase/
 └── emobase-deploy/
 ```
 
-If the local infrastructure or portal is not running yet, follow their READMEs
-first.
-
-1. Generate `.env`:
-
-   ```bash
-   ./init.sh
-   ```
-
-   The species code is required and has no default; for example, enter `Tcas`.
-   The script then asks for the host port, public server address, internal
-   portal URL, Directus database and Compose project prefix, showing a default
-   for each. Without `--local`, the species and portal URLs default to the
-   detected host IPv4 address; use the public IP or domain if this server is
-   behind NAT. `--portal-dir` copies the portal's `PUBLIC_SERVER` into this
-   stack's `PORTAL_SERVER`; when the portal checkout is named
-   `../emobase-portal-deploy`, `init.sh` finds it automatically. The MySQL root
-   password and Keycloak URLs are read from `../emobase-infra/.env`.
-
-   To answer a question in advance, pass its flag; `--yes` accepts every
-   default without prompting. For example:
-
-   ```bash
-   ./init.sh --species Tcas --public-server https://tcas.example.org
-   ```
-
-   When both stacks are on the same Docker host, set
-   `--portal-internal-url http://host.docker.internal:9080` to keep
-   container-to-portal traffic off the public domain.
-
-   `init.sh` also asks which Keycloak realm this species should use. It lists
-   the portal realm and the realms of sibling species checkouts:
-
-   ```text
-   1) Realm 'emobase-portal' — used by portal
-   2) Realm 'emobase-tcas' — used by Tcas
-   3) Create a new independent realm [emobase-dmel]
-   ```
-
-   Choose an existing realm to share its users, or create a new independent
-   realm. A new realm defaults to `emobase-<species>` and its client to
-   `emobase-<species>-client`.
-
-   For non-interactive runs:
-
-   ```sh
-   --keycloak-realm join:emobase-portal   # reuse an existing realm
-   --keycloak-realm new:emobase-dmel      # create an independent realm
-   ```
-
-   `init.sh` derives `DIRECTUS_DB_DATABASE=directus_tcas`; use `--directus-db`
-   to override it.
-
-   The realm is created later, after infra is healthy, by `emobase species
-   setup`, `emobase up`, `emobase bootstrap`, or manually:
-
-   ```bash
-   ../emobase-infra/scripts/create-realm.sh \
-     --realm emobase-tcas \
-     --origin https://tcas.example.org \
-     --client-id emobase-tcas-client \
-     --client-secret "<KEYCLOAK_CLIENT_SECRET from .env>" \
-     --coco-username coco \
-     --coco-password "<COCO_PASSWORD from .env>" \
-     --keep-password --quiet
-   ```
-
-2. Create the Directus database:
-
-3. Initialise Directus, then start the stack:
-
-   ```bash
-   docker compose run --rm setup-directus
-   docker compose up -d --wait
-   ```
-
-4. Open `${PUBLIC_SERVER}` and sign in with `COCO_USERNAME` /
-   `COCO_PASSWORD` from this stack's `.env`. For a joined realm these were
-   copied from the realm owner; for a new realm the password is temporary and
-   Keycloak asks for a new one on first login.
-
-### Local trial (no domain)
-
-Start `emobase-infra` and the portal locally first. Then start the species
-stack:
+The infra and portal must already be running.
 
 ```bash
-./init.sh --local --species Tcas
-../emobase-infra/scripts/create-database.sh directus_tcas
-# Create or update the realm chosen by init.sh.
+./init.sh
+
+../emobase-infra/scripts/create-database.sh directus_<species>
 ../emobase-infra/scripts/create-realm.sh \
-  --realm emobase-tcas \
-  --origin http://localhost:9090 \
-  --client-id emobase-tcas-client \
-  --client-secret "<KEYCLOAK_CLIENT_SECRET from .env>" \
-  --coco-username coco \
-  --coco-password "<COCO_PASSWORD from .env>" \
+  --realm "$(grep '^KEYCLOAK_REALM=' .env | cut -d= -f2-)" \
+  --origin "$(grep '^PUBLIC_SERVER=' .env | cut -d= -f2-)" \
+  --client-id "$(grep '^KEYCLOAK_CLIENT_ID=' .env | cut -d= -f2-)" \
+  --client-secret "$(grep '^KEYCLOAK_CLIENT_SECRET=' .env | cut -d= -f2-)" \
+  --coco-username "$(grep '^COCO_USERNAME=' .env | cut -d= -f2-)" \
+  --coco-password "$(grep '^COCO_PASSWORD=' .env | cut -d= -f2-)" \
   --keep-password --quiet
+
 docker compose run --rm setup-directus
 docker compose up -d --wait
 ```
 
-`--local` uses `localhost` for the browser URLs and sets the internal URLs
-needed by the containers. Open the URL printed by `init.sh`.
+Use `./init.sh --local --species Tcas` for a same-machine trial.
 
-The species nginx uses `PORTAL_INTERNAL_URL` for BLAST, and SSR calls use
-`INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER` and `INTERNAL_DIRECTUS_URL`.
-`INTERNAL_KEYCLOAK_ISSUER` points at this server's Keycloak, not at the portal.
-The browser also signs in through `KEYCLOAK_PUBLIC_URL` on the same server.
-That is why `localhost` in `PUBLIC_SERVER`/`PORTAL_SERVER` does not have to work
-inside the containers. For the full local walkthrough, see
-[Local setup](https://github.com/EMOBase/emobase-docs/blob/main/DEPLOYMENT.md#local-setup-no-public-server).
+The realm menu lets this species join the portal or another species realm, or
+create a new independent realm.
+
+- [`init.sh` reference](INIT.md)
+- [Realm ownership](https://github.com/EMOBase/emobase-docs/blob/main/REALMS.md)
+- [Full deployment order](https://github.com/EMOBase/emobase-docs/blob/main/DEPLOYMENT.md)
 
 For Tcas-specific services (OBA, Ontoscope and the extended Swagger UI), append
 `-f compose.tcas.yml` to the Compose commands.
@@ -234,33 +149,9 @@ for adding another server.
 
 ## What `init.sh` sets
 
-| Setting | Notes |
-| --- | --- |
-| `MAIN_SPECIES` | 4-letter species code, passed with `--species` |
-| `PUBLIC_SERVER` | Species site URL; `http://localhost:<HTTP_PORT>` with `--local` |
-| `PORTAL_SERVER` | Public portal URL; read from `--portal-server` or `--portal-dir` |
-| `PORTAL_INTERNAL_URL` | Portal URL for containers; local mode uses `host.docker.internal` |
-| `DIRECTUS_DB_DATABASE` | `directus_<species>` by default; one database per species |
-| `KEYCLOAK_PUBLIC_URL` / `KEYCLOAK_INTERNAL_URL` | Local Keycloak endpoints, copied from `emobase-infra/.env` |
-| `KEYCLOAK_REALM` | Joined realm or a new independent `emobase-<species>` realm |
-| `KEYCLOAK_CLIENT_ID` | Client ID in the selected realm |
-| `KEYCLOAK_CLIENT_SECRET` | Copied when joining a realm, generated for a new realm |
-| `COCO_USERNAME` / `COCO_PASSWORD` | Seed user; copied when joining, generated for a new realm |
-| `EMOBASE_INFRA_NETWORK` | External Docker network shared with infra and the portal |
-| `INTERNAL_API_*`, `INTERNAL_DIRECTUS_URL` | Server-side URLs; generated with Docker service names |
-| `INTERNAL_KEYCLOAK_ISSUER` | Local Keycloak base URL + `/realms/<realm>` (server-side) |
-| `HTTP_PORT` | Host port for this stack; defaults to `9090` |
-| `PUBLIC_DATA_DIR`, `PRIVATE_DATA_DIR`, `IMAGE_DIR` | Host data directories |
-| `MYSQL_ROOT_PASSWORD` | Copied from `emobase-infra/.env` |
-| Other secrets and credentials | Generated on every run |
-
-The image tags and other optional values remain in `.env`; edit them to pin a
+See the [`init.sh` reference](INIT.md) for prompt order, flags, generated
+values and the realm menu. Image tags remain in `.env`; edit them to pin a
 release or SHA. See `example.env` for comments.
-
-`--local` is a local-trial convenience: it uses `localhost` for the browser and
-sets `PORTAL_INTERNAL_URL` and the `INTERNAL_*` URLs so containers can still
-reach the portal, the local Keycloak and the local services. Use it in the
-infra and portal checkouts first, then here.
 
 ## Local development
 
