@@ -478,8 +478,9 @@ if [[ -z "$KEYCLOAK_REALM" ]]; then
       fi
     else
       >&2 echo "   No existing realms found."
-      read -rp "New realm name [${default_realm}]: " realm_name
-      KEYCLOAK_REALM="new:${realm_name:-$default_realm}"
+      # Ask for the name and client ID once, below, so the operator is not
+      # prompted for the same realm name twice.
+      KEYCLOAK_REALM="new:${default_realm}"
       ASK_NEW_DETAILS=true
     fi
   fi
