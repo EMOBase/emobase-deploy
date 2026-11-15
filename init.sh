@@ -222,7 +222,9 @@ while [[ $# -gt 0 ]]; do
       echo "  --http-port         Host port for nginx (default: ${DEFAULT_HTTP_PORT})"
       echo "  --portal-server     Public portal origin used by browsers (genomics, JBrowse2, BLAST)"
       echo "  --portal-internal-url"
-      echo "                      Portal origin used from inside containers (BLAST proxy, SSR)"
+      echo "                      Override the derived container-facing portal origin"
+      echo "                      (default: http://host.docker.internal:<portal port>"
+      echo "                      when the portal is local; unset for a remote portal)"
       echo "  --portal-dir        Portal checkout whose .env holds PUBLIC_SERVER"
       echo "                      (default: ${DEFAULT_PORTAL_DIR} when present)"
       echo "  --infra-dir         emobase-infra checkout whose .env holds the shared"
@@ -317,13 +319,13 @@ ask PUBLIC_SERVER "🌐 Public server address" "$DEFAULT_PUBLIC_SERVER"
 PUBLIC_SERVER="${PUBLIC_SERVER%/}"
 [[ -z "$PUBLIC_SERVER" ]] && fatal "PUBLIC_SERVER cannot be empty"
 
+if [[ -z "$PORTAL_DIR" ]] && [[ -f "${DEFAULT_PORTAL_DIR}/.env" ]]; then
+  PORTAL_DIR="$DEFAULT_PORTAL_DIR"
+fi
+
 if [[ -z "$PORTAL_SERVER" ]]; then
   # Prefer the portal checkout next to this repository. Using its .env avoids
   # copying PUBLIC_SERVER by hand and keeps the two values identical.
-  if [[ -z "$PORTAL_DIR" ]] && [[ -f "${DEFAULT_PORTAL_DIR}/.env" ]]; then
-    PORTAL_DIR="$DEFAULT_PORTAL_DIR"
-  fi
-
   if [[ -n "$PORTAL_DIR" ]]; then
     PORTAL_SERVER=$(portal_public_server_from_dir "$PORTAL_DIR" || true)
     [[ -n "$PORTAL_SERVER" ]] \
@@ -350,28 +352,20 @@ fi
 PORTAL_SERVER="${PORTAL_SERVER%/}"
 [[ -z "$PORTAL_SERVER" ]] && fatal "PORTAL_SERVER cannot be empty"
 
-portal_http_port=""
-if [[ -n "$PORTAL_DIR" ]]; then
-  portal_http_port=$(read_env_value "$PORTAL_DIR/.env" HTTP_PORT || true)
-fi
-if [[ -z "$portal_http_port" ]]; then
-  portal_http_port=$(url_port "$PORTAL_SERVER")
-fi
-
+# PORTAL_INTERNAL_URL is derived, never asked:
+#   - portal on this Docker host: http://host.docker.internal:<portal port>,
+#     using HTTP_PORT from the portal .env when the checkout is known;
+#   - remote portal: leave it empty so compose falls back to PORTAL_SERVER.
+# --portal-internal-url still overrides the derived value.
 if [[ -n "$PORTAL_INTERNAL_URL" ]]; then
   PORTAL_INTERNAL_URL="${PORTAL_INTERNAL_URL%/}"
 elif [[ -n "$PORTAL_DIR" || "$LOCAL" == true ]]; then
-  # The portal is on this Docker host. Use the host gateway so nginx and SSR
-  # calls do not depend on a public hostname resolving inside the container.
-  default_internal="http://host.docker.internal:${portal_http_port}"
-  ask PORTAL_INTERNAL_URL "🔗 Portal origin used from inside containers" "$default_internal"
-  PORTAL_INTERNAL_URL="${PORTAL_INTERNAL_URL%/}"
-elif [[ "$YES" != true && -t 0 ]]; then
-  # A remote portal is normally reachable at PORTAL_SERVER from inside the
-  # containers too. Leave the value empty to use the compose fallback unless
-  # the operator needs a private/VPN address.
-  read -rp "🔗 Portal origin used from inside containers (empty = ${PORTAL_SERVER}): " PORTAL_INTERNAL_URL
-  PORTAL_INTERNAL_URL="${PORTAL_INTERNAL_URL%/}"
+  portal_http_port=""
+  if [[ -n "$PORTAL_DIR" ]]; then
+    portal_http_port=$(read_env_value "$PORTAL_DIR/.env" HTTP_PORT || true)
+  fi
+  [[ -n "$portal_http_port" ]] || portal_http_port=$(url_port "$PORTAL_SERVER")
+  PORTAL_INTERNAL_URL="http://host.docker.internal:${portal_http_port}"
 fi
 
 if [[ ( -n "$PORTAL_DIR" || "$LOCAL" == true ) ]] \
@@ -671,7 +665,11 @@ else
   >&2 echo "✅ .env file generated successfully"
   >&2 echo "   Species URL:  ${PUBLIC_SERVER}"
   >&2 echo "   Portal URL:   ${PORTAL_SERVER}"
-  >&2 echo "   Internal URL: ${PORTAL_INTERNAL_URL}"
+  if [[ -n "$PORTAL_INTERNAL_URL" ]]; then
+    >&2 echo "   Internal URL: ${PORTAL_INTERNAL_URL}"
+  else
+    >&2 echo "   Internal URL: (compose default: ${PORTAL_SERVER})"
+  fi
   >&2 echo "   Directus DB:  ${DIRECTUS_DB_DATABASE}"
   >&2 echo "   Keycloak URL: ${KEYCLOAK_PUBLIC_URL}"
   >&2 echo "   Keycloak realm: ${KEYCLOAK_REALM} (${KEYCLOAK_REALM_MODE})"

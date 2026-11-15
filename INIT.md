@@ -73,7 +73,7 @@ name. `MYSQL_ROOT_PASSWORD` and the Keycloak URLs are read from
 | `--public-server URL` | Public species URL |
 | `--http-port PORT` | Host port for the species UI |
 | `--portal-server URL` | Portal URL when there is no local portal checkout |
-| `--portal-internal-url URL` | Portal URL used inside containers |
+| `--portal-internal-url URL` | Override the derived container-facing portal origin (`http://host.docker.internal:<portal port>` for a local portal; empty for a remote portal) |
 | `--portal-dir DIR` | Portal checkout used to copy the portal URL |
 | `--infra-dir DIR` | `emobase-infra` checkout |
 | `--directus-db NAME` | Directus database name |
