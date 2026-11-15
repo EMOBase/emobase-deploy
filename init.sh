@@ -334,18 +334,18 @@ if [[ -z "$PORTAL_SERVER" ]]; then
   elif [[ "$LOCAL" == true ]]; then
     PORTAL_SERVER="http://localhost:9080"
   elif [[ "$YES" == true ]]; then
-    fatal "PORTAL_SERVER is required; pass --portal-server URL or --portal-dir DIR"
+    fatal "PORTAL_SERVER is required; pass --portal-server URL (or --portal-dir DIR), or run 'emobase create portal' first"
   else
     if [[ ! -t 0 ]]; then
       fatal "Cannot ask for the portal origin: stdin is not a terminal. Pass --portal-server URL or --portal-dir DIR."
     fi
-    default_portal="http://localhost:9080"
-    if [[ -n "$host_ip" ]]; then
-      default_portal="http://${host_ip}:9080"
-    fi
+    >&2 echo "No local portal checkout was found."
+    >&2 echo "Enter the public URL of the portal on the other server, or run"
+    >&2 echo "'emobase create portal' here first if this server should host it."
     while [[ -z "$PORTAL_SERVER" ]]; do
-      read -rp "🌐 Portal origin serving genomics/JBrowse2/BLAST [${default_portal}]: " PORTAL_SERVER
-      PORTAL_SERVER="${PORTAL_SERVER:-$default_portal}"
+      read -rp "🌐 Portal origin serving genomics/JBrowse2/BLAST: " PORTAL_SERVER
+      PORTAL_SERVER="${PORTAL_SERVER%/}"
+      [[ -z "$PORTAL_SERVER" ]] && >&2 echo "   A portal origin is required."
     done
   fi
 fi
