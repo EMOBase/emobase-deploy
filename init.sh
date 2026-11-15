@@ -350,20 +350,34 @@ fi
 PORTAL_SERVER="${PORTAL_SERVER%/}"
 [[ -z "$PORTAL_SERVER" ]] && fatal "PORTAL_SERVER cannot be empty"
 
-if [[ "$LOCAL" == true ]]; then
-  default_internal="http://host.docker.internal:$(url_port "$PORTAL_SERVER")"
-else
-  default_internal="$PORTAL_SERVER"
+portal_http_port=""
+if [[ -n "$PORTAL_DIR" ]]; then
+  portal_http_port=$(read_env_value "$PORTAL_DIR/.env" HTTP_PORT || true)
 fi
-ask PORTAL_INTERNAL_URL "🔗 Portal origin used from inside containers" "$default_internal"
-PORTAL_INTERNAL_URL="${PORTAL_INTERNAL_URL%/}"
-[[ -z "$PORTAL_INTERNAL_URL" ]] && fatal "PORTAL_INTERNAL_URL cannot be empty"
+if [[ -z "$portal_http_port" ]]; then
+  portal_http_port=$(url_port "$PORTAL_SERVER")
+fi
 
-if [[ "$PORTAL_SERVER" == *localhost* || "$PORTAL_SERVER" == *127.0.0.1* ]] \
+if [[ -n "$PORTAL_INTERNAL_URL" ]]; then
+  PORTAL_INTERNAL_URL="${PORTAL_INTERNAL_URL%/}"
+elif [[ -n "$PORTAL_DIR" || "$LOCAL" == true ]]; then
+  # The portal is on this Docker host. Use the host gateway so nginx and SSR
+  # calls do not depend on a public hostname resolving inside the container.
+  default_internal="http://host.docker.internal:${portal_http_port}"
+  ask PORTAL_INTERNAL_URL "🔗 Portal origin used from inside containers" "$default_internal"
+  PORTAL_INTERNAL_URL="${PORTAL_INTERNAL_URL%/}"
+elif [[ "$YES" != true && -t 0 ]]; then
+  # A remote portal is normally reachable at PORTAL_SERVER from inside the
+  # containers too. Leave the value empty to use the compose fallback unless
+  # the operator needs a private/VPN address.
+  read -rp "🔗 Portal origin used from inside containers (empty = ${PORTAL_SERVER}): " PORTAL_INTERNAL_URL
+  PORTAL_INTERNAL_URL="${PORTAL_INTERNAL_URL%/}"
+fi
+
+if [[ ( -n "$PORTAL_DIR" || "$LOCAL" == true ) ]] \
   && [[ "$PORTAL_INTERNAL_URL" == "$PORTAL_SERVER" ]]; then
-  >&2 echo "⚠️  PORTAL_SERVER points at localhost and PORTAL_INTERNAL_URL is the same."
-  >&2 echo "   Containers cannot reach the portal there. Use --local, or set"
-  >&2 echo "   --portal-internal-url to an address reachable from inside Docker."
+  >&2 echo "⚠️  PORTAL_INTERNAL_URL is the public portal URL while the portal is local."
+  >&2 echo "   Containers may not resolve it. Use http://host.docker.internal:${portal_http_port}."
 fi
 
 ask DIRECTUS_DB_DATABASE "🗄️  Directus database" "directus_${species_slug}"
@@ -601,7 +615,7 @@ KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
 
 # Internal service URLs used for server-side calls. These must be absolute.
 # They fall back to the matching PUBLIC_* URL if omitted.
-INTERNAL_API_GENOMICS_SERVICE=${PORTAL_INTERNAL_URL}/api/genomicsservice/v1
+INTERNAL_API_GENOMICS_SERVICE=${PORTAL_INTERNAL_URL:+${PORTAL_INTERNAL_URL}/api/genomicsservice/v1}
 INTERNAL_API_PHENOTYPE_SERVICE=http://phenotypeservice:8080
 INTERNAL_API_IMAGE_SERVICE=http://imageservice:8080
 INTERNAL_API_ONTOLOGY_SERVICE=http://ontologyservice:8080
