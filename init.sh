@@ -21,6 +21,7 @@ KEYCLOAK_CLIENT_SECRET=
 COCO_USERNAME=
 COCO_PASSWORD=
 KEYCLOAK_REALM_MODE=
+EMOBASE_ES_INDEX_PREFIX=
 
 DEFAULT_HTTP_PORT=9090
 DEFAULT_PORTAL_DIR="../emobase-portal-deploy"
@@ -197,6 +198,10 @@ while [[ $# -gt 0 ]]; do
       CONTAINER_PREFIX="$2"
       shift 2
       ;;
+    --es-index-prefix)
+      EMOBASE_ES_INDEX_PREFIX="$2"
+      shift 2
+      ;;
     -f|--force)
       FORCE=true
       shift
@@ -214,7 +219,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
-      echo "Usage: $0 [-f|--force] [-p|--print] [-y|--yes] [--local] [-s|--species SPECIES] [--public-server URL] [--http-port PORT] [--portal-server URL] [--portal-internal-url URL] [--portal-dir DIR] [--infra-dir DIR] [--directus-db NAME] [--keycloak-realm join:REALM|new:REALM] [--keycloak-client-id ID] [--keycloak-client-secret SECRET] [--coco-username USER] [--coco-password PASSWORD] [--container-prefix PREFIX]"
+      echo "Usage: $0 [-f|--force] [-p|--print] [-y|--yes] [--local] [-s|--species SPECIES] [--public-server URL] [--http-port PORT] [--portal-server URL] [--portal-internal-url URL] [--portal-dir DIR] [--infra-dir DIR] [--directus-db NAME] [--keycloak-realm join:REALM|new:REALM] [--keycloak-client-id ID] [--keycloak-client-secret SECRET] [--coco-username USER] [--coco-password PASSWORD] [--container-prefix PREFIX] [--es-index-prefix PREFIX]"
       echo "Without options, asks each value in order and shows its default."
       echo "The species code is required and has no default; for example Tcas."
       echo "  -s, --species       4-letter species code (e.g. Tcas, Dmel, Ptep)"
@@ -239,6 +244,9 @@ while [[ $# -gt 0 ]]; do
       echo "  --coco-username     Seed user name (default: coco)"
       echo "  --coco-password     Seed user password (copied when joining, generated when new)"
       echo "  --container-prefix  Prefix for docker compose containers (default: current directory)"
+      echo "  --es-index-prefix   Prefix for this species' Elasticsearch indices"
+      echo "                      (default: <species>)"
+      echo "                      Index names become <prefix>-<service>-..."
       echo "  --local             Use localhost for browser URLs and an internal host URL"
       echo "  -f, --force         Overwrite existing .env file"
       echo "  -y, --yes           Use default values without prompting"
@@ -385,6 +393,15 @@ ask DIRECTUS_DB_DATABASE "🗄️  Directus database" "directus_${species_slug}"
 ask CONTAINER_PREFIX "📦 Compose project/container prefix" "$species_slug"
 [[ "$CONTAINER_PREFIX" =~ ^[a-zA-Z0-9_.-]+$ ]] \
   || fatal "CONTAINER_PREFIX may only contain letters, digits, dot, underscore and hyphen"
+
+# Elasticsearch is shared with the portal and every species. Each stack owns
+# only indices under this prefix. ES index names are lowercase; "genomics" is
+# reserved for the portal.
+ask EMOBASE_ES_INDEX_PREFIX "🔎 Elasticsearch index prefix" "$species_slug"
+[[ "$EMOBASE_ES_INDEX_PREFIX" =~ ^[a-z0-9][a-z0-9_-]*$ ]] \
+  || fatal "EMOBASE_ES_INDEX_PREFIX may only contain lowercase letters, digits, underscore and hyphen, and must start with a letter or digit"
+[[ "$EMOBASE_ES_INDEX_PREFIX" != "genomics" ]] \
+  || fatal "EMOBASE_ES_INDEX_PREFIX 'genomics' is reserved for the portal"
 
 # ── Keycloak realm choice ───────────────────────────────────────────────────
 # Realms are owned by the portal or by the species that created them. This
@@ -596,13 +613,20 @@ PORTAL_SERVER=${PORTAL_SERVER}
 PORTAL_INTERNAL_URL=${PORTAL_INTERNAL_URL}
 
 # ── Shared infrastructure ───────────────────────────────────────────────────
-# MySQL and Keycloak run in the sibling emobase-infra stack. Start it first.
-# This stack joins its Docker network; the service names below resolve there.
+# MySQL, Keycloak and Elasticsearch run in the sibling emobase-infra stack.
+# Start it first. This stack joins its Docker network; the service names below
+# resolve there.
 EMOBASE_INFRA_NETWORK=${INFRA_NETWORK}
 DIRECTUS_DB_HOST=mysql
 DIRECTUS_DB_PORT=3306
 DIRECTUS_DB_USER=root
 DIRECTUS_DB_DATABASE=${DIRECTUS_DB_DATABASE}
+
+# This species' Elasticsearch indices in the shared instance. The es-proxy
+# sidecar forwards the local name es:9200 to elasticsearch:9200, so the
+# application services keep their built-in es:9200 configuration. Indices are
+# named <prefix>-<service>-...; never reuse another stack's prefix.
+EMOBASE_ES_INDEX_PREFIX=${EMOBASE_ES_INDEX_PREFIX}
 
 # Keycloak endpoint/realm/client. The realm is either an existing realm this
 # species joined or a new independent realm owned by this checkout.
@@ -676,6 +700,7 @@ else
     >&2 echo "   Internal URL: (compose default: ${PORTAL_SERVER})"
   fi
   >&2 echo "   Directus DB:  ${DIRECTUS_DB_DATABASE}"
+  >&2 echo "   ES prefix:    ${EMOBASE_ES_INDEX_PREFIX}"
   >&2 echo "   Keycloak URL: ${KEYCLOAK_PUBLIC_URL}"
   >&2 echo "   Keycloak realm: ${KEYCLOAK_REALM} (${KEYCLOAK_REALM_MODE})"
   >&2 echo

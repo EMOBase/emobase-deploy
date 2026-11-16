@@ -1,7 +1,7 @@
 # EMOBase species deployment
 
-Single-species deployment: the **emobase-web** frontend plus its own
-Elasticsearch and Directus. MySQL and Keycloak are shared **per server**: they
+Single-species deployment: the **emobase-web** frontend, its Quarkus services
+and Directus. MySQL, Keycloak and Elasticsearch are shared **per server**: they
 run once in this server's
 [`emobase-infra`](https://github.com/EMOBase/emobase-infra) and serve the portal
 and every species deployed on that server.
@@ -156,8 +156,8 @@ release or SHA. See `example.env` for comments.
 ## Local development
 
 Start `emobase-infra` first so the external `emobase-infra` Docker network and
-the local MySQL/Keycloak containers exist. Then build the web UI from the
-sibling source tree instead of pulling the published image:
+the local MySQL/Keycloak/Elasticsearch containers exist. Then build the web UI
+from the sibling source tree instead of pulling the published image:
 
 ```bash
 docker compose -f compose.yml -f compose.local.yml up -d --build
@@ -177,6 +177,43 @@ docker compose pull
 docker compose up -d --wait
 ```
 
+## Elasticsearch
+
+This stack has no Elasticsearch container. Its services keep using `es:9200`;
+the `es-proxy` sidecar resolves that name locally and forwards to
+`elasticsearch:9200` in `emobase-infra`. The sidecar is the only service on the
+shared infra network, so the application services do not expose their generic
+names to other species.
+
+Each stack writes only indices under `EMOBASE_ES_INDEX_PREFIX` (default: the
+lowercase species code such as `tcas`):
+
+| Service | Index |
+| --- | --- |
+| `imageservice` | `<prefix>-imageservice-metadata-*` |
+| `phenotypeservice` | `<prefix>-phenotypeservice-phenotypegroups` |
+| `goannotationservice` | `<prefix>-goannotationservice-<species>` |
+| `publicationservice` | `<prefix>-publicationservice-publications` |
+| `ontologyservice` | `<prefix>-ontologyservice-ontologies-*` |
+
+The portal uses `genomics`, which `init.sh` refuses. Prefixes separate data;
+they are not an authorization boundary inside the shared instance.
+
+A checkout created before the shared instance has no `EMOBASE_ES_INDEX_PREFIX`.
+Add `EMOBASE_ES_INDEX_PREFIX=<species>` to its `.env` and re-import the data;
+the old unprefixed indices are left untouched.
+
+Changing the prefix after first start makes the services create a new, empty
+set. Delete the old indices deliberately with:
+
+```bash
+../emobase-infra/scripts/delete-es-indices.sh --yes tcas
+```
+
+`emobase species remove --purge` and `emobase prune` run the same helper after
+the stack is gone. Elasticsearch snapshots and restores are documented in the
+[`emobase-infra` README](https://github.com/EMOBase/emobase-infra#backups).
+
 ## Notes
 
 The portal's `/public/versions` endpoint is global: until species filtering is
@@ -190,61 +227,15 @@ volume. Back up both.
 ## Remove all docker containers and their data
 
 This is DANGEROUS! It removes this species' containers and volumes, but the
-local MySQL database remains in `emobase-infra`.
+shared MySQL database and Elasticsearch indices remain in `emobase-infra`.
 
 ```bash
 docker compose --profile '*' down -v
 ```
 
-To drop the species database too:
+To drop the species database and indices too:
 
 ```bash
 ../emobase-infra/scripts/drop-database.sh directus_tcas
-```
-
-## Snapshot and restore Elasticsearch
-
-This applies to this stack's Elasticsearch (host port `9202`).
-
-Snapshot:
-
-```bash
-mkdir -p es_bk
-chmod o+w es_bk
-curl -X PUT "http://localhost:9202/_snapshot/ibb" -d '{
-    "type": "fs",
-    "settings": {
-      "location": "/es-bk",
-      "compress": true
-    }
-  }'
-curl -X PUT "http://localhost:9202/_snapshot/ibb/full_backup_20260425?wait_for_completion=true" -d '{
-    "indices": "*",
-    "include_global_state": true
-  }'
-```
-
-Copy `es_bk`:
-
-```bash
-rsync -avz /source/path/es_bk/ /dest/path/es_bk
-```
-
-Restore:
-
-```bash
-curl -X PUT "http://localhost:9202/_snapshot/ibb" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "fs",
-    "settings": {
-      "location": "/es-bk"
-    }
-  }'
-curl -X POST "http://localhost:9202/_snapshot/ibb/full_backup_20260425/_restore?wait_for_completion=true" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "indices": "*",
-    "include_global_state": true
-  }'
+../emobase-infra/scripts/delete-es-indices.sh --yes tcas
 ```

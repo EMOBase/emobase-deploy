@@ -27,6 +27,7 @@ The species code is required and has no default. For example, enter `Tcas`.
 | Portal internal URL | `host.docker.internal` with `--local`, otherwise the portal URL |
 | Directus database | `directus_<species>` |
 | Compose project/container prefix | species slug |
+| Elasticsearch index prefix | species slug |
 | Keycloak realm | menu of existing realms plus a new realm |
 
 Without `--local`, the species and portal URLs default to the detected host IPv4
@@ -60,9 +61,13 @@ which case it joins that realm.
 ## Generated values
 
 The species `.env` contains its public/internal URLs, Directus settings,
-realm/client credentials, `KEYCLOAK_REALM_MODE`, and a new Directus database
-name. `MYSQL_ROOT_PASSWORD` and the Keycloak URLs are read from
-`../emobase-infra/.env`.
+realm/client credentials, `KEYCLOAK_REALM_MODE`, a new Directus database name
+and `EMOBASE_ES_INDEX_PREFIX`. `MYSQL_ROOT_PASSWORD` and the Keycloak URLs are
+read from `../emobase-infra/.env`.
+
+The Elasticsearch prefix uses lowercase letters, digits, underscore and hyphen,
+and must not be `genomics` (reserved for the portal). The stack writes only
+`<prefix>-*` indices in the shared instance.
 
 ## Flags
 
@@ -83,6 +88,7 @@ name. `MYSQL_ROOT_PASSWORD` and the Keycloak URLs are read from
 | `--coco-username USER` | Seed user name |
 | `--coco-password PASSWORD` | Seed password |
 | `--container-prefix PREFIX` | Compose project/container prefix |
+| `--es-index-prefix PREFIX` | Elasticsearch index prefix (default: species slug) |
 | `-y`, `--yes` | Accept defaults; joins the first discovered realm |
 | `-f`, `--force` | Overwrite an existing `.env` |
 | `-p`, `--print` | Print the file instead of writing it |

@@ -1,4 +1,6 @@
 compose.override.yml
+# Legacy snapshot directory from when this stack ran its own Elasticsearch.
+# Snapshots now live in emobase-infra/es_bk.
 es_bk
 .env
 *.swp

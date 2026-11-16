@@ -71,8 +71,9 @@ http {
       proxy_read_timeout 180s;
       proxy_ssl_server_name on;
     }
-    # # Uncomment to allow access to elasticsearch from outside, useful for data backup or restore.
-    # # Very insecure so turn off when not needed
+    # # Uncomment to reach this species' shared Elasticsearch through the local
+    # # es-proxy sidecar. Useful for backup or restore; very insecure, so turn it
+    # # off when not needed. The sidecar reaches elasticsearch:9200 in emobase-infra.
     # location /ibb/es {
     #   set $upstream es;
     #   proxy_pass http://$upstream:9200;
