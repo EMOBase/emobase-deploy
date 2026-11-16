@@ -225,20 +225,13 @@ set. Delete the old indices deliberately with:
 the stack is gone. Elasticsearch snapshots and restores are documented in the
 [`emobase-infra` README](https://github.com/EMOBase/emobase-infra#backups).
 
-## Notes
-
-The portal's `/public/versions` endpoint is global: until species filtering is
-added, the version selector may also list READY versions that belong to other
-species hosted on the same portal.
-
-Directus data lives in the local MySQL database named by
-`DIRECTUS_DB_DATABASE`; uploaded files still use this stack's `directus-data`
-volume. Back up both.
-
 ## Remove all docker containers and their data
 
-This is DANGEROUS! It removes this species' containers and volumes, but the
-shared MySQL database and Elasticsearch indices remain in `emobase-infra`.
+This is DANGEROUS! It removes this species' containers and volumes, including
+the `directus-data` uploads volume, but the shared MySQL database and
+Elasticsearch indices remain in `emobase-infra`. Back up the database and
+uploads first; see the
+[deployment guide](https://github.com/EMOBase/emobase-docs/blob/main/DEPLOYMENT.md#backup-essentials).
 
 ```bash
 docker compose --profile '*' down -v
