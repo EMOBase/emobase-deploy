@@ -127,7 +127,7 @@ services:
       retries: 18
 
   ontologyservice:
-    image: ${ONTOLOGYSERVICE_IMAGE:-ghcr.io/emobase/ibb-ontologyservice:v1.6.0}
+    image: ${ONTOLOGYSERVICE_IMAGE:-ghcr.io/emobase/ibb-ontologyservice:v1.6.1}
     restart: always
     depends_on:
       es-proxy:
