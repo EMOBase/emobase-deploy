@@ -185,6 +185,17 @@ the `es-proxy` sidecar resolves that name locally and forwards to
 shared infra network, so the application services do not expose their generic
 names to other species.
 
+An existing checkout that ran its own Elasticsearch must remove the old
+container before `emobase-infra` can bind its loopback port 9202:
+
+```bash
+docker compose --profile '*' down --remove-orphans
+```
+
+This keeps the old `<project>_es-data` volume for migration. The new stack
+ignores it; delete it only after the data has been moved. `emobase up` already
+passes `--remove-orphans`.
+
 Each stack writes only indices under `EMOBASE_ES_INDEX_PREFIX` (default: the
 lowercase species code such as `tcas`):
 
