@@ -17,6 +17,10 @@ clone and a separate Compose project.
 
 The species code is required and has no default. For example, enter `Tcas`.
 
+Every question shows a default. Press Enter to accept it. An invalid
+interactive answer is rejected and the question is asked again. Values passed
+as flags are validated once; an invalid flag stops the script.
+
 ## Prompt order
 
 | Question | Default |

@@ -33,25 +33,91 @@ fatal() {
   exit 1
 }
 
-# ask VAR "label" "default"
+# ask VAR "label" "default" [VALIDATOR] [ERROR]
 # Keeps an explicit flag or discovered value; otherwise asks with a default.
-# --yes uses the default without prompting. A non-terminal without --yes aborts.
+# --yes uses the default without prompting. An invalid explicit or default
+# value is fatal; an invalid interactive answer is rejected and asked again.
+# A non-terminal without --yes aborts.
 ask() {
-  local var="$1" label="$2" default="$3" value
-  [[ -n "${!var:-}" ]] && return 0
+  local var="$1" label="$2" default="$3" validator="${4:-}" error="${5:-Invalid value}" value
+  if [[ -n "${!var:-}" ]]; then
+    if [[ -n "$validator" ]] && ! "$validator" "${!var}"; then
+      fatal "$error"
+    fi
+    return 0
+  fi
   if [[ "$YES" == true ]]; then
     printf -v "$var" '%s' "$default"
+    if [[ -n "$validator" ]] && ! "$validator" "$default"; then
+      fatal "$error"
+    fi
     return 0
   fi
   if [[ ! -t 0 ]]; then
     fatal "Cannot ask for ${label}: stdin is not a terminal. Pass --yes or the matching option."
   fi
-  if [[ -n "$default" ]]; then
-    read -rp "${label} [${default}]: " value
-  else
-    read -rp "${label}: " value
-  fi
-  printf -v "$var" '%s' "${value:-$default}"
+  while true; do
+    if [[ -n "$default" ]]; then
+      read -rp "${label} [${default}]: " value
+    else
+      read -rp "${label}: " value
+    fi
+    value="${value:-$default}"
+    if [[ -z "$validator" ]] || "$validator" "$value"; then
+      printf -v "$var" '%s' "$value"
+      return 0
+    fi
+    >&2 echo "❌ $error"
+  done
+}
+
+# read_value "label" "default" [VALIDATOR] [ERROR]
+# Always prompts, even when the target already has a value, and prints the
+# accepted value to stdout. Used for follow-up questions whose default is
+# computed at the prompt site.
+read_value() {
+  local label="$1" default="$2" validator="${3:-}" error="${4:-Invalid value}" value
+  while true; do
+    if [[ -n "$default" ]]; then
+      read -rp "${label} [${default}]: " value
+    else
+      read -rp "${label}: " value
+    fi
+    value="${value:-$default}"
+    if [[ -z "$validator" ]] || "$validator" "$value"; then
+      printf '%s\n' "$value"
+      return 0
+    fi
+    >&2 echo "❌ $error"
+  done
+}
+
+valid_port() {
+  [[ "$1" =~ ^[0-9]+$ ]] && (( 10#$1 >= 1 && 10#$1 <= 65535 ))
+}
+
+valid_url() {
+  local value="$1"
+  while [[ "$value" == */ ]]; do
+    value="${value%/}"
+  done
+  [[ "$value" =~ ^https?://[^/]+ ]]
+}
+
+valid_database() {
+  [[ "$1" =~ ^[A-Za-z0-9_]+$ ]]
+}
+
+valid_container_prefix() {
+  [[ "$1" =~ ^[a-zA-Z0-9_.-]+$ ]]
+}
+
+valid_es_prefix() {
+  [[ "$1" =~ ^[a-z0-9][a-z0-9_-]*$ ]] && [[ "$1" != "genomics" ]]
+}
+
+valid_keycloak_name() {
+  [[ "$1" =~ ^[a-zA-Z0-9_.-]+$ ]]
 }
 
 # detect_host_ip prints the address used for the default route. It is the
@@ -304,9 +370,8 @@ fi
 species_slug=$(printf '%s' "$MAIN_SPECIES" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_')
 species_slug="${species_slug:-species}"
 
-ask HTTP_PORT "🔌 Host port for the web UI" "$DEFAULT_HTTP_PORT"
-[[ "$HTTP_PORT" =~ ^[0-9]+$ ]] && (( 10#$HTTP_PORT >= 1 && 10#$HTTP_PORT <= 65535 )) \
-  || fatal "HTTP_PORT must be a number between 1 and 65535"
+ask HTTP_PORT "🔌 Host port for the web UI" "$DEFAULT_HTTP_PORT" \
+  valid_port "HTTP_PORT must be a number between 1 and 65535"
 host_ip=
 if [[ "$LOCAL" != true ]]; then
   host_ip=$(detect_host_ip)
@@ -323,9 +388,11 @@ if [[ "$LOCAL" == true ]] && [[ -z "$PUBLIC_SERVER" ]]; then
   PUBLIC_SERVER="http://localhost:${HTTP_PORT}"
   >&2 echo "🏠 Local mode: using ${PUBLIC_SERVER}"
 fi
-ask PUBLIC_SERVER "🌐 Public server address" "$DEFAULT_PUBLIC_SERVER"
-PUBLIC_SERVER="${PUBLIC_SERVER%/}"
-[[ -z "$PUBLIC_SERVER" ]] && fatal "PUBLIC_SERVER cannot be empty"
+ask PUBLIC_SERVER "🌐 Public server address" "$DEFAULT_PUBLIC_SERVER" \
+  valid_url "PUBLIC_SERVER must be a full URL starting with http:// or https://"
+while [[ "$PUBLIC_SERVER" == */ ]]; do
+  PUBLIC_SERVER="${PUBLIC_SERVER%/}"
+done
 
 if [[ -z "$PORTAL_DIR" ]] && [[ -f "${DEFAULT_PORTAL_DIR}/.env" ]]; then
   PORTAL_DIR="$DEFAULT_PORTAL_DIR"
@@ -354,15 +421,15 @@ if [[ -z "$PORTAL_SERVER" ]]; then
     if [[ "${EMOBASE_CLI:-}" == "1" ]]; then
       >&2 echo "If this server should host the portal, run 'emobase create portal' first."
     fi
-    while [[ -z "$PORTAL_SERVER" ]]; do
-      read -rp "🌐 Portal origin serving genomics/JBrowse2/BLAST: " PORTAL_SERVER
-      PORTAL_SERVER="${PORTAL_SERVER%/}"
-      [[ -z "$PORTAL_SERVER" ]] && >&2 echo "   A portal origin is required."
-    done
+    PORTAL_SERVER="$(read_value "🌐 Portal origin serving genomics/JBrowse2/BLAST" "" \
+      valid_url "PORTAL_SERVER must be a full URL starting with http:// or https://")"
   fi
 fi
-PORTAL_SERVER="${PORTAL_SERVER%/}"
-[[ -z "$PORTAL_SERVER" ]] && fatal "PORTAL_SERVER cannot be empty"
+while [[ "$PORTAL_SERVER" == */ ]]; do
+  PORTAL_SERVER="${PORTAL_SERVER%/}"
+done
+[[ "$PORTAL_SERVER" =~ ^https?://[^/]+ ]] \
+  || fatal "PORTAL_SERVER must be a full URL starting with http:// or https://"
 
 # PORTAL_INTERNAL_URL is derived, never asked:
 #   - portal on this Docker host: http://host.docker.internal:<portal port>,
@@ -386,22 +453,17 @@ if [[ ( -n "$PORTAL_DIR" || "$LOCAL" == true ) ]] \
   >&2 echo "   Containers may not resolve it. Use http://host.docker.internal:${portal_http_port}."
 fi
 
-ask DIRECTUS_DB_DATABASE "🗄️  Directus database" "directus_${species_slug}"
-[[ "$DIRECTUS_DB_DATABASE" =~ ^[A-Za-z0-9_]+$ ]] \
-  || fatal "DIRECTUS_DB_DATABASE may only contain letters, digits and underscores"
+ask DIRECTUS_DB_DATABASE "🗄️  Directus database" "directus_${species_slug}" \
+  valid_database "DIRECTUS_DB_DATABASE may only contain letters, digits and underscores"
 
-ask CONTAINER_PREFIX "📦 Compose project/container prefix" "$species_slug"
-[[ "$CONTAINER_PREFIX" =~ ^[a-zA-Z0-9_.-]+$ ]] \
-  || fatal "CONTAINER_PREFIX may only contain letters, digits, dot, underscore and hyphen"
+ask CONTAINER_PREFIX "📦 Compose project/container prefix" "$species_slug" \
+  valid_container_prefix "CONTAINER_PREFIX may only contain letters, digits, dot, underscore and hyphen"
 
 # Elasticsearch is shared with the portal and every species. Each stack owns
 # only indices under this prefix. ES index names are lowercase; "genomics" is
 # reserved for the portal.
-ask EMOBASE_ES_INDEX_PREFIX "🔎 Elasticsearch index prefix" "$species_slug"
-[[ "$EMOBASE_ES_INDEX_PREFIX" =~ ^[a-z0-9][a-z0-9_-]*$ ]] \
-  || fatal "EMOBASE_ES_INDEX_PREFIX may only contain lowercase letters, digits, underscore and hyphen, and must start with a letter or digit"
-[[ "$EMOBASE_ES_INDEX_PREFIX" != "genomics" ]] \
-  || fatal "EMOBASE_ES_INDEX_PREFIX 'genomics' is reserved for the portal"
+ask EMOBASE_ES_INDEX_PREFIX "🔎 Elasticsearch index prefix" "$species_slug" \
+  valid_es_prefix "EMOBASE_ES_INDEX_PREFIX may only contain lowercase letters, digits, underscore and hyphen, must start with a letter or digit, and cannot be 'genomics'"
 
 # ── Keycloak realm choice ───────────────────────────────────────────────────
 # Realms are owned by the portal or by the species that created them. This
@@ -556,11 +618,11 @@ esac
 
 if [[ "$KEYCLOAK_REALM_MODE" == "dedicated" ]]; then
   if [[ "$ASK_NEW_DETAILS" == true ]]; then
-    read -rp "New realm name [${KEYCLOAK_REALM}]: " realm_name
-    KEYCLOAK_REALM="${realm_name:-$KEYCLOAK_REALM}"
+    KEYCLOAK_REALM="$(read_value "New realm name" "$KEYCLOAK_REALM" \
+      valid_keycloak_name "Keycloak realm names may only contain letters, digits, dot, underscore and hyphen.")"
     default_client="emobase-${species_slug}-client"
-    read -rp "Client ID [${default_client}]: " client_id
-    KEYCLOAK_CLIENT_ID="${client_id:-$default_client}"
+    KEYCLOAK_CLIENT_ID="$(read_value "Client ID" "$default_client" \
+      valid_keycloak_name "Keycloak client IDs may only contain letters, digits, dot, underscore and hyphen.")"
   fi
   KEYCLOAK_CLIENT_ID="${KEYCLOAK_CLIENT_ID:-emobase-${species_slug}-client}"
   KEYCLOAK_CLIENT_SECRET="${KEYCLOAK_CLIENT_SECRET:-$(generate_secret_key 32)}"
