@@ -42,11 +42,13 @@ address; enter the public IP or domain if the server is behind NAT.
 `init.sh` scans the portal and sibling species checkouts for reusable realms:
 
 ```text
-1) Realm 'emobase-portal' — used by portal
-2) Realm 'emobase-tcas' — used by Tcas
-3) Create a new independent realm [emobase-dmel]
+1) Create a new independent realm [emobase-dmel]
+2) Realm 'emobase-portal' — used by portal
+3) Realm 'emobase-tcas' — used by Tcas
 ```
 
+- The new-realm entry is always number 1; existing realms follow in discovery
+  order, so adding another species only appends a number.
 - Joining copies the realm name, client ID, client secret and seed credentials
   from the owning checkout.
 - A new realm defaults to `emobase-<species>` and `emobase-<species>-client`.

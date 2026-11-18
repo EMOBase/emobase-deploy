@@ -542,24 +542,28 @@ if [[ -z "$KEYCLOAK_REALM" ]]; then
     >&2 echo
     >&2 echo "🔐 Keycloak realm for this species:"
     if [[ ${#REALM_NAMES[@]} -gt 0 ]]; then
+      # The new-realm entry keeps position 1 so its number does not shift as
+      # realms are added; existing realms follow.
+      >&2 echo "   1) Create a new independent realm [${default_realm}]"
       for ((i = 0; i < ${#REALM_NAMES[@]}; i++)); do
-        >&2 echo "   $((i + 1))) Realm '${REALM_NAMES[$i]}' — used by ${REALM_SOURCES[$i]}"
+        >&2 echo "   $((i + 2))) Realm '${REALM_NAMES[$i]}' — used by ${REALM_SOURCES[$i]}"
       done
-      new_choice=$((${#REALM_NAMES[@]} + 1))
-      >&2 echo "   ${new_choice}) Create a new independent realm [${default_realm}]"
+      max_choice=$((${#REALM_NAMES[@]} + 1))
+      # Keep the previous default: join the first discovered realm.
+      default_choice=2
       while true; do
-        read -rp "Choose [1]: " realm_choice
-        realm_choice="${realm_choice:-1}"
-        if [[ "$realm_choice" =~ ^[0-9]+$ ]] && (( realm_choice >= 1 && realm_choice <= new_choice )); then
+        read -rp "Choose [${default_choice}]: " realm_choice
+        realm_choice="${realm_choice:-$default_choice}"
+        if [[ "$realm_choice" =~ ^[0-9]+$ ]] && (( realm_choice >= 1 && realm_choice <= max_choice )); then
           break
         fi
-        >&2 echo "   Enter a number between 1 and ${new_choice}."
+        >&2 echo "   Enter a number between 1 and ${max_choice}."
       done
-      if (( realm_choice == new_choice )); then
+      if (( realm_choice == 1 )); then
         KEYCLOAK_REALM="new:${default_realm}"
         ASK_NEW_DETAILS=true
       else
-        idx=$((realm_choice - 1))
+        idx=$((realm_choice - 2))
         KEYCLOAK_REALM="join:${REALM_NAMES[$idx]}"
       fi
     else
