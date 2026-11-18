@@ -185,7 +185,7 @@ services:
         condition: service_healthy
 
   publicationservice:
-    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/publicationservice:1.6.0
+    image: ${PUBLICATIONSERVICE_IMAGE:-ghcr.io/emobase/ibb-publicationservice:v1.6.1}
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
