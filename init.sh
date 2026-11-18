@@ -515,11 +515,14 @@ if [[ -n "$portal_candidate" ]] && [[ -f "$portal_candidate/.env" ]]; then
 fi
 
 workspace_parent="$(dirname "$PWD")"
-for env_file in "$workspace_parent"/emobase-deploy*/.env; do
+# Discover sibling species checkouts by content, not by directory name: the
+# short layout (Lsta/, Tcas/, ...) has no emobase-deploy- prefix to glob on.
+for dir in "$workspace_parent"/*/; do
+  env_file="${dir}.env"
   [[ -f "$env_file" ]] || continue
   [[ "$env_file" == "$PWD/.env" ]] && continue
   label=$(read_env_value "$env_file" MAIN_SPECIES || true)
-  [[ -n "$label" ]] || label=$(basename "$(dirname "$env_file")")
+  [[ -n "$label" ]] || continue
   add_realm_option "$env_file" "$label"
 done
 
