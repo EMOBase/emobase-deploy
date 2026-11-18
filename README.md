@@ -40,8 +40,8 @@ The infra and portal must already be running.
 ```bash
 ./init.sh
 
-../emobase-infra/scripts/create-database.sh directus_<species>
-../emobase-infra/scripts/create-realm.sh \
+../infra/scripts/create-database.sh directus_<species>
+../infra/scripts/create-realm.sh \
   --realm "$(grep '^KEYCLOAK_REALM=' .env | cut -d= -f2-)" \
   --origin "$(grep '^PUBLIC_SERVER=' .env | cut -d= -f2-)" \
   --client-id "$(grep '^KEYCLOAK_CLIENT_ID=' .env | cut -d= -f2-)" \
@@ -122,13 +122,13 @@ matching `--public-server`) and a `--container-prefix`:
 ./init.sh \
   --species Dmel \
   --public-server https://dmel.example.org \
-  --portal-dir ../emobase-portal-deploy \
+  --portal-dir ../portal \
   --http-port 9092 \
   --container-prefix dmel
 
-../emobase-infra/scripts/create-database.sh directus_dmel
+../infra/scripts/create-database.sh directus_dmel
 # Create or update the realm chosen by init.sh.
-../emobase-infra/scripts/create-realm.sh \
+../infra/scripts/create-realm.sh \
   --realm emobase-dmel \
   --origin https://dmel.example.org \
   --client-id emobase-dmel-client \
@@ -218,7 +218,7 @@ Changing the prefix after first start makes the services create a new, empty
 set. Delete the old indices deliberately with:
 
 ```bash
-../emobase-infra/scripts/delete-es-indices.sh --yes tcas
+../infra/scripts/delete-es-indices.sh --yes tcas
 ```
 
 `emobase species remove --purge` and `emobase prune` run the same helper after
@@ -240,6 +240,6 @@ docker compose --profile '*' down -v
 To drop the species database and indices too:
 
 ```bash
-../emobase-infra/scripts/drop-database.sh directus_tcas
-../emobase-infra/scripts/delete-es-indices.sh --yes tcas
+../infra/scripts/drop-database.sh directus_tcas
+../infra/scripts/delete-es-indices.sh --yes tcas
 ```

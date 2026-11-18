@@ -24,8 +24,8 @@ KEYCLOAK_REALM_MODE=
 EMOBASE_ES_INDEX_PREFIX=
 
 DEFAULT_HTTP_PORT=9090
-DEFAULT_PORTAL_DIR="../emobase-portal-deploy"
-DEFAULT_INFRA_DIR="../emobase-infra"
+DEFAULT_PORTAL_DIR="../portal"
+DEFAULT_INFRA_DIR="../infra"
 DEFAULT_INFRA_NETWORK="emobase-infra"
 
 fatal() {
@@ -298,7 +298,7 @@ while [[ $# -gt 0 ]]; do
       echo "                      when the portal is local; unset for a remote portal)"
       echo "  --portal-dir        Portal checkout whose .env holds PUBLIC_SERVER"
       echo "                      (default: ${DEFAULT_PORTAL_DIR} when present)"
-      echo "  --infra-dir         emobase-infra checkout whose .env holds the shared"
+      echo "  --infra-dir         infra checkout whose .env holds the shared"
       echo "                      MySQL/Keycloak secrets (default: ${DEFAULT_INFRA_DIR} when present)"
       echo "  --directus-db       Directus database name (default: directus_<species>)"
       echo "  --keycloak-realm    join:REALM to reuse an existing realm, new:REALM"
@@ -335,13 +335,13 @@ if [[ -z "$INFRA_DIR" ]] && [[ -f "${DEFAULT_INFRA_DIR}/.env" ]]; then
   INFRA_DIR="$DEFAULT_INFRA_DIR"
 fi
 if [[ -z "$INFRA_DIR" ]]; then
-  fatal "Shared infrastructure .env not found. Run emobase-infra/init.sh first, or pass --infra-dir DIR."
+  fatal "Shared infrastructure .env not found. Run the infra checkout's init.sh first, or pass --infra-dir DIR."
 fi
-[[ -f "$INFRA_DIR/.env" ]] || fatal "No .env in ${INFRA_DIR}; run emobase-infra/init.sh first."
+[[ -f "$INFRA_DIR/.env" ]] || fatal "No .env in ${INFRA_DIR}; run the infra checkout's init.sh first."
 
 MYSQL_ROOT_PASSWORD=$(read_env_value "$INFRA_DIR/.env" MYSQL_ROOT_PASSWORD || true)
 [[ -n "$MYSQL_ROOT_PASSWORD" ]] \
-  || fatal "${INFRA_DIR}/.env has no MYSQL_ROOT_PASSWORD; re-run emobase-infra/init.sh."
+  || fatal "${INFRA_DIR}/.env has no MYSQL_ROOT_PASSWORD; re-run the infra checkout's init.sh."
 INFRA_KEYCLOAK_HOST_PORT=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_HOST_PORT || true)
 INFRA_KEYCLOAK_HOST_PORT="${INFRA_KEYCLOAK_HOST_PORT:-8181}"
 INFRA_KEYCLOAK_PUBLIC_URL=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL || true)
@@ -646,7 +646,7 @@ KEYCLOAK_INTERNAL_URL="${KEYCLOAK_INTERNAL_URL%/}"
 if is_loopback_url "$KEYCLOAK_PUBLIC_URL" \
   && [[ "$PUBLIC_SERVER" != *localhost* && "$PUBLIC_SERVER" != *127.0.0.1* ]]; then
   >&2 echo "⚠️  KEYCLOAK_PUBLIC_URL points at localhost but PUBLIC_SERVER does not."
-  >&2 echo "   Set --keycloak-public-url in emobase-infra/init.sh."
+  >&2 echo "   Set --keycloak-public-url in the infra checkout's init.sh."
 fi
 if is_loopback_url "$KEYCLOAK_PUBLIC_URL"; then
   INTERNAL_KEYCLOAK_ISSUER="http://host.docker.internal:${INFRA_KEYCLOAK_HOST_PORT}/keycloak/realms/${KEYCLOAK_REALM}"
@@ -678,7 +678,7 @@ PORTAL_SERVER=${PORTAL_SERVER}
 PORTAL_INTERNAL_URL=${PORTAL_INTERNAL_URL}
 
 # ── Shared infrastructure ───────────────────────────────────────────────────
-# MySQL, Keycloak and Elasticsearch run in the sibling emobase-infra stack.
+# MySQL, Keycloak and Elasticsearch run in the sibling infra stack.
 # Start it first. This stack joins its Docker network; the service names below
 # resolve there.
 EMOBASE_INFRA_NETWORK=${INFRA_NETWORK}

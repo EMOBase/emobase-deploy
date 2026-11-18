@@ -6,7 +6,7 @@ clone and a separate Compose project.
 ## Prerequisites
 
 - A running `emobase-infra` checkout with `.env`
-- `../emobase-portal-deploy/.env` when the portal is a sibling checkout
+- `../portal/.env` when the portal is a sibling checkout
 - Docker Engine 24+ with Compose v2
 
 ## Quick run
@@ -67,7 +67,7 @@ which case it joins that realm.
 The species `.env` contains its public/internal URLs, Directus settings,
 realm/client credentials, `KEYCLOAK_REALM_MODE`, a new Directus database name
 and `EMOBASE_ES_INDEX_PREFIX`. `MYSQL_ROOT_PASSWORD` and the Keycloak URLs are
-read from `../emobase-infra/.env`.
+read from `../infra/.env`.
 
 The Elasticsearch prefix uses lowercase letters, digits, underscore and hyphen,
 and must not be `genomics` (reserved for the portal). The stack writes only
@@ -112,7 +112,7 @@ Server joining the portal realm:
 ./init.sh \
   --species Tcas \
   --public-server https://tcas.example.org \
-  --portal-dir ../emobase-portal-deploy \
+  --portal-dir ../portal \
   --keycloak-realm join:emobase-portal
 ```
 
@@ -122,7 +122,7 @@ New independent realm:
 ./init.sh \
   --species Dmel \
   --public-server https://dmel.example.org \
-  --portal-dir ../emobase-portal-deploy \
+  --portal-dir ../portal \
   --keycloak-realm new:emobase-dmel \
   --http-port 9091
 ```
@@ -133,9 +133,9 @@ Create the Directus database, create or extend the realm, initialise Directus,
 and start:
 
 ```bash
-../emobase-infra/scripts/create-database.sh directus_tcas
+../infra/scripts/create-database.sh directus_tcas
 
-../emobase-infra/scripts/create-realm.sh \
+../infra/scripts/create-realm.sh \
   --realm "$(grep '^KEYCLOAK_REALM=' .env | cut -d= -f2-)" \
   --origin "$(grep '^PUBLIC_SERVER=' .env | cut -d= -f2-)" \
   --client-id "$(grep '^KEYCLOAK_CLIENT_ID=' .env | cut -d= -f2-)" \
