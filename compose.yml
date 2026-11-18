@@ -154,7 +154,7 @@ services:
       - ${PRIVATE_DATA_DIR}/imageservice:/data:ro
 
   phenotypeservice:
-    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/phenotypeservice:1.6.0
+    image: ${PHENOTYPESERVICE_IMAGE:-ghcr.io/emobase/ibb-phenotypeservice:v1.6.1}
     restart: always
     depends_on:
       es-proxy:
