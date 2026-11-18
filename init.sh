@@ -544,7 +544,7 @@ if [[ -z "$KEYCLOAK_REALM" ]]; then
     if [[ ${#REALM_NAMES[@]} -gt 0 ]]; then
       # The new-realm entry keeps position 1 so its number does not shift as
       # realms are added; existing realms follow.
-      >&2 echo "   1) Create a new independent realm [${default_realm}]"
+      >&2 echo "   1) Create a new independent realm"
       for ((i = 0; i < ${#REALM_NAMES[@]}; i++)); do
         >&2 echo "   $((i + 2))) Realm '${REALM_NAMES[$i]}' — used by ${REALM_SOURCES[$i]}"
       done

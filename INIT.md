@@ -42,7 +42,7 @@ address; enter the public IP or domain if the server is behind NAT.
 `init.sh` scans the portal and sibling species checkouts for reusable realms:
 
 ```text
-1) Create a new independent realm [emobase-dmel]
+1) Create a new independent realm
 2) Realm 'emobase-portal' — used by portal
 3) Realm 'emobase-tcas' — used by Tcas
 ```
