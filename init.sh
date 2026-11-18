@@ -678,7 +678,7 @@ PORTAL_SERVER=${PORTAL_SERVER}
 PORTAL_INTERNAL_URL=${PORTAL_INTERNAL_URL}
 
 # ── Shared infrastructure ───────────────────────────────────────────────────
-# MySQL, Keycloak and Elasticsearch run in the sibling infra stack.
+# MySQL, Keycloak and Elasticsearch run in the shared infra stack.
 # Start it first. This stack joins its Docker network; the service names below
 # resolve there.
 EMOBASE_INFRA_NETWORK=${INFRA_NETWORK}

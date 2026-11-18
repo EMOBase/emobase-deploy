@@ -155,9 +155,10 @@ release or SHA. See `example.env` for comments.
 
 ## Local development
 
-Start `emobase-infra` first so the external `emobase-infra` Docker network and
-the local MySQL/Keycloak/Elasticsearch containers exist. Then build the web UI
-from the sibling source tree instead of pulling the published image:
+Start the `infra` checkout first so the external `emobase-infra` Docker network
+and the local MySQL/Keycloak/Elasticsearch containers exist. Then build the web
+UI from a local source checkout instead of pulling the published image (set
+`EMOBASE_WEB_DIR` if it is not next to this checkout):
 
 ```bash
 docker compose -f compose.yml -f compose.local.yml up -d --build

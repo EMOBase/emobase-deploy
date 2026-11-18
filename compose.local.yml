@@ -1,9 +1,11 @@
 # Local development only.
 #
-# Build the web UI from the sibling source repository instead of pulling it
-# from GHCR:
+# Build the web UI from source instead of pulling it from GHCR. Point
+# EMOBASE_WEB_DIR at your checkout; the default assumes it sits next to this
+# checkout:
 #
-#   docker compose -f compose.yml -f compose.local.yml up -d --build
+#   EMOBASE_WEB_DIR=../emobase-web \
+#     docker compose -f compose.yml -f compose.local.yml up -d --build
 #
 # This file is not loaded automatically (Compose only auto-loads
 # compose.override.yml), so a normal `docker compose up -d` always uses the
@@ -12,4 +14,4 @@ services:
   fe:
     image: emobase-web:local
     build:
-      context: ../emobase-web
+      context: ${EMOBASE_WEB_DIR:-../emobase-web}
