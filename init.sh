@@ -666,6 +666,12 @@ MAIN_SPECIES=${MAIN_SPECIES}
 # Web UI image
 EMOBASE_WEB_IMAGE=ghcr.io/emobase/emobase-web:dev
 
+# Local image build instead of pulling from GHCR:
+#   docker compose -f compose.yml -f compose.local.yml up -d --build
+# Point this at the source checkout; the default assumes it sits next to this
+# checkout.
+# EMOBASE_WEB_DIR=../emobase-web
+
 # The full address to access the app from public, including protocol and port (if not 80 or 443)
 PUBLIC_SERVER=${PUBLIC_SERVER}
 

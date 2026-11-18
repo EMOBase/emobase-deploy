@@ -2,7 +2,7 @@
 #
 # Build the web UI from source instead of pulling it from GHCR. Point
 # EMOBASE_WEB_DIR at your checkout; the default assumes it sits next to this
-# checkout:
+# checkout. Set it in the environment or in .env:
 #
 #   EMOBASE_WEB_DIR=../emobase-web \
 #     docker compose -f compose.yml -f compose.local.yml up -d --build
