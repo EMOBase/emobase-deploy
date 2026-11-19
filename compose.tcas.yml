@@ -12,9 +12,9 @@ services:
         { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' }
         ]" 
   oba:
-    # The official openjdk:7 image is no longer on Docker Hub. Zulu still
-    # publishes a Java 7 runtime.
-    image: azul/zulu-openjdk:7
+    # Docker Hub no longer publishes openjdk:7. Set OBA_IMAGE to a Java 7
+    # runtime, for example azul/zulu-openjdk:7, on hosts without a cached image.
+    image: ${OBA_IMAGE:-openjdk:7}
     restart: always
     volumes:
       - ./oba/:/srv/
