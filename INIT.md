@@ -67,9 +67,10 @@ which case it joins that realm.
 ## Generated values
 
 The species `.env` contains its public/internal URLs, Directus settings,
-realm/client credentials, `KEYCLOAK_REALM_MODE`, a new Directus database name
-and `EMOBASE_ES_INDEX_PREFIX`. `MYSQL_ROOT_PASSWORD` and the Keycloak URLs are
-read from `../infra/.env`.
+realm/client credentials, `KEYCLOAK_REALM_MODE`, a new Directus database name,
+`EMOBASE_ES_INDEX_PREFIX` and `COMPOSE_FILE` (which adds a species overlay such
+as `compose.tcas.yml`). `MYSQL_ROOT_PASSWORD` and the Keycloak URLs are read
+from `../infra/.env`.
 
 The Elasticsearch prefix uses lowercase letters, digits, underscore and hyphen,
 and must not be `genomics` (reserved for the portal). The stack writes only

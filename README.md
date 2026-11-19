@@ -24,18 +24,21 @@ portal itself lives in that repository.
 - A public URL (or host:port) for this species site
 - A public URL for the portal, reachable from this server and from browsers
 
-## Quick start (portal on the same server)
+## Quick start
 
-Keep the repositories side by side:
+If the portal runs on this same server, keep the checkouts side by side so
+`init.sh` can read its URL from the portal checkout:
 
 ```text
 emobase/
-├── emobase-infra/
-├── emobase-portal-deploy/
-└── emobase-deploy/
+├── infra/
+├── portal/
+└── <Species>/
 ```
 
-The infra and portal must already be running.
+The infra and portal must already be running. If the portal is on another
+server, run `./init.sh --portal-server URL` instead; the rest of the commands
+are the same.
 
 ```bash
 ./init.sh
@@ -62,9 +65,6 @@ create a new independent realm.
 - [`init.sh` reference](INIT.md)
 - [Realm ownership](https://github.com/EMOBase/emobase-docs/blob/main/REALMS.md)
 - [Full deployment order](https://github.com/EMOBase/emobase-docs/blob/main/DEPLOYMENT.md)
-
-For Tcas-specific services (OBA, Ontoscope and the extended Swagger UI), append
-`-f compose.tcas.yml` to the Compose commands.
 
 ## The public and internal URLs
 
@@ -165,7 +165,12 @@ docker compose -f compose.yml -f compose.local.yml up -d --build
 ```
 
 `compose.local.yml` is not loaded automatically, so a plain
-`docker compose up -d` always uses the published image.
+`docker compose up -d` always uses the published image. For Tcas, pass all
+three files:
+
+```bash
+docker compose -f compose.yml -f compose.tcas.yml -f compose.local.yml up -d --build
+```
 
 ## Updating the species stack
 

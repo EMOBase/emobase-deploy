@@ -370,6 +370,19 @@ fi
 species_slug=$(printf '%s' "$MAIN_SPECIES" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_')
 species_slug="${species_slug:-species}"
 
+# Tcas has its own Compose overlay for OBA, Ontoscope and the extended
+# Swagger UI. Keep the base file first; the overlay only adds to it. Recording
+# the files in .env makes plain `docker compose` commands and the emobase CLI
+# use them too.
+COMPOSE_FILES="compose.yml"
+if [[ -f "compose.${species_slug}.yml" ]]; then
+  COMPOSE_FILES="${COMPOSE_FILES}:compose.${species_slug}.yml"
+fi
+COMPOSE_CMD="docker compose"
+if [[ "$COMPOSE_FILES" != "compose.yml" ]]; then
+  COMPOSE_CMD="docker compose -f ${COMPOSE_FILES//:/ -f }"
+fi
+
 ask HTTP_PORT "🔌 Host port for the web UI" "$DEFAULT_HTTP_PORT" \
   valid_port "HTTP_PORT must be a number between 1 and 65535"
 host_ip=
@@ -731,6 +744,10 @@ HTTP_PORT=${HTTP_PORT}
 # Project name (prefix for containers)
 COMPOSE_PROJECT_NAME=${CONTAINER_PREFIX}
 
+# Compose files. init.sh adds a species overlay (for example compose.tcas.yml)
+# so every docker compose command and the emobase CLI include it.
+COMPOSE_FILE=${COMPOSE_FILES}
+
 # Directory for data that is publicly downloadable at \$PUBLIC_SERVER/download/
 PUBLIC_DATA_DIR=./data/public
 
@@ -792,5 +809,5 @@ else
   >&2 echo "  3. Create this species' Directus database:"
   >&2 echo "       ${INFRA_DIR}/scripts/create-database.sh ${DIRECTUS_DB_DATABASE}"
   >&2 echo "  4. docker compose run --rm setup-directus"
-  >&2 echo "  5. docker compose up -d --wait"
+  >&2 echo "  5. ${COMPOSE_CMD} up -d --wait"
 fi
