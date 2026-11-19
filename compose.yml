@@ -137,7 +137,7 @@ services:
       - ONTOLOGYSERVICE_ELASTICSEARCH_INDEX_PREFIX=${EMOBASE_ES_INDEX_PREFIX}-ontologyservice
 
   imageservice:
-    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/imageservice:2.0.0
+    image: ${IMAGESERVICE_IMAGE:-ghcr.io/emobase/ibb-imageservice:v1.6.2}
     restart: always
     user: "${UID}:${GID}"
     environment:
