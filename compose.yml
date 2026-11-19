@@ -172,7 +172,7 @@ services:
       - ${PRIVATE_DATA_DIR}/phenotypeservice:/data:ro
 
   goannotationservice:
-    image: docker.gitlab.gwdg.de/medbioinf/devbio/ibb/goannotationservice:1.6.0
+    image: ${GOANNOTATIONSERVICE_IMAGE:-ghcr.io/emobase/ibb-goannotationservice:v1.6.1}
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
