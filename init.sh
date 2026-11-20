@@ -648,7 +648,11 @@ if [[ "$KEYCLOAK_REALM_MODE" == "dedicated" ]]; then
   KEYCLOAK_CLIENT_SECRET="${KEYCLOAK_CLIENT_SECRET:-$(generate_secret_key 32)}"
   COCO_USERNAME="${COCO_USERNAME:-coco}"
   COCO_PASSWORD="${COCO_PASSWORD:-$(generate_password 24)}"
-  >&2 echo "🔐 New Keycloak realm '${KEYCLOAK_REALM}' will be created by emobase species setup."
+  if [[ "${EMOBASE_CLI:-}" == "1" ]]; then
+    >&2 echo "🔐 New Keycloak realm '${KEYCLOAK_REALM}' will be created by emobase species setup."
+  else
+    >&2 echo "🔐 New Keycloak realm '${KEYCLOAK_REALM}' will be created in the next steps."
+  fi
 fi
 
 [[ "$KEYCLOAK_REALM" =~ ^[a-zA-Z0-9_.-]+$ ]] \
@@ -795,19 +799,23 @@ else
   >&2 echo "   ES prefix:    ${EMOBASE_ES_INDEX_PREFIX}"
   >&2 echo "   Keycloak URL: ${KEYCLOAK_PUBLIC_URL}"
   >&2 echo "   Keycloak realm: ${KEYCLOAK_REALM} (${KEYCLOAK_REALM_MODE})"
-  >&2 echo
-  >&2 echo "Next:"
-  >&2 echo "  1. Make sure emobase-infra is running."
-  >&2 echo "  2. Create or update this species' Keycloak realm and origin:"
-  >&2 echo "       ${INFRA_DIR}/scripts/create-realm.sh \\"
-  >&2 echo "         --realm ${KEYCLOAK_REALM} --origin ${PUBLIC_SERVER} \\"
-  >&2 echo "         --client-id ${KEYCLOAK_CLIENT_ID} \\"
-  >&2 echo "         --client-secret '${KEYCLOAK_CLIENT_SECRET}' \\"
-  >&2 echo "         --coco-username ${COCO_USERNAME} --coco-password '${COCO_PASSWORD}' \\"
-  >&2 echo "         --keep-password --quiet"
-  >&2 echo "     (emobase species setup, up or bootstrap does this automatically.)"
-  >&2 echo "  3. Create this species' Directus database:"
-  >&2 echo "       ${INFRA_DIR}/scripts/create-database.sh ${DIRECTUS_DB_DATABASE}"
-  >&2 echo "  4. docker compose run --rm setup-directus"
-  >&2 echo "  5. ${COMPOSE_CMD} up -d --wait"
+  # When init.sh runs through the CLI, the CLI prints the next step
+  # (emobase species setup or emobase bootstrap). Keep the manual steps for
+  # standalone runs so the two do not both say "Next:".
+  if [[ "${EMOBASE_CLI:-}" != "1" ]]; then
+    >&2 echo
+    >&2 echo "Next:"
+    >&2 echo "  1. Make sure emobase-infra is running."
+    >&2 echo "  2. Create or update this species' Keycloak realm and origin:"
+    >&2 echo "       ${INFRA_DIR}/scripts/create-realm.sh \\"
+    >&2 echo "         --realm ${KEYCLOAK_REALM} --origin ${PUBLIC_SERVER} \\"
+    >&2 echo "         --client-id ${KEYCLOAK_CLIENT_ID} \\"
+    >&2 echo "         --client-secret '${KEYCLOAK_CLIENT_SECRET}' \\"
+    >&2 echo "         --coco-username ${COCO_USERNAME} --coco-password '${COCO_PASSWORD}' \\"
+    >&2 echo "         --keep-password --quiet"
+    >&2 echo "  3. Create this species' Directus database:"
+    >&2 echo "       ${INFRA_DIR}/scripts/create-database.sh ${DIRECTUS_DB_DATABASE}"
+    >&2 echo "  4. docker compose run --rm setup-directus"
+    >&2 echo "  5. ${COMPOSE_CMD} up -d --wait"
+  fi
 fi
