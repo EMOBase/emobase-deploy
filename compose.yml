@@ -94,6 +94,7 @@ services:
     restart: always
     environment:
       - BASE_URL=/ibb/swagger-ui
+      - EMBEDDING=true
       - "URLS=[
         { url: '${PORTAL_SERVER}/api/genomicsservice/v1/docs/openapi.yaml', name: 'Genomics Service' },
         { url: '$PUBLIC_SERVER/ibb/api/ontologyservice/v1/q/openapi/', name: 'Ontology Service' }
