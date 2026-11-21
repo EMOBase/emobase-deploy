@@ -63,8 +63,10 @@ The realm menu lets this species join the portal or another species realm, or
 create a new independent realm.
 
 - [`init.sh` reference](INIT.md)
+- [Elasticsearch](ELASTICSEARCH.md)
 - [Realm ownership](https://github.com/EMOBase/emobase-docs/blob/main/REALMS.md)
-- [Full deployment order](https://github.com/EMOBase/emobase-docs/blob/main/DEPLOYMENT.md)
+- [Deployment guide](https://github.com/EMOBase/emobase-docs/blob/main/DEPLOYMENT.md)
+- [Operations](https://github.com/EMOBase/emobase-docs/blob/main/OPERATIONS.md)
 
 ## The public and internal URLs
 
@@ -126,19 +128,12 @@ matching `--public-server`) and a `--container-prefix`:
   --http-port 9092 \
   --container-prefix dmel
 
-../infra/scripts/create-database.sh directus_dmel
-# Create or update the realm chosen by init.sh.
-../infra/scripts/create-realm.sh \
-  --realm emobase-dmel \
-  --origin https://dmel.example.org \
-  --client-id emobase-dmel-client \
-  --client-secret "<KEYCLOAK_CLIENT_SECRET from .env>" \
-  --coco-username coco \
-  --coco-password "<COCO_PASSWORD from .env>" \
-  --keep-password --quiet
 docker compose run --rm setup-directus
 docker compose up -d --wait
 ```
+
+Then create the Directus database and create or extend the realm chosen by
+`init.sh`. The exact commands are in [`INIT.md`](INIT.md#after-init).
 
 ## Multiple servers
 
@@ -152,6 +147,13 @@ for adding another server.
 See the [`init.sh` reference](INIT.md) for prompt order, flags, generated
 values and the realm menu. Image tags remain in `.env`; edit them to pin a
 release or SHA. See `example.env` for comments.
+
+## Elasticsearch
+
+This stack uses the shared `emobase-infra` instance through the `es-proxy`
+sidecar. Each stack writes only its own `<prefix>-*` indices. See
+[ELASTICSEARCH.md](ELASTICSEARCH.md) for the index list, migration from a
+per-species instance and prefix cleanup.
 
 ## Local development
 
@@ -183,61 +185,13 @@ docker compose pull
 docker compose up -d --wait
 ```
 
-## Elasticsearch
-
-This stack has no Elasticsearch container. Its services keep using `es:9200`;
-the `es-proxy` sidecar resolves that name locally and forwards to
-`elasticsearch:9200` in `emobase-infra`. The sidecar is the only service on the
-shared infra network, so the application services do not expose their generic
-names to other species.
-
-An existing checkout that ran its own Elasticsearch must remove the old
-container before `emobase-infra` can bind its loopback port 9202:
-
-```bash
-docker compose --profile '*' down --remove-orphans
-```
-
-This keeps the old `<project>_es-data` volume for migration. The new stack
-ignores it; delete it only after the data has been moved. `emobase up` already
-passes `--remove-orphans`.
-
-Each stack writes only indices under `EMOBASE_ES_INDEX_PREFIX` (default: the
-lowercase species code such as `tcas`):
-
-| Service | Index |
-| --- | --- |
-| `imageservice` | `<prefix>-imageservice-metadata-*` |
-| `phenotypeservice` | `<prefix>-phenotypeservice-phenotypegroups` |
-| `goannotationservice` | `<prefix>-goannotationservice-<species>` |
-| `publicationservice` | `<prefix>-publicationservice-publications` |
-| `ontologyservice` | `<prefix>-ontologyservice-ontologies-*` |
-
-The portal uses `genomics`, which `init.sh` refuses. Prefixes separate data;
-they are not an authorization boundary inside the shared instance.
-
-A checkout created before the shared instance has no `EMOBASE_ES_INDEX_PREFIX`.
-Add `EMOBASE_ES_INDEX_PREFIX=<species>` to its `.env` and re-import the data;
-the old unprefixed indices are left untouched.
-
-Changing the prefix after first start makes the services create a new, empty
-set. Delete the old indices deliberately with:
-
-```bash
-../infra/scripts/delete-es-indices.sh --yes tcas
-```
-
-`emobase species remove --purge` and `emobase prune` run the same helper after
-the stack is gone. Elasticsearch snapshots and restores are documented in the
-[`emobase-infra` README](https://github.com/EMOBase/emobase-infra#backups).
-
 ## Remove all docker containers and their data
 
 This is DANGEROUS! It removes this species' containers and volumes, including
 the `directus-data` uploads volume, but the shared MySQL database and
 Elasticsearch indices remain in `emobase-infra`. Back up the database and
 uploads first; see the
-[deployment guide](https://github.com/EMOBase/emobase-docs/blob/main/DEPLOYMENT.md#backup-essentials).
+[backup guide](https://github.com/EMOBase/emobase-docs/blob/main/BACKUP.md).
 
 ```bash
 docker compose --profile '*' down -v

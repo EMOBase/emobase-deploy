@@ -103,7 +103,7 @@ and must not be `genomics` (reserved for the portal). The stack writes only
 
 ## Examples
 
-Local trial joining the portal realm:
+Local setup joining the portal realm:
 
 ```bash
 ./init.sh --local --species Tcas
