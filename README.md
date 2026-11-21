@@ -21,8 +21,6 @@ portal itself lives in that repository.
 - A running `emobase-infra` stack with its `.env`
 - `python3` on the Docker host for the Keycloak helper scripts
 - A running portal deployment
-- A public URL (or host:port) for this species site
-- A public URL for the portal, reachable from this server and from browsers
 
 ## Quick start
 
@@ -60,13 +58,9 @@ docker compose up -d --wait
 Use `./init.sh --local --species Tcas` for a same-machine trial.
 
 The realm menu lets this species join the portal or another species realm, or
-create a new independent realm.
-
-- [`init.sh` reference](INIT.md)
-- [Elasticsearch](ELASTICSEARCH.md)
-- [Realm ownership](https://github.com/EMOBase/emobase-docs/blob/main/REALMS.md)
-- [Deployment guide](https://github.com/EMOBase/emobase-docs/blob/main/DEPLOYMENT.md)
-- [Operations](https://github.com/EMOBase/emobase-docs/blob/main/OPERATIONS.md)
+create a new independent realm. See the [`init.sh` reference](INIT.md) for the
+prompts and flags, and [Realm ownership](https://github.com/EMOBase/emobase-docs/blob/main/REALMS.md)
+for sharing and credentials.
 
 ## The public and internal URLs
 
@@ -114,40 +108,6 @@ public URL. The fallback is correct for a separate server; the app only warns
 when the public URL is a loopback address and therefore cannot work from inside
 a container.
 
-## Adding another species on the same Docker host
-
-Each species checkout needs its own `.env`, data directories, Directus
-database/data and containers. Give each stack a distinct `--http-port` (and
-matching `--public-server`) and a `--container-prefix`:
-
-```bash
-./init.sh \
-  --species Dmel \
-  --public-server https://dmel.example.org \
-  --portal-dir ../portal \
-  --http-port 9092 \
-  --container-prefix dmel
-
-docker compose run --rm setup-directus
-docker compose up -d --wait
-```
-
-Then create the Directus database and create or extend the realm chosen by
-`init.sh`. The exact commands are in [`INIT.md`](INIT.md#after-init).
-
-## Multiple servers
-
-Each server runs its own `emobase-infra`; only the portal URL is shared between
-servers. See the
-[deployment guide](https://github.com/EMOBase/emobase-docs/blob/main/DEPLOYMENT.md)
-for adding another server.
-
-## What `init.sh` sets
-
-See the [`init.sh` reference](INIT.md) for prompt order, flags, generated
-values and the realm menu. Image tags remain in `.env`; edit them to pin a
-release or SHA. See `example.env` for comments.
-
 ## Elasticsearch
 
 This stack uses the shared `emobase-infra` instance through the `es-proxy`
@@ -184,6 +144,9 @@ git pull
 docker compose pull
 docker compose up -d --wait
 ```
+
+Image tags live in `.env`; pin a release or SHA instead of a moving branch
+tag. `example.env` documents the available settings.
 
 ## Remove all docker containers and their data
 
