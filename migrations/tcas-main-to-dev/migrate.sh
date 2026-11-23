@@ -14,6 +14,7 @@ DRY_RUN=0
 ASSUME_YES=0
 FORCE=0
 COMMAND=
+ES_SNAPSHOT=
 
 usage() {
   cat <<'EOF'
@@ -64,6 +65,10 @@ run_in() {
 }
 
 confirm() {
+  if (( DRY_RUN )); then
+    log "would ask: $1"
+    return 0
+  fi
   (( ASSUME_YES )) && return 0
   local answer
   read -r -p "$1 [y/N] " answer
@@ -144,6 +149,22 @@ infra_compose() {
   ( cd "$INFRA_DIR" && docker compose "$@" )
 }
 
+old_compose_run() {
+  local args=(-f compose.yml)
+  if [[ -f "$OLD_SPECIES_DIR/compose.tcas.yml" ]]; then
+    args+=(-f compose.tcas.yml)
+  fi
+  run_in "$OLD_SPECIES_DIR" docker compose "${args[@]}" "$@"
+}
+
+new_compose_run() {
+  run_in "$NEW_SPECIES_DIR" docker compose "$@"
+}
+
+infra_compose_run() {
+  run_in "$INFRA_DIR" docker compose "$@"
+}
+
 load_context() {
   [[ -f "$CONFIG" ]] || die "config not found: $CONFIG (copy migration.env.example)"
   # shellcheck disable=SC1090
@@ -164,10 +185,11 @@ load_context() {
   NEW_ES_PORT="${NEW_ES_PORT:-9204}"
   REALM="${REALM:-ibb}"
   CLIENT_ID="${CLIENT_ID:-ibb-client}"
-  ES_MODE="${ES_MODE:-rebuild}"
+  ES_MODE="${ES_MODE:-snapshot}"
   DEPLOY_REPO="${DEPLOY_REPO:-https://github.com/EMOBase/emobase-deploy.git}"
   INFRA_REPO="${INFRA_REPO:-https://github.com/EMOBase/emobase-infra.git}"
   EMOBASE_WEB_IMAGE="${EMOBASE_WEB_IMAGE:-ghcr.io/emobase/emobase-web:dev}"
+  OBA_IMAGE="${OBA_IMAGE:-jboss/base-jdk:7}"
 
   NEW_SPECIES_DIR="${NEW_SPECIES_DIR:-$NEW_WORKSPACE/$SPECIES_CODE}"
   INFRA_DIR="$NEW_WORKSPACE/infra"
@@ -175,10 +197,15 @@ load_context() {
   KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL:-$TCAS_URL/keycloak}"
   NEW_DIRECTUS_DB="${NEW_DIRECTUS_DB:-directus_${NEW_PROJECT}}"
   NEW_ES_PREFIX="${NEW_ES_PREFIX:-$NEW_PROJECT}"
+  OLD_ES_PORT="${OLD_ES_PORT:-9202}"
+  OLD_ES_URL="http://127.0.0.1:$OLD_ES_PORT"
+  NEW_ES_URL="http://127.0.0.1:$NEW_ES_PORT"
 
   NEW_INFRA_MYSQL_PASSWORD=""
   OLD_PROJECT=$(env_get "$OLD_ENV" COMPOSE_PROJECT_NAME || true)
   OLD_PROJECT="${OLD_PROJECT:-$(basename "$OLD_SPECIES_DIR" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')}"
+  OLD_HTTP_PORT=$(env_get "$OLD_ENV" HTTP_PORT || true)
+  OLD_HTTP_PORT="${OLD_HTTP_PORT:-9090}"
 
   [[ "$NEW_PROJECT" =~ ^[a-z0-9][a-z0-9_-]*$ ]] \
     || die "NEW_PROJECT must be lowercase letters, digits, underscore or hyphen"
@@ -206,6 +233,9 @@ load_context() {
   OLD_PUBLIC_DATA_DIR=$(env_get "$OLD_ENV" PUBLIC_DATA_DIR || true)
   OLD_PRIVATE_DATA_DIR=$(env_get "$OLD_ENV" PRIVATE_DATA_DIR || true)
   OLD_IMAGE_DIR=$(env_get "$OLD_ENV" IMAGE_DIR || true)
+  OLD_PUBLIC_DATA_DIR="${OLD_PUBLIC_DATA_DIR:-./data/public}"
+  OLD_PRIVATE_DATA_DIR="${OLD_PRIVATE_DATA_DIR:-./data/private}"
+  OLD_IMAGE_DIR="${OLD_IMAGE_DIR:-./images}"
 }
 
 require_old_values() {
@@ -250,6 +280,27 @@ cmd_check() {
   esac
   require_old_values
 
+  log "checking old paths"
+  local path_var path resolved
+  for path_var in OLD_PUBLIC_DATA_DIR OLD_PRIVATE_DATA_DIR OLD_IMAGE_DIR; do
+    path=${!path_var}
+    [[ -n "$path" ]] || continue
+    if [[ "$path" == /* ]]; then
+      resolved="$path"
+    else
+      resolved="$OLD_SPECIES_DIR/$path"
+    fi
+    [[ -e "$resolved" ]] || die "old path not found: $path_var=$path"
+    [[ -r "$resolved" ]] || die "old path not readable: $path_var=$path"
+  done
+  case "$OLD_PUBLIC_DATA_DIR" in
+    /*) warn "PUBLIC_DATA_DIR is external; it will be reused read-only, not copied: $OLD_PUBLIC_DATA_DIR" ;;
+  esac
+  case "$ES_MODE" in
+    snapshot|rebuild) ;;
+    *) die "ES_MODE must be snapshot or rebuild" ;;
+  esac
+
   [[ -n "$OLD_KEYCLOAK_ADMIN" && -n "$OLD_KEYCLOAK_ADMIN_PASSWORD" ]] || warn \
     "no Keycloak admin credentials; prepare will stop before adding origins"
 
@@ -260,6 +311,9 @@ cmd_check() {
   done
   if port_busy 8181; then
     warn "port 8181 is in use; check that the old Keycloak does not publish it"
+  fi
+  if ! port_busy "$OLD_HTTP_PORT"; then
+    warn "old site port $OLD_HTTP_PORT is not listening; check HTTP_PORT in $OLD_ENV"
   fi
 
   if [[ "${SKIP_PORTAL_CHECK:-0}" != "1" ]]; then
@@ -277,13 +331,21 @@ cmd_check() {
       || die "old service is not running: $svc"
   done
 
+  if [[ "$ES_MODE" == "snapshot" ]]; then
+    log "checking old Elasticsearch and snapshot directory"
+    curl -fsS "$OLD_ES_URL/" >/dev/null 2>&1 \
+      || warn "old Elasticsearch is not reachable at $OLD_ES_URL; the snapshot step will fail"
+    [[ -d "$OLD_SPECIES_DIR/es_bk" ]] \
+      || warn "old es_bk not found: $OLD_SPECIES_DIR/es_bk"
+  fi
+
   log "check complete"
-  printf 'old project: %s\nnew project: %s\nstaging: %s\nfinal: %s\n' \
-    "$OLD_PROJECT" "$NEW_PROJECT" "$STAGING_URL" "$TCAS_URL"
+  printf 'old project: %s\nold HTTP port: %s\nold public data: %s (reused, not copied)\nnew project: %s\nstaging: %s\nfinal: %s\n' \
+    "$OLD_PROJECT" "$OLD_HTTP_PORT" "$OLD_PUBLIC_DATA_DIR" "$NEW_PROJECT" "$STAGING_URL" "$TCAS_URL"
 }
 
 clone_repos() {
-  mkdir -p "$NEW_WORKSPACE"
+  run mkdir -p "$NEW_WORKSPACE"
   if [[ -d "$NEW_SPECIES_DIR/.git" ]]; then
     log "using existing species checkout: $NEW_SPECIES_DIR"
     local branch
@@ -340,9 +402,9 @@ write_new_env() {
   if [[ -f "$NEW_SPECIES_DIR/$overlay" ]]; then
     compose_file="compose.yml:$overlay"
   fi
-  local public_data="./data/public"
-  local private_data="./data/private"
-  local image_dir="./images"
+  local public_data="${OLD_PUBLIC_DATA_DIR:-./data/public}"
+  local private_data="${OLD_PRIVATE_DATA_DIR:-./data/private}"
+  local image_dir="${OLD_IMAGE_DIR:-./images}"
   local uid="${OLD_UID:-1001}"
   local gid="${OLD_GID:-1001}"
 
@@ -402,17 +464,20 @@ EOF
 }
 
 copy_files() {
+  local rsync_args=(-a)
+  [[ "${1:-}" == "delete" ]] && rsync_args+=(--delete)
   local dir
-  for dir in data images; do
-    if [[ -d "$OLD_SPECIES_DIR/$dir" ]]; then
-      run mkdir -p "$NEW_SPECIES_DIR/$dir"
-      run rsync -a --delete "$OLD_SPECIES_DIR/$dir/" "$NEW_SPECIES_DIR/$dir/"
-    fi
+  for dir in data images oba; do
+    [[ -d "$OLD_SPECIES_DIR/$dir" ]] || continue
+    case "$OLD_SPECIES_DIR/$dir" in
+      "$OLD_SPECIES_DIR"/*) ;;
+      *) die "refusing to copy outside the old checkout: $OLD_SPECIES_DIR/$dir" ;;
+    esac
+    run mkdir -p "$NEW_SPECIES_DIR/$dir"
+    # -a preserves symlinks. Do not add -L: images/ may contain links into an
+    # external read-only mount that must not be dereferenced or copied.
+    run rsync "${rsync_args[@]}" "$OLD_SPECIES_DIR/$dir/" "$NEW_SPECIES_DIR/$dir/"
   done
-  if [[ -d "$OLD_SPECIES_DIR/oba" ]]; then
-    run mkdir -p "$NEW_SPECIES_DIR/oba"
-    run rsync -a --delete "$OLD_SPECIES_DIR/oba/" "$NEW_SPECIES_DIR/oba/"
-  fi
 }
 
 delete_new_es_indices() {
@@ -425,6 +490,39 @@ delete_new_es_indices() {
     curl -fsS -X DELETE "http://127.0.0.1:$NEW_ES_PORT/$idx" >/dev/null \
       || warn "could not delete index $idx"
   done <<< "$names"
+}
+
+take_es_snapshot() {
+  ES_SNAPSHOT="migration-$(date +%Y%m%d%H%M%S)"
+  log "taking Elasticsearch snapshot $ES_SNAPSHOT on the old cluster"
+  run curl -fsS -X PUT "$OLD_ES_URL/_snapshot/ibb" \
+    -H 'Content-Type: application/json' \
+    -d '{"type":"fs","settings":{"location":"/es-bk","compress":true}}'
+  run curl -fsS -X PUT "$OLD_ES_URL/_snapshot/ibb/$ES_SNAPSHOT?wait_for_completion=true" \
+    -H 'Content-Type: application/json' \
+    -d '{"indices":"*","include_global_state":true}'
+}
+
+copy_es_backup() {
+  [[ -d "$OLD_SPECIES_DIR/es_bk" ]] || die "old es_bk not found: $OLD_SPECIES_DIR/es_bk"
+  run mkdir -p "$INFRA_DIR/es_bk"
+  run rsync -a "$OLD_SPECIES_DIR/es_bk/" "$INFRA_DIR/es_bk/"
+}
+
+restore_es_snapshot() {
+  [[ -n "$ES_SNAPSHOT" ]] || die "no Elasticsearch snapshot name is set"
+  log "registering the snapshot repository on the new Elasticsearch"
+  run curl -fsS -X PUT "$NEW_ES_URL/_snapshot/ibb" \
+    -H 'Content-Type: application/json' \
+    -d '{"type":"fs","settings":{"location":"/es-bk","compress":true}}'
+  log "restoring $ES_SNAPSHOT as ${NEW_ES_PREFIX}-*"
+  local body
+  body=$(printf '%s' \
+    '{"indices":"imageservice-*,phenotypeservice-*,ontologyservice-*,goannotationservice-*,publicationservice-*","ignore_unavailable":true,"include_global_state":false,"include_aliases":false,"rename_pattern":"(.+)","rename_replacement":"'"$NEW_ES_PREFIX"'-$1"}')
+  run curl -fsS -X POST \
+    "$NEW_ES_URL/_snapshot/ibb/$ES_SNAPSHOT/_restore?wait_for_completion=true" \
+    -H 'Content-Type: application/json' -d "$body"
+  run curl -fsS "$NEW_ES_URL/_cat/indices?h=index,docs.count,store.size&s=index"
 }
 
 mirror_volume() {
@@ -443,7 +541,7 @@ old_mysql_dump() {
     log "would dump old MySQL database $db to $out"
     return
   fi
-  mkdir -p "$(dirname "$out")"
+  run mkdir -p "$(dirname "$out")"
   old_compose exec -T mysql sh -c \
     "exec mysqldump -uroot -p\"\$MYSQL_ROOT_PASSWORD\" --single-transaction $db" > "$out"
 }
@@ -511,10 +609,13 @@ start_new() {
 }
 
 verify_staging() {
+  local strict=${1:-0}
   (( DRY_RUN )) && { log "would check staging"; return; }
+  local fail=warn
+  (( strict )) && fail=die
   log "staging checks"
-  curl -k -fsSI "$STAGING_URL" >/dev/null || warn "could not reach $STAGING_URL"
-  curl -k -fsSI "$STAGING_URL/ibb/directus" >/dev/null || warn "could not reach $STAGING_URL/ibb/directus"
+  curl -k -fsSI "$STAGING_URL" >/dev/null || "$fail" "could not reach $STAGING_URL"
+  curl -k -fsSI "$STAGING_URL/ibb/directus" >/dev/null || "$fail" "could not reach $STAGING_URL/ibb/directus"
   cat <<EOF
 
 Staging is at:   $STAGING_URL
@@ -529,9 +630,11 @@ cmd_prepare() {
   load_context
   cmd_check
   require_admin
-  [[ "$ES_MODE" == "rebuild" ]] || die \
-    "ES_MODE=$ES_MODE is not automated. Use rebuild, or follow the snapshot procedure in README.md."
-  mkdir -p "$BACKUP_DIR"
+  case "$ES_MODE" in
+    snapshot|rebuild) ;;
+    *) die "ES_MODE must be snapshot or rebuild" ;;
+  esac
+  run mkdir -p "$BACKUP_DIR"
   clone_repos
   init_infra
   write_new_env
@@ -547,35 +650,43 @@ cmd_prepare() {
 cmd_delta() {
   load_context
   require_admin
-  [[ "$ES_MODE" == "rebuild" ]] || die \
-    "ES_MODE=$ES_MODE is not automated. Use rebuild, or follow the snapshot procedure in README.md."
+  case "$ES_MODE" in
+    snapshot|rebuild) ;;
+    *) die "ES_MODE must be snapshot or rebuild" ;;
+  esac
   [[ -f "$NEW_SPECIES_DIR/.env" ]] || die "prepare has not run: $NEW_SPECIES_DIR/.env is missing"
   [[ -n "$NEW_INFRA_MYSQL_PASSWORD" ]] || NEW_INFRA_MYSQL_PASSWORD=$(env_get "$INFRA_DIR/.env" MYSQL_ROOT_PASSWORD || true)
   [[ -n "$NEW_INFRA_MYSQL_PASSWORD" ]] || die "infra .env has no MYSQL_ROOT_PASSWORD"
 
   log "freezing the old application (databases stay up for the copy)"
-  old_compose stop
-  old_compose up -d --wait mysql keycloak es
-  new_compose stop
+  old_compose_run stop
+  old_compose_run up -d --wait mysql keycloak es
+  new_compose_run stop
 
   import_directus "$BACKUP_DIR/directus-final.sql"
 
   log "final Keycloak copy"
-  old_compose stop keycloak
+  old_compose_run stop keycloak
   copy_keycloak_db final
 
   log "final files and uploads"
-  copy_files
+  copy_files delete
   mirror_volume
 
   setup_directus
-  [[ "$ES_MODE" == "rebuild" ]] || die "ES_MODE=$ES_MODE is not automated"
-  delete_new_es_indices
+  if [[ "$ES_MODE" == "snapshot" ]]; then
+    take_es_snapshot
+    copy_es_backup
+    delete_new_es_indices
+    restore_es_snapshot
+  else
+    delete_new_es_indices
+  fi
   start_new
-  verify_staging
+  verify_staging 1
 
   log "stopping the old stack; volumes are kept for rollback"
-  old_compose stop
+  old_compose_run stop
 }
 
 cmd_cutover() {
@@ -593,11 +704,11 @@ Final Apache configuration (apply manually, then remove the 9443 vhost):
   RequestHeader set X-Forwarded-Proto "https"
   ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
   ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
-  ProxyPass        /          http://127.0.0.1:9092/
-  ProxyPassReverse /          http://127.0.0.1:9092/
+  ProxyPass        /          http://127.0.0.1:$NEW_HTTP_PORT/
+  ProxyPassReverse /          http://127.0.0.1:$NEW_HTTP_PORT/
 
 Apply apache-final.conf.example to the 443 vhost now. Until `/` points to
-9092, <TCAS_URL> still reaches the old stack.
+$NEW_HTTP_PORT, <TCAS_URL> still reaches the old stack.
 
 Then run: ./migrate.sh verify
 EOF
@@ -613,7 +724,7 @@ cmd_verify() {
     die "the new species stack is not running"
   fi
   curl -fsSI "$TCAS_URL" >/dev/null \
-    || die "$TCAS_URL is not reachable; is the 443 vhost pointing at 9092?"
+    || die "$TCAS_URL is not reachable; is the 443 vhost pointing at $NEW_HTTP_PORT?"
   curl -fsSI "$TCAS_URL/ibb/directus" >/dev/null \
     || warn "Directus is not reachable at $TCAS_URL/ibb/directus"
   curl -fsSI "$TCAS_URL/keycloak/realms/$REALM" >/dev/null \
@@ -632,13 +743,25 @@ EOF
 cmd_rollback() {
   load_context
   log "stopping the new stack"
-  new_compose stop
+  new_compose_run stop
   log "starting the old stack"
-  old_compose up -d --wait
+  old_compose_run up -d --wait
   cat <<EOF
 
+The new species stack is stopped. The new infra stack, if running, was not
+stopped; it does not serve the public site and can stay up for diagnosis or a
+retry.
+
 Restore the old Apache configuration:
-  443 / -> 127.0.0.1:9090, and /ibb/keycloak through the old stack.
+  443 / -> 127.0.0.1:$OLD_HTTP_PORT, and /ibb/keycloak through the old stack.
+
+Remove or disable the temporary 9443 vhost, then reload Apache:
+
+  apachectl configtest
+  systemctl reload apache2
+
+Verify the old site and login. Do not run cleanup: the old volumes are the
+rollback window and still hold the authoritative data.
 
 Old project: $OLD_PROJECT
 EOF

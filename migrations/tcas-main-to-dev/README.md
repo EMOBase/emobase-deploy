@@ -14,8 +14,8 @@ The migration is parallel:
 
 | | Old stack | New stack |
 | --- | --- | --- |
-| Compose project | existing value, usually `ibb` | `tcas` |
-| Species site | `9090` | `9092` |
+| Compose project | `COMPOSE_PROJECT_NAME` from old `.env` (default `ibb`) | `tcas` |
+| Species site | `HTTP_PORT` from old `.env` (default `9090`) | `9092` |
 | Temporary Apache URL | — | `https://<TCAS_HOST>:9443` |
 | Keycloak | legacy at `/ibb/keycloak` | infra at `/keycloak`, port `8181` |
 | Elasticsearch | old stack, `9202` | infra, host port `9204` |
@@ -23,6 +23,16 @@ The migration is parallel:
 
 The old checkout, project name, volumes and container names are not changed.
 The new stack uses separate volumes and a separate Directus database.
+
+The script reads the old project name, old HTTP port and data paths from
+`OLD_SPECIES_DIR/.env`. Do not hardcode a staging clone's values into the
+runbook: a clone may use a different `HTTP_PORT`, project name or mount path
+than the real server.
+
+> **Safety rule for `PUBLIC_DATA_DIR`.** It may be an absolute external mount,
+> as on the test server, where it is a 424 GB read-only NFS export. The script
+> reuses that path read-only in the new `.env` and never copies it. Copying it
+> would duplicate hundreds of gigabytes and is never part of this migration.
 
 ## 1. Preconditions
 
@@ -47,19 +57,28 @@ Stop before changing anything if any of these is false.
 - The infra Keycloak does not already host other realms. Replacing its
   `keycloak` database wipes those realms.
 
-- There is enough disk and time for a full copy of `data/`, `images/`,
-  `oba/`, the Directus uploads volume, MySQL dumps and an Elasticsearch
-  rebuild.
+- There is enough local disk and time for the local copies (`data/private`,
+  `images/` symlinks, `oba/`), the Directus uploads volume, MySQL dumps and the
+  Elasticsearch snapshot. `PUBLIC_DATA_DIR` is not copied; if it is an
+  absolute external mount it is reused read-only.
+
+- The old data paths in `.env` exist and are readable. In particular,
+  `PUBLIC_DATA_DIR` may be an absolute external mount, and `IMAGE_DIR` may
+  contain symlinks into that mount. Do not dereference or copy the external
+  mount.
 
 - Docker/Compose access is available, and Apache can be edited and reloaded.
 
 - Ports `9092` (new species), `9204` (new infra ES) and `8181` (new infra
-  Keycloak) are free.
-
-- The old checkout uses the default `./data`, `./images` and `./oba` paths.
+  Keycloak) are free. The old site keeps using `HTTP_PORT` from its `.env`;
+  do not assume it is `9090`.
 
 - The old `mysql`, `keycloak` and `es` services are running, and the old
   Directus volume exists.
+
+- On a memory-constrained test host, the old and new stacks must fit at the
+  same time. The script warns but does not stop optional old services; the
+  fallback is described in Troubleshooting.
 
 ## 2. Get the new checkout and configure
 
@@ -97,12 +116,14 @@ ${EDITOR:-vi} migration.env
 | `NEW_PROJECT` | `tcas`; must differ from the old project |
 | `SPECIES_CODE`, `REALM`, `CLIENT_ID` | `Tcas`, `ibb`, `ibb-client` |
 | `OLD_KEYCLOAK_ADMIN`, `OLD_KEYCLOAK_ADMIN_PASSWORD` | Override only if the old `.env` is stale |
-| `ES_MODE` | `rebuild`; the snapshot path is manual |
+| `ES_MODE` | `snapshot`; takes a fresh old-cluster snapshot and restores it. `rebuild` is only for deployments that can rebuild every index |
 | `DEPLOY_REPO`, `INFRA_REPO` | Git URLs |
 | `EMOBASE_WEB_IMAGE` | Pin a release or SHA for a long-lived deployment |
+| `OBA_IMAGE` | `jboss/base-jdk:7`; the old server needed this because `openjdk:7` does not run the OBA jar |
 
-The old Compose project name is read from `OLD_SPECIES_DIR/.env`; it is not set
-in `migration.env`.
+The old Compose project name, HTTP port, `PUBLIC_DATA_DIR`, `PRIVATE_DATA_DIR`
+and `IMAGE_DIR` are read from `OLD_SPECIES_DIR/.env`; they are not set in
+`migration.env`.
 
 ## 3. Validate without changing anything
 
@@ -114,10 +135,14 @@ This step is read-only. It:
 
 - checks required commands (`docker`, `git`, `rsync`, `curl`, `tar`, `python3`)
 - verifies the old checkout and `.env`
+- prints the old project, old `HTTP_PORT` and data paths
+- checks that the old `PUBLIC_DATA_DIR`, `PRIVATE_DATA_DIR` and `IMAGE_DIR` exist and are readable
+- warns when `PUBLIC_DATA_DIR` is an external mount and will be reused read-only
 - checks that old and new project names differ and paths do not overlap
 - checks that the old `mysql`, `keycloak` and `es` services are running
 - checks the old Directus volume and the new ports
 - calls the portal READY endpoint
+- in `snapshot` mode, checks the old Elasticsearch and `es_bk`
 - warns if Keycloak admin credentials are missing
 
 Then print the planned commands:
@@ -127,6 +152,23 @@ Then print the planned commands:
 ```
 
 Do not run `prepare` if `check` fails. Fix the config and rerun.
+
+### Dry-run safety
+
+`--dry-run` is safe for every phase, including `delta` and `rollback`: it
+prints the Compose, `rsync`, `curl` and SQL operations instead of executing
+them. It never stops a container, writes to the old checkout or copies
+`PUBLIC_DATA_DIR`.
+
+The script never writes under `OLD_SPECIES_DIR`. It refuses to copy paths
+outside the old checkout, and it reuses an external `PUBLIC_DATA_DIR` in the
+new `.env` instead of copying it. `cleanup` only prints commands; it does not
+run them.
+
+`tests/run.sh` is a local, Docker-free mock harness. It builds a synthetic old
+checkout, stubs `docker` and `curl`, and verifies that `check` reads the old
+environment, that dry-run phases do not mutate anything, and that `prepare`
+preserves external paths and image symlinks.
 
 ## 4. Prepare the new stack (old site stays live)
 
@@ -145,6 +187,8 @@ checkout. It performs these actions in order.
 2. Writes `<NEW_WORKSPACE>/Tcas/.env`:
    - project `tcas`, site port `9092`, staging URL `9443`
    - `PORTAL_SERVER` and `INTERNAL_API_GENOMICS_SERVICE`
+   - `PUBLIC_DATA_DIR`, `PRIVATE_DATA_DIR` and `IMAGE_DIR` copied from the old
+     `.env`; an absolute external `PUBLIC_DATA_DIR` is reused, not copied
    - `KEYCLOAK_PUBLIC_URL=<TCAS_URL>/keycloak`, realm `ibb`, client
      `ibb-client`
    - `DIRECTUS_DB_DATABASE=directus_tcas`
@@ -152,9 +196,11 @@ checkout. It performs these actions in order.
    - old `DIRECTUS_SECRET`, Directus admin, `SSR_OIDC_SESSION_SECRET`,
      Keycloak client secret and COCO values
    - `COMPOSE_PROJECT_NAME=tcas`
+   - `OBA_IMAGE` from `migration.env`
 
-3. Copies `data/`, `images/` and `oba/` from the old checkout into the new
-   one. The old files are read only.
+3. Copies the local `data/`, `images/` and `oba/` directories from the old
+   checkout into the new one. `rsync -a` preserves symlinks; `images/` is not
+   dereferenced. An external `PUBLIC_DATA_DIR` is not copied.
 
 4. Mirrors the old `<OLD_PROJECT>_directus-data` volume into
    `tcas_directus-data`.
@@ -175,7 +221,8 @@ checkout. It performs these actions in order.
 
 After `prepare`:
 
-- The old site is still serving on `9090` / `<TCAS_URL>`.
+- The old site is still serving on `HTTP_PORT` from the old `.env` (default
+  `9090`) / `<TCAS_URL>`.
 - The new site is running on `9092`, but not yet reachable through Apache.
 - Do not run `delta` yet.
 
@@ -253,16 +300,20 @@ What it does, in order:
    `infra/.env`, restarts infra Keycloak, and re-adds both origins. This keeps
    users created or changed during staging.
 
-5. Mirrors `data/`, `images/`, `oba/` and the Directus uploads volume again, so
-   the new stack has the final files.
+5. Mirrors the local `data/`, `images/` and `oba/` directories and the
+   Directus uploads volume again, so the new stack has the final files. An
+   external `PUBLIC_DATA_DIR` is reused read-only and is not copied.
 
 6. Runs `setup-directus` against the final database.
 
-7. Deletes the new `tcas-*` Elasticsearch indices and starts the new services,
-   which rebuild the indices from the final `data/private` and `images`.
+7. Takes a fresh snapshot of the old Elasticsearch and copies `es_bk` into
+   `infra/es_bk`. It then deletes the new `tcas-*` indices, registers the
+   snapshot repository on the new infra ES, and restores the old indices with
+   the `tcas-` prefix. The default `ES_MODE=snapshot` preserves ontology, GO
+   annotation and publication data that cannot be rebuilt from `data/private`.
 
-8. Stops the old MySQL/Keycloak/ES containers. Their volumes remain intact for
-   rollback.
+8. Starts the new services, then stops the old MySQL/Keycloak/ES containers.
+   Their volumes remain intact for rollback.
 
 After `delta`:
 
@@ -272,8 +323,8 @@ After `delta`:
   cutover.
 - Do not clean up anything.
 
-If a service does not rebuild its indices, stop and use the snapshot fallback
-described in section 11.
+If a service does not show its data, check the snapshot restore result and the
+new index names before continuing.
 
 ## 7. Cut over the final URL
 
@@ -306,8 +357,10 @@ apachectl configtest
 systemctl reload apache2
 ```
 
-Until this proxy change is applied, `<TCAS_URL>` still reaches the old `9090`
-stack, even though the new `.env` already says `<TCAS_URL>`.
+Until this proxy change is applied, `<TCAS_URL>` still reaches the old
+`HTTP_PORT` stack (default `9090`), even though the new `.env` already says
+`<TCAS_URL>`. If you changed `NEW_HTTP_PORT` from `9092`, use that value in the
+Apache block and in the staging vhost.
 
 Remove the temporary `9443` vhost only after the final verification passes.
 
@@ -341,19 +394,36 @@ intentionally abandoned. Do not run it after a successful migration.
 ./migrate.sh rollback
 ```
 
-This stops the new stack, starts the old stack, and prints the old Apache
-target. Restore the old 443 vhost:
+This stops the new species stack, starts the old stack, and prints the old
+Apache target. The new infra stack (MySQL, Keycloak, ES) is not stopped; it
+does not serve the public site and can stay up for diagnosis or a retry.
+
+Restore the old 443 vhost:
 
 ```text
-/        -> 127.0.0.1:9090
+/        -> 127.0.0.1:<OLD_HTTP_PORT>   # default 9090
 /ibb/keycloak through the old stack
 ```
+
+If you added a temporary `9443` vhost, remove or disable it. Then reload Apache
+and verify the old site:
+
+```bash
+apachectl configtest
+systemctl reload apache2
+```
+
+Confirm the old site, Keycloak login and Directus work. Do not run `cleanup`:
+the old volumes are the rollback window and still hold the authoritative data.
 
 The old MySQL/Keycloak/ES volumes and the old `directus` database were not
 modified. Directus writes made on the new stack after cutover live only in
 `directus_tcas` and the new volumes; those writes are not copied back.
 
 Rollback remains possible until the cleanup step removes the old volumes.
+If you want to retry, fix the failure, run `check` again, then rerun the phase
+that failed. The script re-copies the old data during `prepare`/`delta`; new
+writes made after cutover are not merged back automatically.
 
 ## 10. Adopt the workspace in `emobase-cli`
 
@@ -402,20 +472,33 @@ If `doctor` reports `state.unrecorded`, running `sync` resolves it. After this,
 the workspace can be managed with `emobase status`, `emobase up`, `emobase down`
 and `emobase update`.
 
-## 11. Snapshot fallback for Elasticsearch
+## 11. Elasticsearch snapshot restore
 
-The default `ES_MODE=rebuild` lets the species services rebuild `tcas-*` from
-the copied data. If a service does not rebuild, use a snapshot instead of
-copying the old `es-data` volume.
+`ES_MODE=snapshot` is the default and the recommended path for this migration.
+The old deployment's `data/private` directories are empty, and the ontology, GO
+annotation and publication services have no local data mounts, so they cannot
+rebuild every index from files. A fresh snapshot is taken during `delta` and
+restored into the new infra ES.
 
-1. On the old ES (`9202`), register a repository and take a snapshot.
+The script automates this:
+
+1. On the old ES (`9202`), register repository `ibb` at `/es-bk` and take a
+   fresh snapshot named `migration-<timestamp>`.
 2. Copy the old `es_bk` directory to `infra/es_bk`.
-3. Register the repository on the new infra ES (`9204`).
-4. Restore with `rename_pattern "(.+)"`, `rename_replacement "tcas-$1"` and
-   `include_aliases: false`.
-5. Check `_cat/indices` and document counts.
+3. Register repository `ibb` on the new infra ES (`9204`).
+4. Delete the new `tcas-*` indices.
+5. Restore the old indices with `rename_pattern "(.+)"`,
+   `rename_replacement "tcas-$1"`, `include_aliases: false` and
+   `include_global_state: false`. The old `geneservice-*` indices are excluded;
+   the new site gets genomics, JBrowse2 and BLAST data from the portal.
+6. Print `_cat/indices` so you can check names and document counts.
 
 Do not copy the old `es-data` volume between Elasticsearch versions.
+
+Use `ES_MODE=rebuild` only after verifying that every service rebuilds its own
+indices from the copied data. The old host's existing
+`full_backup_<date>` snapshot is not a substitute for the fresh snapshot taken
+during `delta`.
 
 ## 12. Retention and cleanup
 
@@ -432,17 +515,19 @@ The output stops the old Compose project and removes the old MySQL, ES, BLAST,
 JBrowse2 and Directus volumes. It keeps `tcas_directus-data`, which the new
 stack uses. The commands are printed only; review and run those commands manually.
 
-The old checkout's `data/` and `images/` directories are not removed by the
-script. Remove those directories manually after the retention period if no
-longer needed.
+The old checkout's `data/`, `images/` and `oba/` directories are not removed by
+the script. An external `PUBLIC_DATA_DIR` (for example a read-only NFS mount)
+is never removed or copied by this runbook. Remove local directories manually
+after the retention period if no longer needed.
 
 Then delete this migration folder.
 
 ## Troubleshooting
 
-- **`check` fails on a port**: the old stack owns `9090`/`9202`; the new stack
-  uses `9092`/`9204`. Stop the conflicting process or change `NEW_HTTP_PORT` /
-  `NEW_ES_PORT` and the Apache examples.
+- **`check` fails on a port**: the old stack owns `HTTP_PORT` from its `.env`
+  (default `9090`) and `9202`; the new stack uses `9092`/`9204`. Stop the
+  conflicting process or change `NEW_HTTP_PORT` / `NEW_ES_PORT` and the Apache
+  examples.
 - **Staging login fails**: the staging origin is missing, the 443 `/keycloak`
   route is missing, or the Keycloak admin credentials are stale.
 - **Keycloak admin login fails after the DB copy**: the copied master realm has
@@ -450,9 +535,16 @@ Then delete this migration folder.
   admin in `migration.env` and rerun the phase that updates `infra/.env`.
 - **Directus shows no uploads**: the `directus-data` mirror did not run, or the
   new project name is not `tcas`.
-- **Search is empty after delta**: the services did not rebuild; wait for
-  startup or use the snapshot fallback.
+- **Search or ontology data is empty after delta**: check the snapshot restore
+  output. The snapshot path is the default; `rebuild` requires every service to
+  have its source data.
+- **OBA keeps restarting**: set `OBA_IMAGE=jboss/base-jdk:7` (or another image
+  known to run the OBA jar); `openjdk:7` does not work on the test server.
+- **The host runs out of memory while both stacks are up**: stop optional old
+  services (`oba`, `ontoscope`, `blast`, `geneservice`, `swagger-ui`,
+  `querypipelineservice`) or lower the new infra ES heap/limit for the staging
+  run. The script does not stop them by default.
 - **JBrowse/BLAST missing**: the portal release is not READY, or
   `PORTAL_SERVER` is wrong.
-- **Final URL still shows the old site**: the 443 vhost still points at
-  `9090`; apply the final Apache block and reload.
+- **Final URL still shows the old site**: the 443 vhost still points at the old
+  `HTTP_PORT`; apply the final Apache block and reload.
