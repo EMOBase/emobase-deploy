@@ -1,0 +1,4 @@
+migration.env
+migration.env.*
+!migration.env.example
+*.log

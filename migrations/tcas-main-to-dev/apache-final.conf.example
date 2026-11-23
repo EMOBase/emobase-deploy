@@ -1,0 +1,16 @@
+# Final Apache configuration for the migrated Tcas site.
+#
+# Add the /keycloak route before the catch-all; Apache matches in order.
+# Replace paths and the certificate as needed for this server.
+
+ProxyPreserveHost On
+RequestHeader set X-Forwarded-Proto "https"
+
+ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
+ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
+
+# Optional: old bookmarks for the legacy Keycloak path.
+Redirect permanent /ibb/keycloak /keycloak
+
+ProxyPass        /  http://127.0.0.1:9092/
+ProxyPassReverse /  http://127.0.0.1:9092/
