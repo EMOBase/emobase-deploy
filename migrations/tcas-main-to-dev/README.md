@@ -208,7 +208,10 @@ After `prepare`:
 - The new site is running on `9092`, but not yet reachable through Apache.
 - Do not run `delta` yet.
 
-## 5. Expose and verify the migration URL
+## 5. Expose and smoke-test the migration URL
+
+This is a pre-cutover smoke test, not the final data check. It catches login,
+Apache and Keycloak routing problems while the old site is still live.
 
 The new site needs an HTTPS URL so browser login can be tested. It uses a
 temporary port because the old site still owns 443; only one process can bind
@@ -258,11 +261,15 @@ the `/` catch-all.
 
 3. Open `https://<TCAS_HOST>:9443` and verify:
    - one real user signs in with the old password
-   - Directus content and uploads are present
-   - search, phenotypes, images, publications, GO annotations and ontology work
-   - OBA and Ontoscope work if used
-   - `/download/` files work
+   - the new site loads and Directus content/uploads from the initial copy are
+     present
+   - images and `/download/` files work
+   - OBA and Ontoscope start if used
    - JBrowse2 and BLAST links point at the portal
+
+Search, GO annotation, ontology and publication results may be empty until
+`delta` restores the Elasticsearch snapshot. They are checked again after
+`delta` and at the final verification.
 
 If login fails, check the Keycloak admin credentials and the migration origin.
 Do not run `delta` until this checkpoint passes.
