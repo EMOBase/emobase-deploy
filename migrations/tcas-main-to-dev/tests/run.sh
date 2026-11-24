@@ -283,13 +283,6 @@ contains "$out" "PUBLIC_DATA_DIR is external"
 contains "$out" "new project: tcastest"
 ! mock_has_mutations || fail "check executed a mutating command"
 
-pass "legacy STAGING_URL still works"
-legacy_cfg="$TMP/legacy.env"
-sed 's/^MIGRATION_URL=/STAGING_URL=/' "$TMP/migration.env" > "$legacy_cfg"
-out=$(run_cfg "legacy config" "$legacy_cfg" check)
-contains "$out" "migration URL: https://tcas.test:9443"
-contains "$out" "STAGING_URL is deprecated"
-
 pass "dry-run prepare never copies public data"
 reset_mock_log
 out=$(run "dry-run prepare" --dry-run prepare)

@@ -290,10 +290,6 @@ load_context() {
   : "${OLD_SPECIES_DIR:?OLD_SPECIES_DIR is required}"
   : "${NEW_WORKSPACE:?NEW_WORKSPACE is required}"
   : "${TCAS_URL:?TCAS_URL is required}"
-  if [[ -z "${MIGRATION_URL:-}" && -n "${STAGING_URL:-}" ]]; then
-    warn "STAGING_URL is deprecated; use MIGRATION_URL"
-    MIGRATION_URL=$STAGING_URL
-  fi
   : "${MIGRATION_URL:?MIGRATION_URL is required}"
   : "${PORTAL_URL:?PORTAL_URL is required}"
 
@@ -493,12 +489,6 @@ cmd_init() {
   cfg_backup=$(env_get "$CONFIG" BACKUP_DIR || true)
   cfg_tcas=$(env_get "$CONFIG" TCAS_URL || true)
   cfg_migration=$(env_get "$CONFIG" MIGRATION_URL || true)
-  if [[ -z "$cfg_migration" ]]; then
-    cfg_migration=$(env_get "$CONFIG" STAGING_URL || true)
-    if [[ -n "$cfg_migration" ]]; then
-      warn "STAGING_URL is deprecated; writing MIGRATION_URL"
-    fi
-  fi
   cfg_portal=$(env_get "$CONFIG" PORTAL_URL || true)
   cfg_kc=$(env_get "$CONFIG" KEYCLOAK_PUBLIC_URL || true)
   cfg_http=$(env_get "$CONFIG" NEW_HTTP_PORT || true)
