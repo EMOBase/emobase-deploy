@@ -186,11 +186,11 @@ load_context() {
   REALM="${REALM:-ibb}"
   CLIENT_ID="${CLIENT_ID:-ibb-client}"
   ES_MODE="${ES_MODE:-snapshot}"
-  IMAGE_MODE="${IMAGE_MODE:-mount}"
+  IMAGE_MODE="${IMAGE_MODE:-auto}"
   IMAGE_MOUNT_SOURCE="${IMAGE_MOUNT_SOURCE:-}"
   case "$IMAGE_MODE" in
-    copy|mount) ;;
-    *) die "IMAGE_MODE must be copy or mount" ;;
+    auto|copy|mount) ;;
+    *) die "IMAGE_MODE must be auto, copy or mount" ;;
   esac
   DEPLOY_REPO="${DEPLOY_REPO:-https://github.com/EMOBase/emobase-deploy.git}"
   INFRA_REPO="${INFRA_REPO:-https://github.com/EMOBase/emobase-infra.git}"
@@ -249,10 +249,54 @@ load_context() {
     OLD_IMAGE_PATH="$OLD_SPECIES_DIR/$OLD_IMAGE_DIR"
   fi
 
-  # In mount mode, keep the old symlink farm and bind-mount its target at the
-  # same absolute path inside the containers. Derive the source from the first
-  # symlink unless IMAGE_MOUNT_SOURCE is configured.
-  if [[ "$IMAGE_MODE" == "mount" && -z "$IMAGE_MOUNT_SOURCE" && -d "$OLD_IMAGE_PATH" ]]; then
+  IMAGE_LAYOUT=""
+  IMAGE_ACTION=""
+  IMAGE_TARGET=""
+
+  if [[ -L "$OLD_IMAGE_PATH" ]]; then
+    IMAGE_LAYOUT="whole-symlink"
+  elif [[ -d "$OLD_IMAGE_PATH" ]]; then
+    local mount_target=""
+    local image_real=""
+    image_real=$(readlink -f "$OLD_IMAGE_PATH" 2>/dev/null || true)
+    if command -v findmnt >/dev/null 2>&1; then
+      mount_target=$(findmnt -T "$OLD_IMAGE_PATH" -no TARGET 2>/dev/null | head -n1 || true)
+    fi
+    if [[ -n "$mount_target" && -n "$image_real" && "$(readlink -f "$mount_target" 2>/dev/null || printf '%s' "$mount_target")" == "$image_real" ]]; then
+      IMAGE_LAYOUT="whole-mount"
+    elif find "$OLD_IMAGE_PATH" -maxdepth 1 -type l -print -quit 2>/dev/null | grep -q .; then
+      IMAGE_LAYOUT="symlink-farm"
+    else
+      IMAGE_LAYOUT="real-files"
+    fi
+  fi
+
+  case "$IMAGE_LAYOUT" in
+    whole-symlink|whole-mount)
+      IMAGE_TARGET=$(readlink -f "$OLD_IMAGE_PATH" 2>/dev/null || printf '%s' "$OLD_IMAGE_PATH")
+      case "$IMAGE_MODE" in
+        auto|mount) IMAGE_ACTION="link" ;;
+        copy) IMAGE_ACTION="copy" ;;
+      esac
+      ;;
+    symlink-farm)
+      IMAGE_TARGET="$OLD_IMAGE_PATH"
+      case "$IMAGE_MODE" in
+        auto|mount) IMAGE_ACTION="mount" ;;
+        copy) IMAGE_ACTION="copy" ;;
+      esac
+      ;;
+    real-files)
+      IMAGE_TARGET="$OLD_IMAGE_PATH"
+      case "$IMAGE_MODE" in
+        auto|copy) IMAGE_ACTION="copy" ;;
+        mount) IMAGE_ACTION="invalid" ;;
+      esac
+      ;;
+    "") IMAGE_ACTION="invalid" ;;
+  esac
+
+  if [[ "$IMAGE_ACTION" == "mount" && -z "$IMAGE_MOUNT_SOURCE" ]]; then
     local image_link image_target
     image_link=$(find "$OLD_IMAGE_PATH" -maxdepth 1 -type l -print -quit 2>/dev/null || true)
     if [[ -n "$image_link" ]]; then
@@ -326,34 +370,43 @@ cmd_check() {
   esac
 
   log "checking image layout"
-  local image_links
-  image_links=$(find "$OLD_IMAGE_PATH" -maxdepth 1 -type l -print -quit 2>/dev/null || true)
-  if [[ -n "$image_links" ]]; then
-    case "$IMAGE_MODE" in
-      copy)
+  printf 'image mode: %s\nimage layout: %s\nimage action: %s\n' \
+    "$IMAGE_MODE" "$IMAGE_LAYOUT" "$IMAGE_ACTION"
+  case "$IMAGE_LAYOUT" in
+    whole-symlink|whole-mount)
+      [[ -n "$IMAGE_TARGET" && -d "$IMAGE_TARGET" ]] \
+        || die "image target not found or not a directory: $IMAGE_TARGET"
+      [[ -r "$IMAGE_TARGET" ]] || die "image target not readable: $IMAGE_TARGET"
+      if [[ "$IMAGE_ACTION" == "link" ]]; then
+        warn "whole image directory will be reused through a symlink: $OLD_IMAGE_PATH -> $IMAGE_TARGET"
+        [[ -w "$IMAGE_TARGET/community-data" ]] \
+          || die "community-data is not writable at $IMAGE_TARGET/community-data; imageservice requires a writable community-data. Use IMAGE_MODE=copy or a writable NFS mount"
+      elif [[ "$IMAGE_ACTION" == "copy" ]]; then
+        warn "whole image directory will be copied into ./images"
+      fi
+      ;;
+    symlink-farm)
+      if [[ "$IMAGE_ACTION" == "copy" ]]; then
         warn "IMAGE_DIR contains symlinks; copy mode will materialize them into ./images"
-        ;;
-      mount)
+      elif [[ "$IMAGE_ACTION" == "mount" ]]; then
         [[ -n "$IMAGE_MOUNT_SOURCE" ]] || die \
-          "IMAGE_MODE=mount requires IMAGE_MOUNT_SOURCE (could not derive it from IMAGE_DIR symlinks)"
+          "IMAGE_ACTION=mount requires IMAGE_MOUNT_SOURCE (could not derive it from IMAGE_DIR symlinks)"
         [[ -d "$IMAGE_MOUNT_SOURCE" ]] || die "IMAGE_MOUNT_SOURCE not found: $IMAGE_MOUNT_SOURCE"
         [[ -r "$IMAGE_MOUNT_SOURCE" ]] || die "IMAGE_MOUNT_SOURCE not readable: $IMAGE_MOUNT_SOURCE"
-        warn "IMAGE_MODE=mount will bind-mount $IMAGE_MOUNT_SOURCE read-only inside imageservice and phenotypeservice"
-        ;;
-    esac
-  else
-    if [[ "$IMAGE_MODE" == "mount" ]]; then
-      [[ -n "$IMAGE_MOUNT_SOURCE" ]] || die \
-        "IMAGE_MODE=mount needs IMAGE_MOUNT_SOURCE when IMAGE_DIR has no symlinks; use IMAGE_MODE=copy"
-      [[ -d "$IMAGE_MOUNT_SOURCE" ]] || die "IMAGE_MOUNT_SOURCE not found: $IMAGE_MOUNT_SOURCE"
-    fi
-  fi
-  if [[ -d "$OLD_IMAGE_PATH/community-data" ]]; then
-    [[ -w "$OLD_IMAGE_PATH/community-data" ]] || warn \
-      "community-data is not writable by this user; imageservice needs a writable community-data inside /images"
-  else
-    warn "no community-data directory found under $OLD_IMAGE_PATH"
-  fi
+        warn "IMAGE_ACTION=mount will bind-mount $IMAGE_MOUNT_SOURCE read-only inside imageservice and phenotypeservice"
+        [[ -w "$OLD_IMAGE_PATH/community-data" ]] \
+          || die "community-data is not writable at $OLD_IMAGE_PATH/community-data; imageservice requires a writable community-data"
+      fi
+      ;;
+    real-files)
+      [[ "$IMAGE_ACTION" == "copy" ]] \
+        || die "IMAGE_MODE=mount cannot be used when IMAGE_DIR is a real directory; use IMAGE_MODE=auto or copy"
+      warn "IMAGE_DIR is a real directory; it will be copied into ./images"
+      ;;
+    *)
+      die "could not determine image layout for $OLD_IMAGE_PATH"
+      ;;
+  esac
 
   [[ -n "$OLD_KEYCLOAK_ADMIN" && -n "$OLD_KEYCLOAK_ADMIN_PASSWORD" ]] || warn \
     "no Keycloak admin credentials; prepare will stop before adding origins"
@@ -394,8 +447,8 @@ cmd_check() {
   fi
 
   log "check complete"
-  printf 'old project: %s\nold HTTP port: %s\nold public data: %s (reused, not copied)\nimage mode: %s\nnew project: %s\nstaging: %s\nfinal: %s\n' \
-    "$OLD_PROJECT" "$OLD_HTTP_PORT" "$OLD_PUBLIC_DATA_DIR" "$IMAGE_MODE" "$NEW_PROJECT" "$STAGING_URL" "$TCAS_URL"
+  printf 'old project: %s\nold HTTP port: %s\nold public data: %s (reused, not copied)\nimage mode: %s\nimage layout: %s\nimage action: %s\nnew project: %s\nstaging: %s\nfinal: %s\n' \
+    "$OLD_PROJECT" "$OLD_HTTP_PORT" "$OLD_PUBLIC_DATA_DIR" "$IMAGE_MODE" "$IMAGE_LAYOUT" "$IMAGE_ACTION" "$NEW_PROJECT" "$STAGING_URL" "$TCAS_URL"
 }
 
 clone_repos() {
@@ -456,7 +509,7 @@ write_new_env() {
   if [[ -f "$NEW_SPECIES_DIR/$overlay" ]]; then
     compose_file="compose.yml:$overlay"
   fi
-  if [[ "$IMAGE_MODE" == "mount" ]]; then
+  if [[ "$IMAGE_ACTION" == "mount" ]]; then
     compose_file="$compose_file:compose.media.yml"
   fi
   local public_data="${OLD_PUBLIC_DATA_DIR:-./data/public}"
@@ -521,9 +574,9 @@ EOF
 }
 
 write_media_override() {
-  [[ "$IMAGE_MODE" == "mount" ]] || return 0
+  [[ "$IMAGE_ACTION" == "mount" ]] || return 0
   [[ -n "$IMAGE_MOUNT_SOURCE" ]] || die \
-    "IMAGE_MODE=mount requires IMAGE_MOUNT_SOURCE"
+    "IMAGE_ACTION=mount requires IMAGE_MOUNT_SOURCE"
   local file="$NEW_SPECIES_DIR/compose.media.yml"
   if (( DRY_RUN )); then
     log "would write $file with $IMAGE_MOUNT_SOURCE mounted read-only"
@@ -542,28 +595,52 @@ EOF
   log "wrote $file"
 }
 
+copy_images() {
+  local delete_flag=""
+  [[ "${1:-}" == "delete" ]] && delete_flag="--delete"
+  local dest="$NEW_SPECIES_DIR/images"
+
+  case "$IMAGE_ACTION" in
+    link)
+      [[ -n "$IMAGE_TARGET" && -d "$IMAGE_TARGET" ]] \
+        || die "image link target not found: $IMAGE_TARGET"
+      if [[ -L "$dest" ]]; then
+        run rm -f "$dest"
+      elif [[ -e "$dest" ]]; then
+        die "$dest exists and is not a symlink; refusing to replace it"
+      fi
+      run ln -s "$IMAGE_TARGET" "$dest"
+      ;;
+    mount)
+      run mkdir -p "$dest"
+      run rsync -a $delete_flag "$OLD_IMAGE_PATH/" "$dest/"
+      ;;
+    copy)
+      [[ -n "$IMAGE_TARGET" && -d "$IMAGE_TARGET" ]] \
+        || die "image copy target not found: $IMAGE_TARGET"
+      run mkdir -p "$dest"
+      run rsync -a $delete_flag --copy-links "$IMAGE_TARGET/" "$dest/"
+      ;;
+    *)
+      die "unknown image action: $IMAGE_ACTION"
+      ;;
+  esac
+}
+
 copy_files() {
   local delete_flag=""
   [[ "${1:-}" == "delete" ]] && delete_flag="--delete"
   local dir src
-  for dir in data images oba; do
+  copy_images "${1:-}"
+  for dir in data oba; do
     src="$OLD_SPECIES_DIR/$dir"
-    [[ "$dir" == "images" ]] && src="$OLD_IMAGE_PATH"
     [[ -d "$src" ]] || continue
     case "$src" in
-      "$OLD_SPECIES_DIR"/*|"$OLD_IMAGE_PATH") ;;
+      "$OLD_SPECIES_DIR"/*) ;;
       *) die "refusing to copy outside the old checkout: $src" ;;
     esac
     run mkdir -p "$NEW_SPECIES_DIR/$dir"
-    if [[ "$dir" == "images" && "$IMAGE_MODE" == "copy" ]]; then
-      # copy mode materializes the symlink farm into real files so the new
-      # container does not depend on an external absolute path.
-      run rsync -a $delete_flag --copy-links "$src/" "$NEW_SPECIES_DIR/$dir/"
-    else
-      # mount mode keeps symlinks; the generated compose.media.yml supplies
-      # the absolute target path inside the containers.
-      run rsync -a $delete_flag "$src/" "$NEW_SPECIES_DIR/$dir/"
-    fi
+    run rsync -a $delete_flag "$src/" "$NEW_SPECIES_DIR/$dir/"
   done
 }
 

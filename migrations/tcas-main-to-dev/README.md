@@ -118,7 +118,7 @@ ${EDITOR:-vi} migration.env
 | `SPECIES_CODE`, `REALM`, `CLIENT_ID` | `Tcas`, `ibb`, `ibb-client` |
 | `OLD_KEYCLOAK_ADMIN`, `OLD_KEYCLOAK_ADMIN_PASSWORD` | Override only if the old `.env` is stale |
 | `ES_MODE` | `snapshot`; takes a fresh old-cluster snapshot and restores it. `rebuild` is only for deployments that can rebuild every index |
-| `IMAGE_MODE` | `mount` (keep symlinks and mount their target read-only) or `copy` (materialize image files). See “Image paths” below |
+| `IMAGE_MODE` | `auto` (detect the old layout), `copy` (materialize image files), or `mount` (force symlink-farm mode). See “Image paths” below |
 | `IMAGE_MOUNT_SOURCE` | Host path to mount in `mount` mode. Leave empty to derive it from the old `IMAGE_DIR` symlinks |
 | `DEPLOY_REPO`, `INFRA_REPO` | Git URLs |
 | `EMOBASE_WEB_IMAGE` | Pin a release or SHA for a long-lived deployment |
@@ -131,31 +131,32 @@ decides whether that directory contains real files or the old symlinks.
 
 ### Image paths
 
-The old deployment may use either:
+`IMAGE_MODE=auto` is the default and detects the old layout:
 
-- a real `./images` directory, or
-- `./images` containing absolute symlinks into `/media/ibeetleb/images`.
+| Old `./images` | Detected layout | New stack |
+| --- | --- | --- |
+| symlink to NFS or another directory | `whole-symlink` | new `images` is a symlink to the same target |
+| NFS bind mount | `whole-mount` | new `images` is a symlink to the mount point |
+| directory of absolute symlinks | `symlink-farm` | preserve symlinks; generate `compose.media.yml` |
+| real directory of files | `real-files` | copy the files |
 
-Docker bind mounts do not resolve those absolute symlinks inside a container.
-`imageservice` also needs a writable `/images/community-data`.
+Docker bind mounts do not resolve absolute symlinks from a symlink farm inside a
+container. The symlink target must also be mounted at the same absolute path.
 
-`IMAGE_MODE=mount` is the default. It assumes the production-style layout:
-image directories are symlinked into the NFS image store, and the image store
-is available on the host. It keeps the symlinks and writes
+`IMAGE_MODE=mount` forces the symlink-farm behavior. It writes
 `<NEW_WORKSPACE>/Tcas/compose.media.yml`, which bind-mounts
-`IMAGE_MOUNT_SOURCE` at the same absolute path in `imageservice` and
-`phenotypeservice`. The local `./images/community-data` stays writable.
+`IMAGE_MOUNT_SOURCE` read-only at the same absolute path in `imageservice` and
+`phenotypeservice`. The local `./images/community-data` stays writable. It is
+not valid for a real-file directory.
 
-`imageservice` requires `/images/community-data` to be writable; read-only NFS
-cannot host that directory. The generated mount is read-only for the published
-images. If production stores community uploads on NFS, the new stack needs a
-writable path to that directory as well; confirm the production mount and
-community-data location before cutover.
+`IMAGE_MODE=copy` copies the real 3.9 GB of images into the new `./images`,
+following symlinks. It is the fallback when the source image path is unavailable
+or read-only.
 
-`IMAGE_MODE=copy` copies the real 3.9 GB of images into the new `./images`
-(following symlinks). It is the fallback when the NFS image path is not
-available inside the new containers; it avoids an external mount but does not
-reflect the NFS-backed layout.
+`imageservice` requires `/images/community-data` to be writable. For a
+whole-NFS layout, `community-data` is on NFS and must be writable; for the
+symlink-farm layout it stays local. If a whole-NFS target is read-only, use
+`IMAGE_MODE=copy` or a writable overlay.
 
 Never set `IMAGE_DIR` directly to a read-only NFS path: `imageservice` fails at
 startup trying to create `/images/community-data`.
@@ -173,9 +174,10 @@ This step is read-only. It:
 - prints the old project, old `HTTP_PORT` and data paths
 - checks that the old `PUBLIC_DATA_DIR`, `PRIVATE_DATA_DIR` and `IMAGE_DIR` exist and are readable
 - warns when `PUBLIC_DATA_DIR` is an external mount and will be reused read-only
-- checks the image layout: warns when `IMAGE_DIR` contains symlinks, validates
-  `IMAGE_MOUNT_SOURCE` in `mount` mode, and warns if `community-data` is missing
-  or not writable
+- detects and prints the image layout (`whole-symlink`, `whole-mount`,
+  `symlink-farm`, `real-files`) and action (`link`, `mount`, `copy`)
+- validates the target or `IMAGE_MOUNT_SOURCE` and checks that the service's
+  `community-data` is writable
 - checks that old and new project names differ and paths do not overlap
 - checks that the old `mysql`, `keycloak` and `es` services are running
 - checks the old Directus volume and the new ports
@@ -238,10 +240,12 @@ checkout. It performs these actions in order.
    - `COMPOSE_PROJECT_NAME=tcas`
    - `OBA_IMAGE` from `migration.env`
 
-3. Copies the local `data/`, `images/` and `oba/` directories from the old
-   checkout into the new one. In `copy` mode, `images/` is dereferenced into
-   real files; in `mount` mode, symlinks are preserved and `compose.media.yml`
-   mounts their target read-only. An external `PUBLIC_DATA_DIR` is not copied.
+3. Handles image storage according to `IMAGE_MODE` and the detected layout:
+   - whole symlink/mount: links the new `images` directory to the same target;
+   - symlink farm: preserves symlinks and writes `compose.media.yml`;
+   - real files or `copy`: materializes images into the new `./images`.
+   It also copies local `data/` and `oba/`. An external `PUBLIC_DATA_DIR` is
+   not copied.
 
 4. Mirrors the old `<OLD_PROJECT>_directus-data` volume into
    `tcas_directus-data`.

@@ -314,11 +314,13 @@ sed \
   -e "s#^IMAGE_MOUNT_SOURCE=.*#IMAGE_MOUNT_SOURCE=$TMP/external/images#" \
   "$TMP/migration.env" > "$TMP/migration-mount.env"
 
-pass "default image mode is mount"
+pass "default image mode auto-detects a symlink farm"
 grep -v '^IMAGE_MODE=' "$TMP/migration.env" > "$TMP/migration-default.env"
 reset_mock_log
 out=$(run_cfg "default mode check" "$TMP/migration-default.env" check)
-contains "$out" "image mode: mount"
+contains "$out" "image mode: auto"
+contains "$out" "image layout: symlink-farm"
+contains "$out" "image action: mount"
 contains "$out" "bind-mount"
 ! mock_has_mutations || fail "default mode check executed a mutating command"
 
@@ -350,6 +352,57 @@ contains "$(cat "$mount_env")" "COMPOSE_FILE=compose.yml:compose.tcas.yml:compos
 [[ "$(readlink "$TMP/new-mount/Tcas/images/1")" == "$TMP/external/images/1" ]] || fail "mount mode changed images/1 target"
 [[ -f "$TMP/new-mount/Tcas/compose.media.yml" ]] || fail "mount mode did not write compose.media.yml"
 contains "$(cat "$TMP/new-mount/Tcas/compose.media.yml")" "$TMP/external/images:$TMP/external/images:ro"
+
+# ---------------------------------------------------------------- whole-directory symlink
+mkdir -p "$TMP/external/whole-images/community-data" \
+         "$TMP/old-whole" \
+         "$TMP/new-whole/Tcas/.git" \
+         "$TMP/new-whole/infra/.git" \
+         "$TMP/new-whole/infra/scripts" \
+         "$TMP/new-whole/backup"
+
+cp -a "$TMP/old/data" "$TMP/old-whole/data"
+cp -a "$TMP/old/oba" "$TMP/old-whole/oba"
+cp -a "$TMP/old/es_bk" "$TMP/old-whole/es_bk"
+cp "$TMP/old/.env" "$TMP/old-whole/.env"
+cp "$TMP/old/compose.yml" "$TMP/old-whole/compose.yml"
+cp "$TMP/old/compose.tcas.yml" "$TMP/old-whole/compose.tcas.yml"
+ln -s "$TMP/external/whole-images" "$TMP/old-whole/images"
+
+cp "$TMP/new/infra/.env" "$TMP/new-whole/infra/.env"
+cp "$TMP/new/infra/scripts/allow-origin.sh" "$TMP/new-whole/infra/scripts/allow-origin.sh"
+chmod +x "$TMP/new-whole/infra/scripts/allow-origin.sh"
+cp "$TMP/new/Tcas/compose.yml" "$TMP/new-whole/Tcas/compose.yml"
+cp "$TMP/new/Tcas/compose.tcas.yml" "$TMP/new-whole/Tcas/compose.tcas.yml"
+
+sed \
+  -e "s#^OLD_SPECIES_DIR=.*#OLD_SPECIES_DIR=$TMP/old-whole#" \
+  -e "s#^NEW_WORKSPACE=.*#NEW_WORKSPACE=$TMP/new-whole#" \
+  -e "s#^BACKUP_DIR=.*#BACKUP_DIR=$TMP/new-whole/backup#" \
+  -e "s#^NEW_PROJECT=.*#NEW_PROJECT=tcaswhole#" \
+  -e "s#^IMAGE_MODE=.*#IMAGE_MODE=auto#" \
+  "$TMP/migration.env" > "$TMP/migration-whole.env"
+
+pass "auto detects a whole-directory image symlink"
+reset_mock_log
+out=$(run_cfg "whole check" "$TMP/migration-whole.env" check)
+contains "$out" "image mode: auto"
+contains "$out" "image layout: whole-symlink"
+contains "$out" "image action: link"
+contains "$out" "reused through a symlink"
+! mock_has_mutations || fail "whole check executed a mutating command"
+
+pass "whole image symlink is mirrored without copying"
+reset_mock_log
+rm -f "$TMP/new-whole/Tcas/.env" "$TMP/new-whole/Tcas/images"
+out=$(run_cfg "whole prepare" "$TMP/migration-whole.env" --yes prepare)
+whole_env="$TMP/new-whole/Tcas/.env"
+[[ -f "$whole_env" ]] || fail "whole prepare did not write .env"
+contains "$(cat "$whole_env")" "IMAGE_DIR=./images"
+contains "$(cat "$whole_env")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
+[[ -L "$TMP/new-whole/Tcas/images" ]] || fail "whole image directory is not a symlink"
+[[ "$(readlink -f "$TMP/new-whole/Tcas/images")" == "$(readlink -f "$TMP/external/whole-images")" ]] || fail "whole image symlink target is wrong"
+[[ ! -e "$TMP/new-whole/Tcas/compose.media.yml" ]] || fail "whole layout wrote compose.media.yml"
 
 pass "rollback without --dry-run issues stop and up"
 reset_mock_log
