@@ -314,6 +314,14 @@ sed \
   -e "s#^IMAGE_MOUNT_SOURCE=.*#IMAGE_MOUNT_SOURCE=$TMP/external/images#" \
   "$TMP/migration.env" > "$TMP/migration-mount.env"
 
+pass "default image mode is mount"
+grep -v '^IMAGE_MODE=' "$TMP/migration.env" > "$TMP/migration-default.env"
+reset_mock_log
+out=$(run_cfg "default mode check" "$TMP/migration-default.env" check)
+contains "$out" "image mode: mount"
+contains "$out" "bind-mount"
+! mock_has_mutations || fail "default mode check executed a mutating command"
+
 pass "check derives the mount source from symlinks"
 sed 's#^IMAGE_MOUNT_SOURCE=.*#IMAGE_MOUNT_SOURCE=#' \
   "$TMP/migration-mount.env" > "$TMP/migration-mount-derived.env"

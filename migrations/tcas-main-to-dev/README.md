@@ -118,7 +118,7 @@ ${EDITOR:-vi} migration.env
 | `SPECIES_CODE`, `REALM`, `CLIENT_ID` | `Tcas`, `ibb`, `ibb-client` |
 | `OLD_KEYCLOAK_ADMIN`, `OLD_KEYCLOAK_ADMIN_PASSWORD` | Override only if the old `.env` is stale |
 | `ES_MODE` | `snapshot`; takes a fresh old-cluster snapshot and restores it. `rebuild` is only for deployments that can rebuild every index |
-| `IMAGE_MODE` | `copy` (materialize image files) or `mount` (keep symlinks and mount their target read-only). See “Image paths” below |
+| `IMAGE_MODE` | `mount` (keep symlinks and mount their target read-only) or `copy` (materialize image files). See “Image paths” below |
 | `IMAGE_MOUNT_SOURCE` | Host path to mount in `mount` mode. Leave empty to derive it from the old `IMAGE_DIR` symlinks |
 | `DEPLOY_REPO`, `INFRA_REPO` | Git URLs |
 | `EMOBASE_WEB_IMAGE` | Pin a release or SHA for a long-lived deployment |
@@ -139,14 +139,16 @@ The old deployment may use either:
 Docker bind mounts do not resolve those absolute symlinks inside a container.
 `imageservice` also needs a writable `/images/community-data`.
 
-`IMAGE_MODE=copy` copies the real 3.9 GB of images into the new `./images`
-(following symlinks). It is the safest default: no external mount is required
-inside the new containers.
+`IMAGE_MODE=mount` is the default for a symlink-based image directory. It keeps
+the symlinks and writes `<NEW_WORKSPACE>/Tcas/compose.media.yml`, which
+bind-mounts `IMAGE_MOUNT_SOURCE` read-only at the same absolute path in
+`imageservice` and `phenotypeservice`. The local `./images/community-data`
+stays writable.
 
-`IMAGE_MODE=mount` keeps the symlinks and writes
-`<NEW_WORKSPACE>/Tcas/compose.media.yml`, which bind-mounts
-`IMAGE_MOUNT_SOURCE` read-only at the same absolute path in `imageservice` and
-`phenotypeservice`. The local `./images/community-data` stays writable.
+`IMAGE_MODE=copy` copies the real 3.9 GB of images into the new `./images`
+(following symlinks). It is the fallback when the NFS image path is not
+available inside the new containers; it avoids an external mount but does not
+reflect the NFS-backed layout.
 
 Never set `IMAGE_DIR` directly to a read-only NFS path: `imageservice` fails at
 startup trying to create `/images/community-data`.

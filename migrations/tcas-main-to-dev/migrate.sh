@@ -186,7 +186,7 @@ load_context() {
   REALM="${REALM:-ibb}"
   CLIENT_ID="${CLIENT_ID:-ibb-client}"
   ES_MODE="${ES_MODE:-snapshot}"
-  IMAGE_MODE="${IMAGE_MODE:-copy}"
+  IMAGE_MODE="${IMAGE_MODE:-mount}"
   IMAGE_MOUNT_SOURCE="${IMAGE_MOUNT_SOURCE:-}"
   case "$IMAGE_MODE" in
     copy|mount) ;;
