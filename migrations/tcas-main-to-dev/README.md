@@ -48,7 +48,8 @@ Stop before changing anything if any of these is false.
 - The old Keycloak is 24.0.3, matching `emobase-infra`. Do not use a database
   copy across different Keycloak versions.
 
-- There is enough local disk for the local copies (`data/private`, `oba/`, the
+- There is enough local disk for the two checkouts (`emobase-deploy` on `dev`
+  and `emobase-infra`) and the local copies (`data/private`, `oba/`, the
   Directus uploads volume, MySQL dumps and the Elasticsearch snapshot).
 
 - The old data paths in `.env` exist and are readable. `PUBLIC_DATA_DIR` and
