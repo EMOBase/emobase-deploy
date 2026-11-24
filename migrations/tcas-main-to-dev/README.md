@@ -4,8 +4,8 @@
 > verified.
 >
 > This is not a fresh deployment. It copies live data, replaces the infra
-> Keycloak database and briefly stops the old site. Read the whole step before
-> running its command, and do not continue past a failed checkpoint.
+> Keycloak database and briefly stops the old site. Read the whole runbook
+> before running any command, and do not continue past a failed checkpoint.
 
 This runbook migrates the running Tcas deployment to the `dev` layout with
 `emobase-infra`, while keeping the old stack available for rollback.
@@ -58,10 +58,6 @@ Stop before changing anything if any of these is false.
 - The old `mysql`, `keycloak` and `es` services are running, and the old
   Directus volume exists.
 
-- On a memory-constrained test host, the old and new stacks must fit at the
-  same time. The script warns but does not stop optional old services; the
-  fallback is described in Troubleshooting.
-
 ## 2. Get the new checkout and configure
 
 Clone the target `dev` checkout:
@@ -99,49 +95,24 @@ ${EDITOR:-vi} migration.env
 | `SPECIES_CODE`, `REALM`, `CLIENT_ID` | `Tcas`, `ibb`, `ibb-client` |
 | `OLD_KEYCLOAK_ADMIN`, `OLD_KEYCLOAK_ADMIN_PASSWORD` | Override only if the old `.env` is stale |
 | `ES_MODE` | `snapshot`; takes a fresh old-cluster snapshot and restores it. `rebuild` is only for deployments that can rebuild every index |
-| `IMAGE_MODE` | `auto` (detect the old layout), `copy` (materialize image files), or `mount` (force symlink-farm mode). See “Image paths” below |
-| `IMAGE_MOUNT_SOURCE` | Host path to mount in `mount` mode. Leave empty to derive it from the old `IMAGE_DIR` symlinks |
-| `DEPLOY_REPO`, `INFRA_REPO` | Git URLs |
+| `IMAGE_MODE` | `auto` (recommended); `copy` is the fallback when the image source is read-only |
 | `EMOBASE_WEB_IMAGE` | Pin a release or SHA for a long-lived deployment |
 | `OBA_IMAGE` | `jboss/base-jdk:7`; the old server needed this because `openjdk:7` does not run the OBA jar |
 
-The old Compose project name, HTTP port, `PUBLIC_DATA_DIR`, `PRIVATE_DATA_DIR`
-and `IMAGE_DIR` are read from `OLD_SPECIES_DIR/.env`; they are not set in
-`migration.env`. The new stack uses `IMAGE_DIR=./images` for local layouts, or
+The old Compose project name, HTTP port and data paths are read from
+`OLD_SPECIES_DIR/.env`; they are not set in `migration.env`. The new stack
 reuses the old absolute `IMAGE_DIR` for the direct-NFS layout.
 
 ### Image paths
 
-`IMAGE_MODE=auto` is the default and detects the old layout:
+`IMAGE_MODE=auto` is the default. For the production direct-NFS layout it
+reuses the old absolute `IMAGE_DIR` unchanged, so no image files are copied.
 
-| Old image layout | Detected layout | New stack |
-| --- | --- | --- |
-| absolute `IMAGE_DIR`, e.g. `/media/ibeetleb/images` | `direct` | reuse the same absolute path; no copy |
-| `./images` symlink to NFS/directory | `whole-symlink` | new `images` is a symlink to the same target |
-| `./images` NFS bind mount | `whole-mount` | new `images` is a symlink to the mount point |
-| directory of absolute symlinks | `symlink-farm` | preserve symlinks; generate `compose.media.yml` |
-| real directory of files | `real-files` | copy the files |
+`imageservice` requires `/images/community-data` to be writable, so the NFS
+export must be mounted read-write for the new stack.
 
-Docker bind mounts do not resolve absolute symlinks from a symlink farm inside a
-container. The symlink target must also be mounted at the same absolute path.
-
-`IMAGE_MODE=mount` forces the symlink-farm behavior. It writes
-`<NEW_WORKSPACE>/Tcas/compose.media.yml`, which bind-mounts
-`IMAGE_MOUNT_SOURCE` read-only at the same absolute path in `imageservice` and
-`phenotypeservice`. The local `./images/community-data` stays writable. It is
-not valid for a real-file directory.
-
-`IMAGE_MODE=copy` copies the real 3.9 GB of images into the new `./images`,
-following symlinks. It is the fallback when the source image path is unavailable
-or read-only.
-
-`imageservice` requires `/images/community-data` to be writable. For a
-whole-NFS layout, `community-data` is on NFS and must be writable; for the
-symlink-farm layout it stays local. If a whole-NFS target is read-only, use
-`IMAGE_MODE=copy` or a writable overlay.
-
-Never set `IMAGE_DIR` directly to a read-only NFS path: `imageservice` fails at
-startup trying to create `/images/community-data`.
+`IMAGE_MODE=copy` is the fallback when the image source is read-only; it
+materializes the images into the new `./images`.
 
 ## 3. Validate without changing anything
 
@@ -155,11 +126,7 @@ This step is read-only. It:
 - verifies the old checkout and `.env`
 - prints the old project, old `HTTP_PORT` and data paths
 - checks that the old `PUBLIC_DATA_DIR`, `PRIVATE_DATA_DIR` and `IMAGE_DIR` exist and are readable
-- warns when `PUBLIC_DATA_DIR` is an external mount and will be reused read-only
-- detects and prints the image layout (`whole-symlink`, `whole-mount`,
-  `symlink-farm`, `real-files`) and action (`link`, `mount`, `copy`)
-- validates the target or `IMAGE_MOUNT_SOURCE` and checks that the service's
-  `community-data` is writable
+- detects the image layout and action, and checks that `community-data` is writable
 - checks that old and new project names differ and paths do not overlap
 - checks that the old `mysql`, `keycloak` and `es` services are running
 - checks the old Directus volume and the new ports
@@ -179,18 +146,10 @@ Do not run `prepare` if `check` fails. Fix the config and rerun.
 
 `--dry-run` is safe for every phase, including `delta` and `rollback`: it
 prints the Compose, `rsync`, `curl` and SQL operations instead of executing
-them. It never stops a container, writes to the old checkout or copies
-`PUBLIC_DATA_DIR`.
+them. It never stops a container or writes to the old checkout.
 
-The script never writes under `OLD_SPECIES_DIR`. It refuses to copy paths
-outside the old checkout, and it reuses an external `PUBLIC_DATA_DIR` in the
-new `.env` instead of copying it. `cleanup` only prints commands; it does not
-run them.
-
-`tests/run.sh` is a local, Docker-free mock harness. It builds a synthetic old
-checkout, stubs `docker` and `curl`, and verifies that `check` reads the old
-environment, that dry-run phases do not mutate anything, and that `prepare`
-handles both image modes.
+The script never writes under `OLD_SPECIES_DIR`. `cleanup` only prints
+commands; it does not run them.
 
 ## 4. Prepare the new stack (old site stays live)
 
@@ -209,10 +168,9 @@ checkout. It performs these actions in order.
 2. Writes `<NEW_WORKSPACE>/Tcas/.env`:
    - project `tcas`, site port `9092`, staging URL `9443`
    - `PORTAL_SERVER` and `INTERNAL_API_GENOMICS_SERVICE`
-   - `PUBLIC_DATA_DIR` and `PRIVATE_DATA_DIR` copied from the old `.env`; an
-     absolute external `PUBLIC_DATA_DIR` is reused, not copied
-   - `IMAGE_DIR=./images`; `IMAGE_MODE` decides whether those are real files or
-     symlinks plus a compose override
+   - `PUBLIC_DATA_DIR` and `PRIVATE_DATA_DIR` taken from the old `.env`
+   - `IMAGE_DIR` for the detected image layout; direct NFS reuses the absolute
+     path
    - `KEYCLOAK_PUBLIC_URL=<TCAS_URL>/keycloak`, realm `ibb`, client
      `ibb-client`
    - `DIRECTUS_DB_DATABASE=directus_tcas`
@@ -222,13 +180,8 @@ checkout. It performs these actions in order.
    - `COMPOSE_PROJECT_NAME=tcas`
    - `OBA_IMAGE` from `migration.env`
 
-3. Handles image storage according to `IMAGE_MODE` and the detected layout:
-   - absolute `IMAGE_DIR` (direct NFS): reuses the same absolute path;
-   - whole symlink/mount: links the new `images` directory to the same target;
-   - symlink farm: preserves symlinks and writes `compose.media.yml`;
-   - real files or `copy`: materializes images into the new `./images`.
-   It also copies local `data/` and `oba/`. An external `PUBLIC_DATA_DIR` is
-   not copied.
+3. Reuses or materializes the image directory according to `IMAGE_MODE`, and
+   copies local `data/` and `oba/`.
 
 4. Mirrors the old `<OLD_PROJECT>_directus-data` volume into
    `tcas_directus-data`.
@@ -328,9 +281,9 @@ What it does, in order:
    `infra/.env`, restarts infra Keycloak, and re-adds both origins. This keeps
    users created or changed during staging.
 
-5. Mirrors the local `data/`, `images/` and `oba/` directories and the
-   Directus uploads volume again, so the new stack has the final files. An
-   external `PUBLIC_DATA_DIR` is reused read-only and is not copied.
+5. Mirrors the local `data/` and `oba/` directories and the Directus uploads
+   volume again, so the new stack has the final files. The NFS image directory
+   is reused, not copied.
 
 6. Runs `setup-directus` against the final database.
 
@@ -505,21 +458,10 @@ and `emobase update`.
 `ES_MODE=snapshot` is the default and the recommended path for this migration.
 The old deployment's `data/private` directories are empty, and the ontology, GO
 annotation and publication services have no local data mounts, so they cannot
-rebuild every index from files. A fresh snapshot is taken during `delta` and
-restored into the new infra ES.
-
-The script automates this:
-
-1. On the old ES (`9202`), register repository `ibb` at `/es-bk` and take a
-   fresh snapshot named `migration-<timestamp>`.
-2. Copy the old `es_bk` directory to `infra/es_bk`.
-3. Register repository `ibb` on the new infra ES (`9204`).
-4. Delete the new `tcas-*` indices.
-5. Restore the old indices with `rename_pattern "(.+)"`,
-   `rename_replacement "tcas-$1"`, `include_aliases: false` and
-   `include_global_state: false`. The old `geneservice-*` indices are excluded;
-   the new site gets genomics, JBrowse2 and BLAST data from the portal.
-6. Print `_cat/indices` so you can check names and document counts.
+rebuild every index from files. The script takes a fresh snapshot of the old
+cluster during `delta` and restores it into the new infra ES with the `tcas-`
+index prefix. It prints `_cat/indices` so you can check names and document
+counts.
 
 Do not copy the old `es-data` volume between Elasticsearch versions.
 
@@ -544,9 +486,8 @@ JBrowse2 and Directus volumes. It keeps `tcas_directus-data`, which the new
 stack uses. The commands are printed only; review and run those commands manually.
 
 The old checkout's `data/`, `images/` and `oba/` directories are not removed by
-the script. An external `PUBLIC_DATA_DIR` (for example a read-only NFS mount)
-is never removed or copied by this runbook. Remove local directories manually
-after the retention period if no longer needed.
+the script. Remove local directories manually after the retention period if no
+longer needed.
 
 Then delete this migration folder.
 
@@ -567,14 +508,8 @@ Then delete this migration folder.
   output. The snapshot path is the default; `rebuild` requires every service to
   have its source data.
 - **Images fail or `imageservice` restarts with `community-data: Read-only file
-  system`**: the new stack is pointing `IMAGE_DIR` at an external read-only
-  mount. Use `IMAGE_MODE=copy`, or keep `IMAGE_MODE=mount` and ensure
-  `compose.media.yml` is in `COMPOSE_FILE`. The image service also needs
-  `/images/community-data` to be writable.
-- **Image URLs return 500 or a small text body instead of a JPEG**: check
-  `imageservice` logs and whether `/images/<filepath>` resolves inside the
-  container. Absolute symlinks from `./images` into `/media/ibeetleb/images`
-  require that target to be mounted at the same absolute path.
+  system`**: the NFS export is read-only. Mount it read-write, or use
+  `IMAGE_MODE=copy` so `community-data` stays local.
 - **OBA keeps restarting**: set `OBA_IMAGE=jboss/base-jdk:7` (or another image
   known to run the OBA jar); `openjdk:7` does not work on the test server.
 - **The host runs out of memory while both stacks are up**: stop optional old
