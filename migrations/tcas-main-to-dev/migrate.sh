@@ -1091,9 +1091,15 @@ copy_keycloak_db() {
   require_admin
   [[ "$NEW_INFRA_MYSQL_PASSWORD" != "" ]] || die "infra MySQL password is missing"
   if [[ "$label" == "initial" ]]; then
-    if ! confirm "Replace the infra Keycloak database with the old one?"; then
-      log "cancelled; the infra Keycloak database was not replaced"
-      exit 1
+    local extra_realms=""
+    if (( ! DRY_RUN )); then
+      extra_realms=$(infra_compose exec -T mysql sh -c \
+        "exec mysql -N -s -uroot -p\"\$MYSQL_ROOT_PASSWORD\" -e \"SELECT COUNT(*) FROM keycloak.REALM WHERE NAME NOT IN ('master', '$REALM');\"" \
+        2>/dev/null || true)
+      extra_realms=${extra_realms//[^0-9]/}
+    fi
+    if [[ -n "$extra_realms" && "$extra_realms" != "0" ]]; then
+      die "infra Keycloak already hosts $extra_realms realm(s) other than master and $REALM; refusing to replace its database"
     fi
   fi
   local dump="$BACKUP_DIR/keycloak-$label.sql"

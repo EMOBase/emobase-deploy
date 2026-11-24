@@ -164,6 +164,10 @@ if [[ "${1:-}" == "compose" ]]; then
       log "compose $*"
       exit 0
       ;;
+    *"REALM WHERE NAME NOT IN"*)
+      printf '%s\n' "${MOCK_KEYCLOAK_EXTRA_REALMS:-0}"
+      exit 0
+      ;;
     *" exec "*|*" run "*)
       exit 0
       ;;
@@ -289,7 +293,6 @@ reset_mock_log
 out=$(run "dry-run prepare" --dry-run prepare)
 contains "$out" "+ rsync -a"
 contains "$out" "would write"
-contains "$out" "would ask: Replace the infra Keycloak database"
 not_contains "$out" "rsync -a $TMP/external/tcas5"
 ! mock_has_mutations || fail "dry-run prepare executed a mutating command"
 [[ ! -e "$TMP/new/Tcas/data" ]] || fail "dry-run prepare created data/"
@@ -345,12 +348,11 @@ contains "$(cat "$envfile")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
 [[ ! -e "$TMP/new/Tcas/compose.media.yml" ]] || fail "copy mode wrote compose.media.yml"
 
 # ---------------------------------------------------------------- infra init cwd
-pass "prepare cancellation is not an error"
-if out=$(printf 'n\n' | bash "$SCRIPT" --config "$TMP/migration.env" prepare 2>&1); then
-  fail "prepare did not stop after cancelling the Keycloak prompt"
+pass "prepare refuses an infra Keycloak with other realms"
+if out=$(MOCK_KEYCLOAK_EXTRA_REALMS=1 bash "$SCRIPT" --config "$TMP/migration.env" prepare 2>&1); then
+  fail "prepare replaced a shared infra Keycloak"
 fi
-contains "$out" "cancelled; the infra Keycloak database was not replaced"
-not_contains "$out" "ERROR: aborted"
+contains "$out" "refusing to replace its database"
 
 pass "infra init runs in the infra checkout"
 mkdir -p "$TMP/new-init/Tcas/.git" \

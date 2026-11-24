@@ -189,11 +189,11 @@ checkout. It performs these actions in order.
 5. Dumps the old `directus` database, drops/recreates `directus_tcas` in infra
    MySQL, and imports the dump. The old `directus` database is not modified.
 
-6. Asks for confirmation, then replaces the **infra** Keycloak database with a
-   dump of the old `keycloak` database. It also writes the old current admin
-   credentials into `infra/.env` and restarts infra Keycloak. This is the step
-   that preserves users, password hashes, OTP data and the `ibb` client. If you
-   answer no, the phase stops before changing Keycloak.
+6. Checks that the infra Keycloak has no realms other than `master` and `ibb`,
+   then replaces the **infra** Keycloak database with a dump of the old
+   `keycloak` database. It also writes the old current admin credentials into
+   `infra/.env` and restarts infra Keycloak. This is the step that preserves
+   users, password hashes, OTP data and the `ibb` client.
 
 7. Adds `<TCAS_URL>` and `<MIGRATION_URL>` as Keycloak origins.
 
