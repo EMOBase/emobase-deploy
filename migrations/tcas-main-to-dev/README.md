@@ -210,8 +210,10 @@ After `prepare`:
 
 ## 5. Expose and verify the migration URL
 
-The new site needs an HTTPS URL so browser login can be tested. It also needs
-the existing 443 vhost to route `/keycloak` to infra.
+The new site needs an HTTPS URL so browser login can be tested. It uses a
+temporary port because the old site still owns 443; only one process can bind
+443. At cutover, Apache switches `/` from the old stack to the new one. It also
+needs the existing 443 vhost to route `/keycloak` to infra.
 
 1. Add both blocks to the existing 443 vhost file. The `/keycloak` lines go
    inside the 443 vhost before the species catch-all; the 9443 vhost goes
