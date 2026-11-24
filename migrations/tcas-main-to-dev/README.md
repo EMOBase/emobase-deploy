@@ -218,8 +218,11 @@ temporary port because the old site still owns 443; only one process can bind
 443. At cutover, Apache switches `/` from the old stack to the new one.
 
 The new site redirects login to `KEYCLOAK_PUBLIC_URL`, which is
-`https://<TCAS_HOST>/keycloak` on 443. Keeping Keycloak on 443 means the same
-URL works before and after cutover; only `/` changes.
+`https://<TCAS_HOST>/keycloak` on 443. The 9443 vhost is temporary; Keycloak
+is permanent infrastructure. Keeping Keycloak on 443 means its URL and OIDC
+issuer stay the same before and after cutover; only `/` changes. Moving
+Keycloak to 9443 would require changing its issuer and moving it back at
+cutover.
 
 Apache applies `ProxyPass` in order, so the `/keycloak` line must come before
 the `/` catch-all.
