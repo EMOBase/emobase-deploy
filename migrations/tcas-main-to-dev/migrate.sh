@@ -1181,7 +1181,6 @@ Next:
   3. Run: ./migrate.sh delta
 
 Final URL:       $TCAS_URL
-Keycloak admin:  $MIGRATION_KEYCLOAK_URL/admin/
 EOF
 }
 
