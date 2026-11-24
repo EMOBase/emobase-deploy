@@ -151,9 +151,6 @@ Do not run `prepare` if `check` fails. Fix the config and rerun.
 prints the Compose, `rsync`, `curl` and SQL operations instead of executing
 them. It never stops a container or writes to the old checkout.
 
-The script never writes under `OLD_SPECIES_DIR`. `cleanup` only prints
-commands; it does not run them.
-
 ## 4. Prepare the new stack (old site stays live)
 
 ```bash
