@@ -253,7 +253,9 @@ load_context() {
   IMAGE_ACTION=""
   IMAGE_TARGET=""
 
-  if [[ -L "$OLD_IMAGE_PATH" ]]; then
+  if [[ "$OLD_IMAGE_DIR" == /* ]]; then
+    IMAGE_LAYOUT="direct"
+  elif [[ -L "$OLD_IMAGE_PATH" ]]; then
     IMAGE_LAYOUT="whole-symlink"
   elif [[ -d "$OLD_IMAGE_PATH" ]]; then
     local mount_target=""
@@ -271,7 +273,15 @@ load_context() {
     fi
   fi
 
+  NEW_IMAGE_DIR="./images"
   case "$IMAGE_LAYOUT" in
+    direct)
+      IMAGE_TARGET="$OLD_IMAGE_PATH"
+      case "$IMAGE_MODE" in
+        auto|mount) IMAGE_ACTION="direct" ;;
+        copy) IMAGE_ACTION="copy" ;;
+      esac
+      ;;
     whole-symlink|whole-mount)
       IMAGE_TARGET=$(readlink -f "$OLD_IMAGE_PATH" 2>/dev/null || printf '%s' "$OLD_IMAGE_PATH")
       case "$IMAGE_MODE" in
@@ -295,6 +305,9 @@ load_context() {
       ;;
     "") IMAGE_ACTION="invalid" ;;
   esac
+  if [[ "$IMAGE_ACTION" == "direct" ]]; then
+    NEW_IMAGE_DIR="$IMAGE_TARGET"
+  fi
 
   if [[ "$IMAGE_ACTION" == "mount" && -z "$IMAGE_MOUNT_SOURCE" ]]; then
     local image_link image_target
@@ -373,6 +386,18 @@ cmd_check() {
   printf 'image mode: %s\nimage layout: %s\nimage action: %s\n' \
     "$IMAGE_MODE" "$IMAGE_LAYOUT" "$IMAGE_ACTION"
   case "$IMAGE_LAYOUT" in
+    direct)
+      [[ -n "$IMAGE_TARGET" && -d "$IMAGE_TARGET" ]] \
+        || die "image target not found or not a directory: $IMAGE_TARGET"
+      [[ -r "$IMAGE_TARGET" ]] || die "image target not readable: $IMAGE_TARGET"
+      if [[ "$IMAGE_ACTION" == "direct" ]]; then
+        warn "IMAGE_DIR is absolute; the new stack will use it directly: $IMAGE_TARGET"
+        [[ -w "$IMAGE_TARGET/community-data" ]] \
+          || die "community-data is not writable at $IMAGE_TARGET/community-data; imageservice requires a writable community-data. Use IMAGE_MODE=copy"
+      elif [[ "$IMAGE_ACTION" == "copy" ]]; then
+        warn "absolute image directory will be copied into ./images"
+      fi
+      ;;
     whole-symlink|whole-mount)
       [[ -n "$IMAGE_TARGET" && -d "$IMAGE_TARGET" ]] \
         || die "image target not found or not a directory: $IMAGE_TARGET"
@@ -514,7 +539,7 @@ write_new_env() {
   fi
   local public_data="${OLD_PUBLIC_DATA_DIR:-./data/public}"
   local private_data="${OLD_PRIVATE_DATA_DIR:-./data/private}"
-  local image_dir="./images"
+  local image_dir="${NEW_IMAGE_DIR:-./images}"
   local uid="${OLD_UID:-1001}"
   local gid="${OLD_GID:-1001}"
 
@@ -614,6 +639,9 @@ copy_images() {
     mount)
       run mkdir -p "$dest"
       run rsync -a $delete_flag "$OLD_IMAGE_PATH/" "$dest/"
+      ;;
+    direct)
+      # IMAGE_DIR is an absolute path and is used directly; nothing is copied.
       ;;
     copy)
       [[ -n "$IMAGE_TARGET" && -d "$IMAGE_TARGET" ]] \

@@ -404,6 +404,56 @@ contains "$(cat "$whole_env")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
 [[ "$(readlink -f "$TMP/new-whole/Tcas/images")" == "$(readlink -f "$TMP/external/whole-images")" ]] || fail "whole image symlink target is wrong"
 [[ ! -e "$TMP/new-whole/Tcas/compose.media.yml" ]] || fail "whole layout wrote compose.media.yml"
 
+# ---------------------------------------------------------------- direct absolute IMAGE_DIR
+mkdir -p "$TMP/old-direct" \
+         "$TMP/new-direct/Tcas/.git" \
+         "$TMP/new-direct/infra/.git" \
+         "$TMP/new-direct/infra/scripts" \
+         "$TMP/new-direct/backup"
+
+cp -a "$TMP/old/data" "$TMP/old-direct/data"
+cp -a "$TMP/old/oba" "$TMP/old-direct/oba"
+cp -a "$TMP/old/es_bk" "$TMP/old-direct/es_bk"
+cp "$TMP/old/compose.yml" "$TMP/old-direct/compose.yml"
+cp "$TMP/old/compose.tcas.yml" "$TMP/old-direct/compose.tcas.yml"
+sed "s#^IMAGE_DIR=.*#IMAGE_DIR=$TMP/external/whole-images#" \
+  "$TMP/old/.env" > "$TMP/old-direct/.env"
+
+cp "$TMP/new/infra/.env" "$TMP/new-direct/infra/.env"
+cp "$TMP/new/infra/scripts/allow-origin.sh" "$TMP/new-direct/infra/scripts/allow-origin.sh"
+chmod +x "$TMP/new-direct/infra/scripts/allow-origin.sh"
+cp "$TMP/new/Tcas/compose.yml" "$TMP/new-direct/Tcas/compose.yml"
+cp "$TMP/new/Tcas/compose.tcas.yml" "$TMP/new-direct/Tcas/compose.tcas.yml"
+
+sed \
+  -e "s#^OLD_SPECIES_DIR=.*#OLD_SPECIES_DIR=$TMP/old-direct#" \
+  -e "s#^NEW_WORKSPACE=.*#NEW_WORKSPACE=$TMP/new-direct#" \
+  -e "s#^BACKUP_DIR=.*#BACKUP_DIR=$TMP/new-direct/backup#" \
+  -e "s#^NEW_PROJECT=.*#NEW_PROJECT=tcasdirect#" \
+  -e "s#^IMAGE_MODE=.*#IMAGE_MODE=auto#" \
+  "$TMP/migration.env" > "$TMP/migration-direct.env"
+
+pass "auto detects an absolute IMAGE_DIR"
+reset_mock_log
+out=$(run_cfg "direct check" "$TMP/migration-direct.env" check)
+contains "$out" "image mode: auto"
+contains "$out" "image layout: direct"
+contains "$out" "image action: direct"
+contains "$out" "use it directly"
+! mock_has_mutations || fail "direct check executed a mutating command"
+
+pass "direct IMAGE_DIR is reused without copying"
+reset_mock_log
+rm -f "$TMP/new-direct/Tcas/.env"
+rm -rf "$TMP/new-direct/Tcas/images"
+out=$(run_cfg "direct prepare" "$TMP/migration-direct.env" --yes prepare)
+direct_env="$TMP/new-direct/Tcas/.env"
+[[ -f "$direct_env" ]] || fail "direct prepare did not write .env"
+contains "$(cat "$direct_env")" "IMAGE_DIR=$TMP/external/whole-images"
+contains "$(cat "$direct_env")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
+[[ ! -e "$TMP/new-direct/Tcas/images" ]] || fail "direct layout created a local images directory"
+[[ ! -e "$TMP/new-direct/Tcas/compose.media.yml" ]] || fail "direct layout wrote compose.media.yml"
+
 pass "rollback without --dry-run issues stop and up"
 reset_mock_log
 out=$(run rollback --yes rollback)

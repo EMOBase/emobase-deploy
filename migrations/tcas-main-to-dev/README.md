@@ -126,17 +126,18 @@ ${EDITOR:-vi} migration.env
 
 The old Compose project name, HTTP port, `PUBLIC_DATA_DIR`, `PRIVATE_DATA_DIR`
 and `IMAGE_DIR` are read from `OLD_SPECIES_DIR/.env`; they are not set in
-`migration.env`. The new stack always uses `IMAGE_DIR=./images`; `IMAGE_MODE`
-decides whether that directory contains real files or the old symlinks.
+`migration.env`. The new stack uses `IMAGE_DIR=./images` for local layouts, or
+reuses the old absolute `IMAGE_DIR` for the direct-NFS layout.
 
 ### Image paths
 
 `IMAGE_MODE=auto` is the default and detects the old layout:
 
-| Old `./images` | Detected layout | New stack |
+| Old image layout | Detected layout | New stack |
 | --- | --- | --- |
-| symlink to NFS or another directory | `whole-symlink` | new `images` is a symlink to the same target |
-| NFS bind mount | `whole-mount` | new `images` is a symlink to the mount point |
+| absolute `IMAGE_DIR`, e.g. `/media/ibeetleb/images` | `direct` | reuse the same absolute path; no copy |
+| `./images` symlink to NFS/directory | `whole-symlink` | new `images` is a symlink to the same target |
+| `./images` NFS bind mount | `whole-mount` | new `images` is a symlink to the mount point |
 | directory of absolute symlinks | `symlink-farm` | preserve symlinks; generate `compose.media.yml` |
 | real directory of files | `real-files` | copy the files |
 
@@ -241,6 +242,7 @@ checkout. It performs these actions in order.
    - `OBA_IMAGE` from `migration.env`
 
 3. Handles image storage according to `IMAGE_MODE` and the detected layout:
+   - absolute `IMAGE_DIR` (direct NFS): reuses the same absolute path;
    - whole symlink/mount: links the new `images` directory to the same target;
    - symlink farm: preserves symlinks and writes `compose.media.yml`;
    - real files or `copy`: materializes images into the new `./images`.
