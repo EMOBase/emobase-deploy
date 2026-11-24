@@ -21,6 +21,7 @@ usage() {
 Usage: ./migrate.sh [options] <command>
 
 Commands:
+  init           ask for paths and URLs and write migration.env
   check          validate config, paths, commands and portal release
   prepare        clone, start infra, create env, initial data copy, start staging
   delta          freeze old, final MySQL/Keycloak/files copy, restart new
@@ -33,7 +34,7 @@ Options:
   --config FILE  use FILE instead of migration.env
   --dry-run      print commands without execution
   --yes, -y      do not ask for confirmations
-  --force        overwrite the new .env if it already exists
+  --force        overwrite migration.env or the new .env if it already exists
   -h, --help     show this help
 EOF
 }
@@ -73,6 +74,122 @@ confirm() {
   local answer
   read -r -p "$1 [y/N] " answer
   [[ "$answer" == y || "$answer" == Y || "$answer" == yes ]]
+}
+
+ask() {
+  local var="$1" label="$2" default="$3" validator="${4:-}" error="${5:-Invalid value}" value
+  if [[ -n "${!var:-}" ]]; then
+    if [[ -n "$validator" ]] && ! "$validator" "${!var}"; then
+      die "$error: ${!var}"
+    fi
+    return 0
+  fi
+  if (( ASSUME_YES )); then
+    printf -v "$var" '%s' "$default"
+    if [[ -n "$validator" ]] && ! "$validator" "$default"; then
+      die "$error: $default"
+    fi
+    return 0
+  fi
+  [[ -t 0 ]] || die "cannot ask for $label: stdin is not a terminal (use --yes or set $var)"
+  while true; do
+    if [[ -n "$default" ]]; then
+      read -r -p "$label [$default]: " value
+    else
+      read -r -p "$label: " value
+    fi
+    value="${value:-$default}"
+    if [[ -z "$validator" ]] || "$validator" "$value"; then
+      printf -v "$var" '%s' "$value"
+      return 0
+    fi
+    printf 'ERROR: %s\n' "$error" >&2
+  done
+}
+
+resolve_path() {
+  python3 - "$1" <<'PY'
+import os
+import sys
+
+print(os.path.abspath(os.path.expanduser(sys.argv[1])))
+PY
+}
+
+url_with_port() {
+  python3 - "$1" "$2" <<'PY'
+import sys
+from urllib.parse import urlsplit
+
+parts = urlsplit(sys.argv[1])
+host = parts.hostname or ""
+if ":" in host:
+    host = f"[{host}]"
+print(f"{parts.scheme}://{host}:{sys.argv[2]}")
+PY
+}
+
+valid_url() {
+  [[ "$1" =~ ^https?://[^/]+ ]]
+}
+
+valid_port() {
+  [[ "$1" =~ ^[0-9]+$ ]] && (( 10#$1 >= 1 && 10#$1 <= 65535 ))
+}
+
+valid_project() {
+  [[ "$1" =~ ^[a-z0-9][a-z0-9_-]*$ ]]
+}
+
+valid_es_mode() {
+  [[ "$1" == snapshot || "$1" == rebuild ]]
+}
+
+valid_image_mode() {
+  [[ "$1" == auto || "$1" == copy || "$1" == mount ]]
+}
+
+valid_nonempty() {
+  [[ -n "$1" ]]
+}
+
+valid_old_checkout() {
+  [[ -d "$1" && -f "$1/.env" ]]
+}
+
+valid_new_workspace() {
+  [[ "$1" != "$OLD_SPECIES_DIR" && "$1" != "$OLD_SPECIES_DIR"/* ]]
+}
+
+ask_path() {
+  local var="$1" label="$2" default="$3" validator="${4:-}" error="${5:-Invalid path}" value
+  if [[ -n "${!var:-}" ]]; then
+    value=$(resolve_path "${!var}")
+  elif (( ASSUME_YES )); then
+    value=$(resolve_path "$default")
+  else
+    [[ -t 0 ]] || die "cannot ask for $label: stdin is not a terminal (use --yes or set $var)"
+    while true; do
+      if [[ -n "$default" ]]; then
+        read -r -p "$label [$default]: " value
+      else
+        read -r -p "$label: " value
+      fi
+      value="${value:-$default}"
+      [[ -n "$value" ]] || { printf 'ERROR: %s is required\n' "$label" >&2; continue; }
+      value=$(resolve_path "$value")
+      if [[ -z "$validator" ]] || "$validator" "$value"; then
+        printf -v "$var" '%s' "$value"
+        return 0
+      fi
+      printf 'ERROR: %s\n' "$error" >&2
+    done
+  fi
+  [[ -n "$value" ]] || die "$error: $label is required"
+  if [[ -n "$validator" ]] && ! "$validator" "$value"; then
+    die "$error: $value"
+  fi
+  printf -v "$var" '%s' "$value"
 }
 
 need_cmd() {
@@ -343,6 +460,168 @@ port_busy() {
     lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
   else
     return 1
+  fi
+}
+
+cmd_init() {
+  need_cmd python3
+  local example="$SCRIPT_DIR/migration.env.example"
+  [[ -f "$example" ]] || die "example config not found: $example"
+
+  if [[ -e "$CONFIG" ]]; then
+    if (( FORCE || DRY_RUN )); then
+      :
+    elif (( ASSUME_YES )); then
+      die "$CONFIG already exists; use --force to overwrite"
+    elif [[ -t 0 ]] && confirm "Overwrite $CONFIG?"; then
+      :
+    else
+      log "keeping existing config: $CONFIG"
+      return 0
+    fi
+  fi
+
+  local cfg_old cfg_ws cfg_backup cfg_tcas cfg_staging cfg_portal cfg_kc
+  local cfg_http cfg_es cfg_project cfg_species cfg_realm cfg_client
+  local cfg_es_mode cfg_image_mode cfg_web cfg_oba
+  cfg_old=$(env_get "$CONFIG" OLD_SPECIES_DIR || true)
+  cfg_ws=$(env_get "$CONFIG" NEW_WORKSPACE || true)
+  cfg_backup=$(env_get "$CONFIG" BACKUP_DIR || true)
+  cfg_tcas=$(env_get "$CONFIG" TCAS_URL || true)
+  cfg_staging=$(env_get "$CONFIG" STAGING_URL || true)
+  cfg_portal=$(env_get "$CONFIG" PORTAL_URL || true)
+  cfg_kc=$(env_get "$CONFIG" KEYCLOAK_PUBLIC_URL || true)
+  cfg_http=$(env_get "$CONFIG" NEW_HTTP_PORT || true)
+  cfg_es=$(env_get "$CONFIG" NEW_ES_PORT || true)
+  cfg_project=$(env_get "$CONFIG" NEW_PROJECT || true)
+  cfg_species=$(env_get "$CONFIG" SPECIES_CODE || true)
+  cfg_realm=$(env_get "$CONFIG" REALM || true)
+  cfg_client=$(env_get "$CONFIG" CLIENT_ID || true)
+  cfg_es_mode=$(env_get "$CONFIG" ES_MODE || true)
+  cfg_image_mode=$(env_get "$CONFIG" IMAGE_MODE || true)
+  cfg_web=$(env_get "$CONFIG" EMOBASE_WEB_IMAGE || true)
+  cfg_oba=$(env_get "$CONFIG" OBA_IMAGE || true)
+
+  local ws_default=${cfg_ws:-$(resolve_path "$SCRIPT_DIR/../../..")}
+
+  ask_path OLD_SPECIES_DIR "Old Tcas checkout" "$cfg_old" valid_old_checkout \
+    "Enter a directory containing .env"
+  ask_path NEW_WORKSPACE "New workspace" "$ws_default" valid_new_workspace \
+    "Must be outside the old checkout"
+  ask_path BACKUP_DIR "Backup directory" "${cfg_backup:-$NEW_WORKSPACE/backup}"
+
+  ask TCAS_URL "Final Tcas URL" "$cfg_tcas" valid_url "Enter an http(s) URL"
+  ask STAGING_URL "Staging URL" \
+    "${cfg_staging:-$(url_with_port "$TCAS_URL" 9443)}" valid_url \
+    "Enter an http(s) URL"
+  ask PORTAL_URL "Portal URL" "$cfg_portal" valid_url "Enter an http(s) URL"
+  ask KEYCLOAK_PUBLIC_URL "Keycloak public URL" \
+    "${cfg_kc:-${TCAS_URL%/}/keycloak}" valid_url "Enter an http(s) URL"
+
+  ask NEW_HTTP_PORT "New species HTTP port" "${cfg_http:-9092}" valid_port \
+    "Enter a port from 1 to 65535"
+  ask NEW_ES_PORT "New infra Elasticsearch port" "${cfg_es:-9204}" valid_port \
+    "Enter a port from 1 to 65535"
+  ask NEW_PROJECT "New Compose project" "${cfg_project:-tcas}" valid_project \
+    "Use lowercase letters, digits, _ or -"
+  ask SPECIES_CODE "Species code" "${cfg_species:-Tcas}" valid_nonempty "Required"
+  ask REALM "Keycloak realm" "${cfg_realm:-ibb}" valid_nonempty "Required"
+  ask CLIENT_ID "Keycloak client ID" "${cfg_client:-ibb-client}" valid_nonempty "Required"
+  ask ES_MODE "Elasticsearch mode (snapshot/rebuild)" \
+    "${cfg_es_mode:-snapshot}" valid_es_mode "Use snapshot or rebuild"
+  ask IMAGE_MODE "Image mode (auto/copy/mount)" \
+    "${cfg_image_mode:-auto}" valid_image_mode "Use auto, copy or mount"
+  ask EMOBASE_WEB_IMAGE "New web image" \
+    "${cfg_web:-ghcr.io/emobase/emobase-web:dev}" valid_nonempty "Required"
+  ask OBA_IMAGE "OBA image" "${cfg_oba:-jboss/base-jdk:7}" valid_nonempty "Required"
+
+  local admin_note=0
+  env_get "$OLD_SPECIES_DIR/.env" KEYCLOAK_ADMIN >/dev/null 2>&1 || admin_note=1
+
+  if (( DRY_RUN )); then
+    log "would write $CONFIG"
+    printf 'OLD_SPECIES_DIR=%s\n' "$OLD_SPECIES_DIR"
+    printf 'NEW_WORKSPACE=%s\n' "$NEW_WORKSPACE"
+    printf 'BACKUP_DIR=%s\n' "$BACKUP_DIR"
+    printf 'TCAS_URL=%s\n' "$TCAS_URL"
+    printf 'STAGING_URL=%s\n' "$STAGING_URL"
+    printf 'PORTAL_URL=%s\n' "$PORTAL_URL"
+    printf 'KEYCLOAK_PUBLIC_URL=%s\n' "$KEYCLOAK_PUBLIC_URL"
+    printf 'NEW_HTTP_PORT=%s\n' "$NEW_HTTP_PORT"
+    printf 'NEW_ES_PORT=%s\n' "$NEW_ES_PORT"
+    printf 'NEW_PROJECT=%s\n' "$NEW_PROJECT"
+    printf 'SPECIES_CODE=%s\n' "$SPECIES_CODE"
+    printf 'REALM=%s\n' "$REALM"
+    printf 'CLIENT_ID=%s\n' "$CLIENT_ID"
+    printf 'ES_MODE=%s\n' "$ES_MODE"
+    printf 'IMAGE_MODE=%s\n' "$IMAGE_MODE"
+    printf 'EMOBASE_WEB_IMAGE=%s\n' "$EMOBASE_WEB_IMAGE"
+    printf 'OBA_IMAGE=%s\n' "$OBA_IMAGE"
+    return 0
+  fi
+
+  python3 - "$example" "$CONFIG" \
+    "OLD_SPECIES_DIR=$OLD_SPECIES_DIR" \
+    "NEW_WORKSPACE=$NEW_WORKSPACE" \
+    "BACKUP_DIR=$BACKUP_DIR" \
+    "TCAS_URL=$TCAS_URL" \
+    "STAGING_URL=$STAGING_URL" \
+    "PORTAL_URL=$PORTAL_URL" \
+    "KEYCLOAK_PUBLIC_URL=$KEYCLOAK_PUBLIC_URL" \
+    "NEW_HTTP_PORT=$NEW_HTTP_PORT" \
+    "NEW_ES_PORT=$NEW_ES_PORT" \
+    "NEW_PROJECT=$NEW_PROJECT" \
+    "SPECIES_CODE=$SPECIES_CODE" \
+    "REALM=$REALM" \
+    "CLIENT_ID=$CLIENT_ID" \
+    "ES_MODE=$ES_MODE" \
+    "IMAGE_MODE=$IMAGE_MODE" \
+    "EMOBASE_WEB_IMAGE=$EMOBASE_WEB_IMAGE" \
+    "OBA_IMAGE=$OBA_IMAGE" <<'PY'
+import os
+import shlex
+import sys
+import tempfile
+
+example, config = sys.argv[1], sys.argv[2]
+pairs = dict(arg.split("=", 1) for arg in sys.argv[3:])
+
+with open(example, encoding="utf-8") as handle:
+    lines = handle.readlines()
+
+out = []
+seen = set()
+for line in lines:
+    stripped = line.lstrip()
+    if "=" in line and not stripped.startswith("#"):
+        key = line.split("=", 1)[0].strip()
+        if key in pairs:
+            out.append(f"{key}={shlex.quote(pairs[key])}\n")
+            seen.add(key)
+            continue
+    out.append(line)
+
+for key, value in pairs.items():
+    if key not in seen:
+        out.append(f"{key}={shlex.quote(value)}\n")
+
+directory = os.path.dirname(config) or "."
+fd, tmp = tempfile.mkstemp(dir=directory, prefix=".env-")
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.writelines(out)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, config)
+except Exception:
+    os.unlink(tmp)
+    raise
+PY
+
+  log "wrote $CONFIG"
+  printf '\nNext:\n  ./migrate.sh check\n'
+  if (( admin_note )); then
+    printf '\nThe old .env has no KEYCLOAK_ADMIN. Set OLD_KEYCLOAK_ADMIN and\n'
+    printf 'OLD_KEYCLOAK_ADMIN_PASSWORD in %s if needed.\n' "$CONFIG"
   fi
 }
 
@@ -992,6 +1271,7 @@ done
 [[ -n "$COMMAND" ]] || { usage; exit 1; }
 
 case "$COMMAND" in
+  init) cmd_init ;;
   check) cmd_check ;;
   prepare) cmd_prepare ;;
   delta) cmd_delta ;;

@@ -4,6 +4,7 @@
 #
 # This builds a synthetic old checkout and a synthetic new workspace, stubs
 # docker and curl, and verifies:
+#   - init writes a config and refuses to overwrite without --force
 #   - check reads HTTP_PORT/project/data paths from the old .env
 #   - an external PUBLIC_DATA_DIR is reused, never copied
 #   - image copy and mount modes both work
@@ -223,6 +224,44 @@ bash -n "$SCRIPT"
 pass "help"
 out=$(run help --help)
 contains "$out" "Usage:"
+
+pass "init writes a config"
+init_cfg="$TMP/init.env"
+init_out=$(OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-workspace" \
+  TCAS_URL="https://tcas.init" PORTAL_URL="https://portal.init" \
+  bash "$SCRIPT" --config "$init_cfg" init --yes 2>&1)
+[[ -f "$init_cfg" ]] || fail "init did not write a config"
+init_content=$(cat "$init_cfg")
+old_abs=$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$TMP/old")
+ws_abs=$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$TMP/init-workspace")
+contains "$init_content" "OLD_SPECIES_DIR=$old_abs"
+contains "$init_content" "NEW_WORKSPACE=$ws_abs"
+contains "$init_content" "STAGING_URL=https://tcas.init:9443"
+contains "$init_content" "KEYCLOAK_PUBLIC_URL=https://tcas.init/keycloak"
+contains "$init_content" "NEW_PROJECT=tcas"
+contains "$init_out" "Next:"
+
+pass "init does not overwrite without --force"
+if OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-workspace" \
+  TCAS_URL="https://other.init" PORTAL_URL="https://portal.init" \
+  bash "$SCRIPT" --config "$init_cfg" init --yes >/dev/null 2>&1; then
+  fail "init overwrote an existing config"
+fi
+contains "$(cat "$init_cfg")" "TCAS_URL=https://tcas.init"
+
+pass "init --force overwrites"
+OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-workspace" \
+  TCAS_URL="https://other.init" PORTAL_URL="https://portal.init" \
+  bash "$SCRIPT" --config "$init_cfg" init --yes --force >/dev/null 2>&1
+contains "$(cat "$init_cfg")" "TCAS_URL=https://other.init"
+
+pass "init --dry-run does not write"
+dry_cfg="$TMP/init-dry.env"
+dry_out=$(OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-workspace" \
+  TCAS_URL="https://tcas.init" PORTAL_URL="https://portal.init" \
+  bash "$SCRIPT" --config "$dry_cfg" init --yes --dry-run 2>&1)
+[[ ! -e "$dry_cfg" ]] || fail "init --dry-run wrote a config"
+contains "$dry_out" "would write"
 
 pass "check reads old environment"
 reset_mock_log

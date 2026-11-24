@@ -71,14 +71,17 @@ cd Tcas/migrations/tcas-main-to-dev
 The script runs from this checkout. It reads the old checkout from
 `OLD_SPECIES_DIR` and clones `emobase-infra` itself.
 
-Copy and edit the config:
+Create the config interactively:
 
 ```bash
-cp migration.env.example migration.env
-${EDITOR:-vi} migration.env
+./migrate.sh init
 ```
 
-`migration.env` is ignored by git. Fill in:
+It asks for the old checkout, workspace, backup directory, URLs, ports and
+names, then writes `migration.env`. Press Enter to accept a default. To change
+values later, edit `migration.env` or rerun `./migrate.sh init --force`.
+
+`migration.env` is ignored by git. The values are:
 
 | Variable | Meaning |
 | --- | --- |
