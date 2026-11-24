@@ -78,7 +78,8 @@ Create the config interactively:
 ```
 
 It asks for the old checkout, workspace, backup directory, URLs, ports and
-names, then writes `migration.env`. Press Enter to accept a default. To change
+names, then writes `migration.env`. Paths can be absolute, relative or start
+with `~`; `init` resolves them. Press Enter to accept a default. To change
 values later, edit `migration.env` or rerun `./migrate.sh init --force`.
 
 `migration.env` is ignored by git. The values are:
