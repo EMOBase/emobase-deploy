@@ -25,9 +25,7 @@ The old checkout, project name, volumes and container names are not changed.
 The new stack uses separate volumes and a separate Directus database.
 
 The script reads the old project name, old HTTP port and data paths from
-`OLD_SPECIES_DIR/.env`. Do not hardcode a staging clone's values into the
-runbook: a clone may use a different `HTTP_PORT`, project name or mount path
-than the real server.
+`OLD_SPECIES_DIR/.env`.
 
 ## 1. Preconditions
 
