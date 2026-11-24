@@ -481,10 +481,6 @@ cmd_init() {
     fi
   fi
 
-  if (( ! ASSUME_YES )) && [[ -t 0 ]]; then
-    log "Press Tab to complete paths."
-  fi
-
   local cfg_old cfg_ws cfg_backup cfg_tcas cfg_staging cfg_portal cfg_kc
   local cfg_http cfg_es cfg_project cfg_species cfg_realm cfg_client
   local cfg_es_mode cfg_image_mode cfg_web cfg_oba
