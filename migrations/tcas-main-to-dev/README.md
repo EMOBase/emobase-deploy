@@ -50,7 +50,6 @@ Stop before changing anything if any of these is false.
 
 - There is enough local disk for the local copies (`data/private`, `oba/`, the
   Directus uploads volume, MySQL dumps and the Elasticsearch snapshot).
-  `PUBLIC_DATA_DIR` and the NFS image directory are reused in place.
 
 - The old data paths in `.env` exist and are readable. `PUBLIC_DATA_DIR` and
   `IMAGE_DIR` may be absolute external mounts; the migration reuses them in
