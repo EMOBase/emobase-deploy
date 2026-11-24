@@ -23,7 +23,7 @@ Usage: ./migrate.sh [options] <command>
 Commands:
   init           ask for paths and URLs and write migration.env
   check          validate config, paths, commands and portal release
-  prepare        clone, start infra, create env, initial data copy, start staging
+  prepare        clone, start infra, create env, initial data copy, start the temporary site
   delta          freeze old, final MySQL/Keycloak/files copy, restart new
   cutover        switch the new env to the final URL and print Apache config
   verify         check the final URL, Directus and Keycloak through Apache
@@ -290,7 +290,11 @@ load_context() {
   : "${OLD_SPECIES_DIR:?OLD_SPECIES_DIR is required}"
   : "${NEW_WORKSPACE:?NEW_WORKSPACE is required}"
   : "${TCAS_URL:?TCAS_URL is required}"
-  : "${STAGING_URL:?STAGING_URL is required}"
+  if [[ -z "${MIGRATION_URL:-}" && -n "${STAGING_URL:-}" ]]; then
+    warn "STAGING_URL is deprecated; use MIGRATION_URL"
+    MIGRATION_URL=$STAGING_URL
+  fi
+  : "${MIGRATION_URL:?MIGRATION_URL is required}"
   : "${PORTAL_URL:?PORTAL_URL is required}"
 
   OLD_ENV="$OLD_SPECIES_DIR/.env"
@@ -481,14 +485,20 @@ cmd_init() {
     fi
   fi
 
-  local cfg_old cfg_ws cfg_backup cfg_tcas cfg_staging cfg_portal cfg_kc
+  local cfg_old cfg_ws cfg_backup cfg_tcas cfg_migration cfg_portal cfg_kc
   local cfg_http cfg_es cfg_project cfg_species cfg_realm cfg_client
   local cfg_es_mode cfg_image_mode cfg_web cfg_oba
   cfg_old=$(env_get "$CONFIG" OLD_SPECIES_DIR || true)
   cfg_ws=$(env_get "$CONFIG" NEW_WORKSPACE || true)
   cfg_backup=$(env_get "$CONFIG" BACKUP_DIR || true)
   cfg_tcas=$(env_get "$CONFIG" TCAS_URL || true)
-  cfg_staging=$(env_get "$CONFIG" STAGING_URL || true)
+  cfg_migration=$(env_get "$CONFIG" MIGRATION_URL || true)
+  if [[ -z "$cfg_migration" ]]; then
+    cfg_migration=$(env_get "$CONFIG" STAGING_URL || true)
+    if [[ -n "$cfg_migration" ]]; then
+      warn "STAGING_URL is deprecated; writing MIGRATION_URL"
+    fi
+  fi
   cfg_portal=$(env_get "$CONFIG" PORTAL_URL || true)
   cfg_kc=$(env_get "$CONFIG" KEYCLOAK_PUBLIC_URL || true)
   cfg_http=$(env_get "$CONFIG" NEW_HTTP_PORT || true)
@@ -518,8 +528,8 @@ cmd_init() {
 
   ask TCAS_URL "Final Tcas URL" "${cfg_tcas:-$old_public}" valid_url \
     "Enter an http(s) URL"
-  ask STAGING_URL "Staging URL" \
-    "${cfg_staging:-$(url_with_port "$TCAS_URL" 9443)}" valid_url \
+  ask MIGRATION_URL "Temporary migration URL" \
+    "${cfg_migration:-$(url_with_port "$TCAS_URL" 9443)}" valid_url \
     "Enter an http(s) URL"
   ask PORTAL_URL "Portal URL" "$cfg_portal" valid_url "Enter an http(s) URL"
   ask KEYCLOAK_PUBLIC_URL "Keycloak public URL" \
@@ -551,7 +561,7 @@ cmd_init() {
     printf 'NEW_WORKSPACE=%s\n' "$NEW_WORKSPACE"
     printf 'BACKUP_DIR=%s\n' "$BACKUP_DIR"
     printf 'TCAS_URL=%s\n' "$TCAS_URL"
-    printf 'STAGING_URL=%s\n' "$STAGING_URL"
+    printf 'MIGRATION_URL=%s\n' "$MIGRATION_URL"
     printf 'PORTAL_URL=%s\n' "$PORTAL_URL"
     printf 'KEYCLOAK_PUBLIC_URL=%s\n' "$KEYCLOAK_PUBLIC_URL"
     printf 'NEW_HTTP_PORT=%s\n' "$NEW_HTTP_PORT"
@@ -572,7 +582,7 @@ cmd_init() {
     "NEW_WORKSPACE=$NEW_WORKSPACE" \
     "BACKUP_DIR=$BACKUP_DIR" \
     "TCAS_URL=$TCAS_URL" \
-    "STAGING_URL=$STAGING_URL" \
+    "MIGRATION_URL=$MIGRATION_URL" \
     "PORTAL_URL=$PORTAL_URL" \
     "KEYCLOAK_PUBLIC_URL=$KEYCLOAK_PUBLIC_URL" \
     "NEW_HTTP_PORT=$NEW_HTTP_PORT" \
@@ -758,8 +768,8 @@ cmd_check() {
   fi
 
   log "check complete"
-  printf 'old project: %s\nold HTTP port: %s\nold public data: %s (reused, not copied)\nimage mode: %s\nimage layout: %s\nimage action: %s\nnew project: %s\nstaging: %s\nfinal: %s\n' \
-    "$OLD_PROJECT" "$OLD_HTTP_PORT" "$OLD_PUBLIC_DATA_DIR" "$IMAGE_MODE" "$IMAGE_LAYOUT" "$IMAGE_ACTION" "$NEW_PROJECT" "$STAGING_URL" "$TCAS_URL"
+  printf 'old project: %s\nold HTTP port: %s\nold public data: %s (reused, not copied)\nimage mode: %s\nimage layout: %s\nimage action: %s\nnew project: %s\nmigration URL: %s\nfinal: %s\n' \
+    "$OLD_PROJECT" "$OLD_HTTP_PORT" "$OLD_PUBLIC_DATA_DIR" "$IMAGE_MODE" "$IMAGE_LAYOUT" "$IMAGE_ACTION" "$NEW_PROJECT" "$MIGRATION_URL" "$TCAS_URL"
 }
 
 clone_repos() {
@@ -840,7 +850,7 @@ MAIN_SPECIES=$SPECIES_CODE
 EMOBASE_WEB_IMAGE=$EMOBASE_WEB_IMAGE
 
 COMPOSE_PROJECT_NAME=$NEW_PROJECT
-PUBLIC_SERVER=$STAGING_URL
+PUBLIC_SERVER=$MIGRATION_URL
 HTTP_PORT=$NEW_HTTP_PORT
 PUBLIC_DATA_DIR=$public_data
 PRIVATE_DATA_DIR=$private_data
@@ -1075,7 +1085,7 @@ add_origins() {
   require_admin
   run_in "$INFRA_DIR" ./scripts/allow-origin.sh \
     --realm "$REALM" --client-id "$CLIENT_ID" \
-    "$TCAS_URL" "$STAGING_URL"
+    "$TCAS_URL" "$MIGRATION_URL"
 }
 
 setup_directus() {
@@ -1086,21 +1096,21 @@ start_new() {
   run_in "$NEW_SPECIES_DIR" docker compose up -d --wait
 }
 
-verify_staging() {
+verify_migration() {
   local strict=${1:-0}
-  (( DRY_RUN )) && { log "would check staging"; return; }
+  (( DRY_RUN )) && { log "would check the migration URL"; return; }
   local fail=warn
   (( strict )) && fail=die
-  log "staging checks"
-  curl -k -fsSI "$STAGING_URL" >/dev/null || "$fail" "could not reach $STAGING_URL"
-  curl -k -fsSI "$STAGING_URL/ibb/directus" >/dev/null || "$fail" "could not reach $STAGING_URL/ibb/directus"
+  log "migration URL checks"
+  curl -k -fsSI "$MIGRATION_URL" >/dev/null || "$fail" "could not reach $MIGRATION_URL"
+  curl -k -fsSI "$MIGRATION_URL/ibb/directus" >/dev/null || "$fail" "could not reach $MIGRATION_URL/ibb/directus"
   cat <<EOF
 
-Staging is at:   $STAGING_URL
+Migration URL:  $MIGRATION_URL
 Final URL:       $TCAS_URL
 Keycloak admin:  $KEYCLOAK_PUBLIC_URL/admin/
 
-Test one real user login on the staging URL before continuing.
+Test one real user login on the migration URL before continuing.
 EOF
 }
 
@@ -1123,7 +1133,7 @@ cmd_prepare() {
   copy_keycloak_db initial
   setup_directus
   start_new
-  verify_staging
+  verify_migration
 }
 
 cmd_delta() {
@@ -1163,7 +1173,7 @@ cmd_delta() {
     delete_new_es_indices
   fi
   start_new
-  verify_staging 1
+  verify_migration 1
 
   log "stopping the old stack; volumes are kept for rollback"
   old_compose_run stop

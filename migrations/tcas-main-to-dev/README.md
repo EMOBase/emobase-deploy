@@ -89,7 +89,7 @@ values later, edit `migration.env` or rerun `./migrate.sh init --force`.
 | `NEW_WORKSPACE` | New parent directory for `Tcas/` and `infra/` |
 | `BACKUP_DIR` | Backups and phase dumps; outside both checkouts |
 | `TCAS_URL` | Final public species URL |
-| `STAGING_URL` | Temporary URL, `https://<TCAS_HOST>:9443` |
+| `MIGRATION_URL` | Temporary migration URL, `https://<TCAS_HOST>:9443` |
 | `PORTAL_URL` | Deployed multi-species portal |
 | `KEYCLOAK_PUBLIC_URL` | `<TCAS_URL>/keycloak` |
 | `NEW_HTTP_PORT` | `9092` |
@@ -169,7 +169,7 @@ checkout. It performs these actions in order.
    `9202`.
 
 2. Writes `<NEW_WORKSPACE>/Tcas/.env`:
-   - project `tcas`, site port `9092`, staging URL `9443`
+   - project `tcas`, site port `9092`, migration URL `9443`
    - `PORTAL_SERVER` and `INTERNAL_API_GENOMICS_SERVICE`
    - `PUBLIC_DATA_DIR` and `PRIVATE_DATA_DIR` taken from the old `.env`
    - `IMAGE_DIR` for the detected image layout; direct NFS reuses the absolute
@@ -197,11 +197,11 @@ checkout. It performs these actions in order.
    credentials into `infra/.env` and restarts infra Keycloak. This is the step
    that preserves users, password hashes, OTP data and the `ibb` client.
 
-7. Adds `<TCAS_URL>` and `<STAGING_URL>` as Keycloak origins.
+7. Adds `<TCAS_URL>` and `<MIGRATION_URL>` as Keycloak origins.
 
 8. Runs `setup-directus` against the imported database.
 
-9. Starts the new species stack on `9092` and prints staging checks.
+9. Starts the new species stack on `9092` and prints migration URL checks.
 
 After `prepare`:
 
@@ -210,7 +210,7 @@ After `prepare`:
 - The new site is running on `9092`, but not yet reachable through Apache.
 - Do not run `delta` yet.
 
-## 5. Expose and verify staging
+## 5. Expose and verify the migration URL
 
 The new site needs an HTTPS URL so browser login can be tested. It also needs
 the existing 443 vhost to route `/keycloak` to infra.
@@ -225,7 +225,7 @@ the existing 443 vhost to route `/keycloak` to infra.
    ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
    ```
 
-2. Add the staging vhost from `apache-staging.conf.example`:
+2. Add the temporary vhost from `apache-migration.conf.example`:
 
    ```apache
    Listen 9443
@@ -256,7 +256,7 @@ the existing 443 vhost to route `/keycloak` to infra.
    - `/download/` files work
    - JBrowse2 and BLAST links point at the portal
 
-If login fails, check the Keycloak admin credentials and the staging origin.
+If login fails, check the Keycloak admin credentials and the migration origin.
 Do not run `delta` until this checkpoint passes.
 
 ## 6. Delta: freeze, copy final data, restart the new stack
@@ -282,7 +282,7 @@ What it does, in order:
 4. Stops the old Keycloak, dumps the final `keycloak` database, replaces the
    infra Keycloak database again, restores the admin credentials in
    `infra/.env`, restarts infra Keycloak, and re-adds both origins. This keeps
-   users created or changed during staging.
+   users created or changed during the migration.
 
 5. Mirrors the local `data/` and `oba/` directories and the Directus uploads
    volume again, so the new stack has the final files. The NFS image directory
@@ -344,7 +344,7 @@ systemctl reload apache2
 Until this proxy change is applied, `<TCAS_URL>` still reaches the old
 `HTTP_PORT` stack (default `9090`), even though the new `.env` already says
 `<TCAS_URL>`. If you changed `NEW_HTTP_PORT` from `9092`, use that value in the
-Apache block and in the staging vhost.
+Apache block and in the temporary vhost.
 
 Remove the temporary `9443` vhost only after the final verification passes.
 
@@ -500,7 +500,7 @@ Then delete this migration folder.
   (default `9090`) and `9202`; the new stack uses `9092`/`9204`. Stop the
   conflicting process or change `NEW_HTTP_PORT` / `NEW_ES_PORT` and the Apache
   examples.
-- **Staging login fails**: the staging origin is missing, the 443 `/keycloak`
+- **Migration URL login fails**: the migration origin is missing, the 443 `/keycloak`
   route is missing, or the Keycloak admin credentials are stale.
 - **Keycloak admin login fails after the DB copy**: the copied master realm has
   the current admin password, not the old bootstrap password. Set the current
@@ -517,7 +517,7 @@ Then delete this migration folder.
   known to run the OBA jar); `openjdk:7` does not work on the test server.
 - **The host runs out of memory while both stacks are up**: stop optional old
   services (`oba`, `ontoscope`, `blast`, `geneservice`, `swagger-ui`,
-  `querypipelineservice`) or lower the new infra ES heap/limit for the staging
+  `querypipelineservice`) or lower the new infra ES heap/limit for the migration
   run. The script does not stop them by default.
 - **JBrowse/BLAST missing**: the portal release is not READY, or
   `PORTAL_SERVER` is wrong.

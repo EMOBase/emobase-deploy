@@ -110,7 +110,7 @@ OLD_SPECIES_DIR=$TMP/old
 NEW_WORKSPACE=$TMP/new
 BACKUP_DIR=$TMP/new/backup
 TCAS_URL=https://tcas.test
-STAGING_URL=https://tcas.test:9443
+MIGRATION_URL=https://tcas.test:9443
 PORTAL_URL=https://portal.test
 KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak
 NEW_HTTP_PORT=19092
@@ -236,7 +236,7 @@ old_abs=$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$TMP/
 ws_abs=$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$TMP/init-workspace")
 contains "$init_content" "OLD_SPECIES_DIR=$old_abs"
 contains "$init_content" "NEW_WORKSPACE=$ws_abs"
-contains "$init_content" "STAGING_URL=https://tcas.init:9443"
+contains "$init_content" "MIGRATION_URL=https://tcas.init:9443"
 contains "$init_content" "KEYCLOAK_PUBLIC_URL=https://tcas.init/keycloak"
 contains "$init_content" "NEW_PROJECT=tcas"
 contains "$init_out" "Next:"
@@ -247,7 +247,7 @@ OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-workspace" \
   PORTAL_URL="https://portal.init" \
   bash "$SCRIPT" --config "$url_cfg" init --yes >/dev/null 2>&1
 contains "$(cat "$url_cfg")" "TCAS_URL=https://old.test"
-contains "$(cat "$url_cfg")" "STAGING_URL=https://old.test:9443"
+contains "$(cat "$url_cfg")" "MIGRATION_URL=https://old.test:9443"
 contains "$(cat "$url_cfg")" "KEYCLOAK_PUBLIC_URL=https://old.test/keycloak"
 
 pass "init does not overwrite without --force"
@@ -282,6 +282,13 @@ contains "$out" "reused, not copied"
 contains "$out" "PUBLIC_DATA_DIR is external"
 contains "$out" "new project: tcastest"
 ! mock_has_mutations || fail "check executed a mutating command"
+
+pass "legacy STAGING_URL still works"
+legacy_cfg="$TMP/legacy.env"
+sed 's/^MIGRATION_URL=/STAGING_URL=/' "$TMP/migration.env" > "$legacy_cfg"
+out=$(run_cfg "legacy config" "$legacy_cfg" check)
+contains "$out" "migration URL: https://tcas.test:9443"
+contains "$out" "STAGING_URL is deprecated"
 
 pass "dry-run prepare never copies public data"
 reset_mock_log
