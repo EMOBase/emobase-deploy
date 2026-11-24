@@ -511,6 +511,13 @@ Then delete this migration folder.
   (default `9090`) and `9202`; the new stack uses `9092`/`9204`. Stop the
   conflicting process or change `NEW_HTTP_PORT` / `NEW_ES_PORT` and the Apache
   examples.
+- **`check` fails on `9092` or `9204` after `prepare`**: the new species or
+  infra stack is still running. Stop it while keeping volumes, then rerun
+  `prepare`:
+  ```bash
+  cd <NEW_WORKSPACE>/Tcas && docker compose down
+  cd <NEW_WORKSPACE>/infra && docker compose down
+  ```
 - **Migration URL login fails**: the migration origin is missing, the 443 `/keycloak`
   route is missing, or the Keycloak admin credentials are stale.
 - **Keycloak admin login fails after the DB copy**: the copied master realm has
