@@ -29,11 +29,6 @@ The script reads the old project name, old HTTP port and data paths from
 runbook: a clone may use a different `HTTP_PORT`, project name or mount path
 than the real server.
 
-> **Safety rule for `PUBLIC_DATA_DIR`.** It may be an absolute external mount,
-> as on the test server, where it is a 424 GB read-only NFS export. The script
-> reuses that path read-only in the new `.env` and never copies it. Copying it
-> would duplicate hundreds of gigabytes and is never part of this migration.
-
 ## 1. Preconditions
 
 Stop before changing anything if any of these is false.
