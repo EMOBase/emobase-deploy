@@ -212,8 +212,14 @@ After `prepare`:
 
 The new site needs an HTTPS URL so browser login can be tested. It uses a
 temporary port because the old site still owns 443; only one process can bind
-443. At cutover, Apache switches `/` from the old stack to the new one. It also
-needs the existing 443 vhost to route `/keycloak` to infra.
+443. At cutover, Apache switches `/` from the old stack to the new one.
+
+The new site redirects login to `KEYCLOAK_PUBLIC_URL`, which is
+`https://<TCAS_HOST>/keycloak` on 443. Keeping Keycloak on 443 means the same
+URL works before and after cutover; only `/` changes.
+
+Apache applies `ProxyPass` in order, so the `/keycloak` line must come before
+the `/` catch-all.
 
 1. Add both blocks to the existing 443 vhost file. The `/keycloak` lines go
    inside the 443 vhost before the species catch-all; the 9443 vhost goes
