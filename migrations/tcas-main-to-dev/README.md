@@ -53,8 +53,7 @@ Stop before changing anything if any of these is false.
   Directus uploads volume, MySQL dumps and the Elasticsearch snapshot).
 
 - The old data paths in `.env` exist and are readable. `PUBLIC_DATA_DIR` and
-  `IMAGE_DIR` may be absolute external mounts; the migration reuses them in
-  place. Never copy `PUBLIC_DATA_DIR`.
+  `IMAGE_DIR` may be absolute external mounts.
 
 - Docker/Compose access is available, and Apache can be edited and reloaded.
 
