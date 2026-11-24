@@ -504,11 +504,11 @@ cmd_init() {
 
   local ws_default=${cfg_ws:-$(resolve_path "$SCRIPT_DIR/../../..")}
 
-  ask_path OLD_SPECIES_DIR "Old Tcas checkout (absolute, relative or ~)" \
+  ask_path OLD_SPECIES_DIR "Old Tcas checkout" \
     "$cfg_old" valid_old_checkout "Enter a directory containing .env"
-  ask_path NEW_WORKSPACE "New workspace (absolute, relative or ~)" \
+  ask_path NEW_WORKSPACE "New workspace" \
     "$ws_default" valid_new_workspace "Must be outside the old checkout"
-  ask_path BACKUP_DIR "Backup directory (absolute, relative or ~)" \
+  ask_path BACKUP_DIR "Backup directory" \
     "${cfg_backup:-$NEW_WORKSPACE/backup}"
 
   ask TCAS_URL "Final Tcas URL" "$cfg_tcas" valid_url "Enter an http(s) URL"
