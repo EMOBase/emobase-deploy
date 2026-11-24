@@ -213,19 +213,16 @@ After `prepare`:
 The new site needs an HTTPS URL so browser login can be tested. It also needs
 the existing 443 vhost to route `/keycloak` to infra.
 
-1. Add the `/keycloak` route to the 443 vhost. This must come before the
-   species catch-all:
+1. Add both blocks to the existing 443 vhost file. The `/keycloak` lines go
+   inside the 443 vhost before the species catch-all; the 9443 vhost goes
+   after it.
 
    ```apache
-   ProxyPreserveHost On
-   RequestHeader set X-Forwarded-Proto "https"
+   # Inside the existing <VirtualHost *:443>, before ProxyPass /:
    ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
    ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
-   ```
 
-2. Add the temporary vhost from `apache-migration.conf.example`:
-
-   ```apache
+   # After the 443 vhost, in the same file:
    Listen 9443
    <VirtualHost *:9443>
        ServerName <TCAS_HOST>
@@ -239,14 +236,19 @@ the existing 443 vhost to route `/keycloak` to infra.
    </VirtualHost>
    ```
 
-3. Check and reload Apache:
+   If the 443 vhost does not already set them, add `ProxyPreserveHost On` and
+   `RequestHeader set X-Forwarded-Proto "https"` there too.
+
+   `apache-migration.conf.example` contains the same 9443 block.
+
+2. Check and reload Apache:
 
    ```bash
    apachectl configtest
    systemctl reload apache2
    ```
 
-4. Open `https://<TCAS_HOST>:9443` and verify:
+3. Open `https://<TCAS_HOST>:9443` and verify:
    - one real user signs in with the old password
    - Directus content and uploads are present
    - search, phenotypes, images, publications, GO annotations and ontology work
