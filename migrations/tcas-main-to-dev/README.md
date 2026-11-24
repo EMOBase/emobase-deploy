@@ -48,9 +48,6 @@ Stop before changing anything if any of these is false.
 - The old Keycloak is 24.0.3, matching `emobase-infra`. Do not use a database
   copy across different Keycloak versions.
 
-- The infra Keycloak does not already host other realms. Replacing its
-  `keycloak` database wipes those realms.
-
 - There is enough local disk and time for the local copies (`data/private`,
   `oba/`, the Directus uploads volume, MySQL dumps and the Elasticsearch
   snapshot). `PUBLIC_DATA_DIR` is not copied. Image handling depends on
