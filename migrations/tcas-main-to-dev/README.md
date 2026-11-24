@@ -25,7 +25,8 @@ The old checkout, project name, volumes and container names are not changed.
 The new stack uses separate volumes and a separate Directus database.
 
 The script reads the old project name, old HTTP port and data paths from
-`OLD_SPECIES_DIR/.env`.
+`OLD_SPECIES_DIR/.env`, then uses those values to locate the old stack and
+configure the new one.
 
 ## 1. Preconditions
 
