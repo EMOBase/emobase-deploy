@@ -139,11 +139,18 @@ The old deployment may use either:
 Docker bind mounts do not resolve those absolute symlinks inside a container.
 `imageservice` also needs a writable `/images/community-data`.
 
-`IMAGE_MODE=mount` is the default for a symlink-based image directory. It keeps
-the symlinks and writes `<NEW_WORKSPACE>/Tcas/compose.media.yml`, which
-bind-mounts `IMAGE_MOUNT_SOURCE` read-only at the same absolute path in
-`imageservice` and `phenotypeservice`. The local `./images/community-data`
-stays writable.
+`IMAGE_MODE=mount` is the default. It assumes the production-style layout:
+image directories are symlinked into the NFS image store, and the image store
+is available on the host. It keeps the symlinks and writes
+`<NEW_WORKSPACE>/Tcas/compose.media.yml`, which bind-mounts
+`IMAGE_MOUNT_SOURCE` at the same absolute path in `imageservice` and
+`phenotypeservice`. The local `./images/community-data` stays writable.
+
+`imageservice` requires `/images/community-data` to be writable; read-only NFS
+cannot host that directory. The generated mount is read-only for the published
+images. If production stores community uploads on NFS, the new stack needs a
+writable path to that directory as well; confirm the production mount and
+community-data location before cutover.
 
 `IMAGE_MODE=copy` copies the real 3.9 GB of images into the new `./images`
 (following symlinks). It is the fallback when the NFS image path is not
