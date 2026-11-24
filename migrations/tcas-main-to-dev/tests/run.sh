@@ -241,6 +241,15 @@ contains "$init_content" "KEYCLOAK_PUBLIC_URL=https://tcas.init/keycloak"
 contains "$init_content" "NEW_PROJECT=tcas"
 contains "$init_out" "Next:"
 
+pass "init defaults the Tcas URL from the old .env"
+url_cfg="$TMP/init-url.env"
+OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-workspace" \
+  PORTAL_URL="https://portal.init" \
+  bash "$SCRIPT" --config "$url_cfg" init --yes >/dev/null 2>&1
+contains "$(cat "$url_cfg")" "TCAS_URL=https://old.test"
+contains "$(cat "$url_cfg")" "STAGING_URL=https://old.test:9443"
+contains "$(cat "$url_cfg")" "KEYCLOAK_PUBLIC_URL=https://old.test/keycloak"
+
 pass "init does not overwrite without --force"
 if OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-workspace" \
   TCAS_URL="https://other.init" PORTAL_URL="https://portal.init" \
