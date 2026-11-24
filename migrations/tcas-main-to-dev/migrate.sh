@@ -94,9 +94,9 @@ ask() {
   [[ -t 0 ]] || die "cannot ask for $label: stdin is not a terminal (use --yes or set $var)"
   while true; do
     if [[ -n "$default" ]]; then
-      read -r -p "$label [$default]: " value
+      read -r -e -p "$label [$default]: " value
     else
-      read -r -p "$label: " value
+      read -r -e -p "$label: " value
     fi
     value="${value:-$default}"
     if [[ -z "$validator" ]] || "$validator" "$value"; then
@@ -171,9 +171,9 @@ ask_path() {
     [[ -t 0 ]] || die "cannot ask for $label: stdin is not a terminal (use --yes or set $var)"
     while true; do
       if [[ -n "$default" ]]; then
-        read -r -p "$label [$default]: " value
+        read -r -e -p "$label [$default]: " value
       else
-        read -r -p "$label: " value
+        read -r -e -p "$label: " value
       fi
       value="${value:-$default}"
       [[ -n "$value" ]] || { printf 'ERROR: %s is required\n' "$label" >&2; continue; }
@@ -479,6 +479,10 @@ cmd_init() {
       log "keeping existing config: $CONFIG"
       return 0
     fi
+  fi
+
+  if (( ! ASSUME_YES )) && [[ -t 0 ]]; then
+    log "Press Tab to complete paths."
   fi
 
   local cfg_old cfg_ws cfg_backup cfg_tcas cfg_staging cfg_portal cfg_kc
