@@ -1166,7 +1166,20 @@ cmd_prepare() {
   copy_keycloak_db initial
   setup_directus
   start_new
-  verify_migration
+  log "prepare complete"
+  cat <<EOF
+
+The new species stack is running on 127.0.0.1:$NEW_HTTP_PORT.
+It is not published yet.
+
+Next:
+  1. Expose it at $MIGRATION_URL (README section 5).
+  2. Sign in and verify the data.
+  3. Run: ./migrate.sh delta
+
+Final URL:       $TCAS_URL
+Keycloak admin:  $KEYCLOAK_PUBLIC_URL/admin/
+EOF
 }
 
 cmd_delta() {
