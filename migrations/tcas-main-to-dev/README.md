@@ -38,14 +38,8 @@ than the real server.
 
 Stop before changing anything if any of these is false.
 
-- The portal has a READY Tcas release:
-
-  ```bash
-  curl -fsS "<PORTAL_URL>/api/genomicsservice/v1/public/versions?status=READY"
-  ```
-
-  The response must contain the Tcas assembly. Without it, the new site has no
-  genomics, JBrowse2 or BLAST data.
+- The portal's default version has the Tcas assembly. Without it, the new site
+  has no genomics, JBrowse2 or BLAST data.
 
 - The current Keycloak admin credentials are available. They are either in the
   old `.env` (`KEYCLOAK_ADMIN`, `KEYCLOAK_ADMIN_PASSWORD`) or will be supplied
