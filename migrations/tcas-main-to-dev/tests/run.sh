@@ -345,6 +345,13 @@ contains "$(cat "$envfile")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
 [[ ! -e "$TMP/new/Tcas/compose.media.yml" ]] || fail "copy mode wrote compose.media.yml"
 
 # ---------------------------------------------------------------- infra init cwd
+pass "prepare cancellation is not an error"
+if out=$(printf 'n\n' | bash "$SCRIPT" --config "$TMP/migration.env" prepare 2>&1); then
+  fail "prepare did not stop after cancelling the Keycloak prompt"
+fi
+contains "$out" "cancelled; the infra Keycloak database was not replaced"
+not_contains "$out" "ERROR: aborted"
+
 pass "infra init runs in the infra checkout"
 mkdir -p "$TMP/new-init/Tcas/.git" \
          "$TMP/new-init/infra/.git" \

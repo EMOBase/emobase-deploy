@@ -192,7 +192,8 @@ checkout. It performs these actions in order.
 6. Asks for confirmation, then replaces the **infra** Keycloak database with a
    dump of the old `keycloak` database. It also writes the old current admin
    credentials into `infra/.env` and restarts infra Keycloak. This is the step
-   that preserves users, password hashes, OTP data and the `ibb` client.
+   that preserves users, password hashes, OTP data and the `ibb` client. If you
+   answer no, the phase stops before changing Keycloak.
 
 7. Adds `<TCAS_URL>` and `<MIGRATION_URL>` as Keycloak origins.
 

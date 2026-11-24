@@ -1091,8 +1091,10 @@ copy_keycloak_db() {
   require_admin
   [[ "$NEW_INFRA_MYSQL_PASSWORD" != "" ]] || die "infra MySQL password is missing"
   if [[ "$label" == "initial" ]]; then
-    confirm "Replace the infra Keycloak database with the old one? Infra must not host other realms." \
-      || die "aborted before replacing the infra Keycloak database"
+    if ! confirm "Replace the infra Keycloak database with the old one?"; then
+      log "cancelled; the infra Keycloak database was not replaced"
+      exit 1
+    fi
   fi
   local dump="$BACKUP_DIR/keycloak-$label.sql"
   old_mysql_dump "keycloak" "$dump"
