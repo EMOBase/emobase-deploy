@@ -463,6 +463,37 @@ port_busy() {
   fi
 }
 
+path_writable_by() {
+  local path=$1 uid=$2 gid=$3 owner group mode bits info
+  [[ -e "$path" ]] || return 1
+
+  if command -v findmnt >/dev/null 2>&1; then
+    local opts
+    opts=$(findmnt -T "$path" -no OPTIONS 2>/dev/null || true)
+    case ",$opts," in
+      *",ro,"*) return 1 ;;
+    esac
+  fi
+
+  if info=$(stat -c '%u %g %a' "$path" 2>/dev/null); then
+    read -r owner group mode <<< "$info"
+  elif info=$(stat -f '%u %g %Lp' "$path" 2>/dev/null); then
+    read -r owner group mode <<< "$info"
+  else
+    return 1
+  fi
+
+  (( uid == 0 )) && return 0
+  bits=$((8#$mode))
+  if (( uid == owner && (bits & 0200) != 0 )); then
+    return 0
+  fi
+  if (( gid == group && (bits & 0020) != 0 )); then
+    return 0
+  fi
+  (( bits & 0002 ))
+}
+
 cmd_init() {
   need_cmd python3
   local example="$SCRIPT_DIR/migration.env.example"
@@ -671,6 +702,8 @@ cmd_check() {
   log "checking image layout"
   printf 'image mode: %s\nimage layout: %s\nimage action: %s\n' \
     "$IMAGE_MODE" "$IMAGE_LAYOUT" "$IMAGE_ACTION"
+  local image_uid="${OLD_UID:-1001}"
+  local image_gid="${OLD_GID:-1001}"
   case "$IMAGE_LAYOUT" in
     direct)
       [[ -n "$IMAGE_TARGET" && -d "$IMAGE_TARGET" ]] \
@@ -678,8 +711,8 @@ cmd_check() {
       [[ -r "$IMAGE_TARGET" ]] || die "image target not readable: $IMAGE_TARGET"
       if [[ "$IMAGE_ACTION" == "direct" ]]; then
         warn "IMAGE_DIR is absolute; the new stack will use it directly: $IMAGE_TARGET"
-        [[ -w "$IMAGE_TARGET/community-data" ]] \
-          || die "community-data is not writable at $IMAGE_TARGET/community-data; imageservice requires a writable community-data. Use IMAGE_MODE=copy"
+        path_writable_by "$IMAGE_TARGET/community-data" "$image_uid" "$image_gid" \
+          || die "community-data is not writable by ${image_uid}:${image_gid} at $IMAGE_TARGET/community-data; imageservice requires a writable community-data. Use IMAGE_MODE=copy or make it writable for that user"
       elif [[ "$IMAGE_ACTION" == "copy" ]]; then
         warn "absolute image directory will be copied into ./images"
       fi
@@ -690,8 +723,8 @@ cmd_check() {
       [[ -r "$IMAGE_TARGET" ]] || die "image target not readable: $IMAGE_TARGET"
       if [[ "$IMAGE_ACTION" == "link" ]]; then
         warn "whole image directory will be reused through a symlink: $OLD_IMAGE_PATH -> $IMAGE_TARGET"
-        [[ -w "$IMAGE_TARGET/community-data" ]] \
-          || die "community-data is not writable at $IMAGE_TARGET/community-data; imageservice requires a writable community-data. Use IMAGE_MODE=copy or a writable NFS mount"
+        path_writable_by "$IMAGE_TARGET/community-data" "$image_uid" "$image_gid" \
+          || die "community-data is not writable by ${image_uid}:${image_gid} at $IMAGE_TARGET/community-data; imageservice requires a writable community-data. Use IMAGE_MODE=copy or make it writable for that user"
       elif [[ "$IMAGE_ACTION" == "copy" ]]; then
         warn "whole image directory will be copied into ./images"
       fi
@@ -705,8 +738,8 @@ cmd_check() {
         [[ -d "$IMAGE_MOUNT_SOURCE" ]] || die "IMAGE_MOUNT_SOURCE not found: $IMAGE_MOUNT_SOURCE"
         [[ -r "$IMAGE_MOUNT_SOURCE" ]] || die "IMAGE_MOUNT_SOURCE not readable: $IMAGE_MOUNT_SOURCE"
         warn "IMAGE_ACTION=mount will bind-mount $IMAGE_MOUNT_SOURCE read-only inside imageservice and phenotypeservice"
-        [[ -w "$OLD_IMAGE_PATH/community-data" ]] \
-          || die "community-data is not writable at $OLD_IMAGE_PATH/community-data; imageservice requires a writable community-data"
+        path_writable_by "$OLD_IMAGE_PATH/community-data" "$image_uid" "$image_gid" \
+          || die "community-data is not writable by ${image_uid}:${image_gid} at $OLD_IMAGE_PATH/community-data; imageservice requires a writable community-data"
       fi
       ;;
     real-files)

@@ -511,7 +511,8 @@ Then delete this migration folder.
   output. The snapshot path is the default; `rebuild` requires every service to
   have its source data.
 - **Images fail or `imageservice` restarts with `community-data: Read-only file
-  system`**: the NFS export is read-only. Mount it read-write, or use
+  system`**: the image mount is read-only, or `community-data` is not writable
+  by the `UID`/`GID` from the old `.env`. Fix the mount or permissions, or use
   `IMAGE_MODE=copy` so `community-data` stays local.
 - **OBA keeps restarting**: set `OBA_IMAGE=jboss/base-jdk:7` (or another image
   known to run the OBA jar); `openjdk:7` does not work on the test server.

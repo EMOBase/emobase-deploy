@@ -47,6 +47,7 @@ printf 'private-image\n' > "$TMP/old/data/private/imageservice/keep"
 printf 'private-phenotype\n' > "$TMP/old/data/private/phenotypeservice/keep"
 printf 'public-local\n' > "$TMP/old/data/public/keep"
 printf 'community\n' > "$TMP/old/images/community-data/keep"
+chmod 777 "$TMP/old/images/community-data"
 printf 'oba\n' > "$TMP/old/oba/oba-server.jar"
 printf 'snapshot\n' > "$TMP/old/es_bk/indices/keep"
 printf '424GB-style external file\n' > "$TMP/external/tcas5/public-file.txt"
@@ -389,6 +390,18 @@ contains "$out" "image mode: mount"
 contains "$out" "bind-mount $TMP/external/images"
 ! mock_has_mutations || fail "mount check executed a mutating command"
 
+pass "check uses the container UID for community-data"
+mkdir -p "$TMP/old-uid"
+cp -a "$TMP/old/." "$TMP/old-uid/"
+chmod 700 "$TMP/old-uid/images/community-data"
+sed 's/^UID=.*/UID=9999/; s/^GID=.*/GID=9999/' "$TMP/old/.env" > "$TMP/old-uid/.env"
+sed -e "s#^OLD_SPECIES_DIR=.*#OLD_SPECIES_DIR=$TMP/old-uid#" \
+    -e 's/^IMAGE_MODE=.*/IMAGE_MODE=auto/' "$TMP/migration.env" > "$TMP/uid-check.env"
+if out=$(bash "$SCRIPT" --config "$TMP/uid-check.env" check 2>&1); then
+  fail "check accepted community-data not writable by the container UID"
+fi
+contains "$out" "not writable by 9999:9999"
+
 pass "mount mode preserves symlinks and writes compose.media.yml"
 reset_mock_log
 rm -f "$TMP/new-mount/Tcas/.env"
@@ -408,6 +421,7 @@ mkdir -p "$TMP/external/whole-images/community-data" \
          "$TMP/new-whole/infra/.git" \
          "$TMP/new-whole/infra/scripts" \
          "$TMP/new-whole/backup"
+chmod 777 "$TMP/external/whole-images/community-data"
 
 cp -a "$TMP/old/data" "$TMP/old-whole/data"
 cp -a "$TMP/old/oba" "$TMP/old-whole/oba"
