@@ -63,8 +63,9 @@ Clone the target `dev` checkout:
 
 ```bash
 mkdir -p <NEW_WORKSPACE>
-git clone --branch dev https://github.com/EMOBase/emobase-deploy.git <NEW_WORKSPACE>/Tcas
-cd <NEW_WORKSPACE>/Tcas/migrations/tcas-main-to-dev
+cd <NEW_WORKSPACE>
+git clone --branch dev https://github.com/EMOBase/emobase-deploy.git Tcas
+cd Tcas/migrations/tcas-main-to-dev
 ```
 
 The script runs from this checkout. It reads the old checkout from
