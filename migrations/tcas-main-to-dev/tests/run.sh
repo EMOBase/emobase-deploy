@@ -6,7 +6,7 @@
 # docker and curl, and verifies:
 #   - check reads HTTP_PORT/project/data paths from the old .env
 #   - an external PUBLIC_DATA_DIR is reused, never copied
-#   - images symlinks are preserved
+#   - image copy and mount modes both work
 #   - dry-run prepare/delta/rollback never execute mutating commands
 #   - prepare writes the expected new .env
 #
@@ -121,6 +121,8 @@ CLIENT_ID=ibb-client
 OLD_KEYCLOAK_ADMIN=admin
 OLD_KEYCLOAK_ADMIN_PASSWORD=old-admin-password
 ES_MODE=snapshot
+IMAGE_MODE=copy
+IMAGE_MOUNT_SOURCE=
 DEPLOY_REPO=https://example.invalid/emobase-deploy.git
 INFRA_REPO=https://example.invalid/emobase-infra.git
 EMOBASE_WEB_IMAGE=ghcr.io/emobase/emobase-web:test
@@ -187,15 +189,21 @@ chmod +x "$TMP/bin/curl"
 
 export PATH="$TMP/bin:$PATH"
 
-run() {
-  local name=$1
-  shift
+run_cfg() {
+  local name=$1 cfg=$2
+  shift 2
   local out
-  if ! out=$(bash "$SCRIPT" --config "$TMP/migration.env" "$@" 2>&1); then
+  if ! out=$(bash "$SCRIPT" --config "$cfg" "$@" 2>&1); then
     printf '%s\n' "$out" >&2
     fail "$name exited non-zero"
   fi
   printf '%s' "$out"
+}
+
+run() {
+  local name=$1
+  shift
+  run_cfg "$name" "$TMP/migration.env" "$@"
 }
 
 reset_mock_log() { : > "$MOCK_LOG"; }
@@ -281,10 +289,59 @@ contains "$(cat "$envfile")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
 [[ -f "$TMP/new/Tcas/data/private/phenotypeservice/keep" ]] || fail "private phenotype data was not copied"
 [[ -f "$TMP/new/Tcas/oba/oba-server.jar" ]] || fail "oba was not copied"
 [[ -f "$TMP/new/Tcas/images/community-data/keep" ]] || fail "community-data was not copied"
-[[ -L "$TMP/new/Tcas/images/1" ]] || fail "images/1 is not a symlink"
-[[ "$(readlink "$TMP/new/Tcas/images/1")" == "$TMP/external/images/1" ]] || fail "images/1 symlink target changed"
+[[ -f "$TMP/new/Tcas/images/1" && ! -L "$TMP/new/Tcas/images/1" ]] || fail "copy mode did not materialize images/1"
+[[ "$(cat "$TMP/new/Tcas/images/1")" == "image" ]] || fail "copy mode image content is wrong"
 [[ ! -e "$TMP/new/Tcas/public-file.txt" ]] || fail "external public data was copied"
 [[ ! -e "$TMP/new/Tcas/data/tcas5" ]] || fail "external public directory was copied"
+[[ ! -e "$TMP/new/Tcas/compose.media.yml" ]] || fail "copy mode wrote compose.media.yml"
+
+# ---------------------------------------------------------------- mount mode
+mkdir -p "$TMP/new-mount/Tcas/.git" \
+         "$TMP/new-mount/infra/.git" \
+         "$TMP/new-mount/infra/scripts" \
+         "$TMP/new-mount/backup"
+
+cp "$TMP/new/infra/.env" "$TMP/new-mount/infra/.env"
+cp "$TMP/new/infra/scripts/allow-origin.sh" "$TMP/new-mount/infra/scripts/allow-origin.sh"
+chmod +x "$TMP/new-mount/infra/scripts/allow-origin.sh"
+cp "$TMP/new/Tcas/compose.yml" "$TMP/new-mount/Tcas/compose.yml"
+cp "$TMP/new/Tcas/compose.tcas.yml" "$TMP/new-mount/Tcas/compose.tcas.yml"
+
+sed \
+  -e "s#^NEW_WORKSPACE=.*#NEW_WORKSPACE=$TMP/new-mount#" \
+  -e "s#^BACKUP_DIR=.*#BACKUP_DIR=$TMP/new-mount/backup#" \
+  -e "s#^IMAGE_MODE=.*#IMAGE_MODE=mount#" \
+  -e "s#^IMAGE_MOUNT_SOURCE=.*#IMAGE_MOUNT_SOURCE=$TMP/external/images#" \
+  "$TMP/migration.env" > "$TMP/migration-mount.env"
+
+pass "check derives the mount source from symlinks"
+sed 's#^IMAGE_MOUNT_SOURCE=.*#IMAGE_MOUNT_SOURCE=#' \
+  "$TMP/migration-mount.env" > "$TMP/migration-mount-derived.env"
+reset_mock_log
+out=$(run_cfg "mount-derived check" "$TMP/migration-mount-derived.env" check)
+contains "$out" "image mode: mount"
+contains "$out" "bind-mount"
+contains "$out" "external/images"
+! mock_has_mutations || fail "mount-derived check executed a mutating command"
+
+pass "check accepts mount mode"
+reset_mock_log
+out=$(run_cfg "mount check" "$TMP/migration-mount.env" check)
+contains "$out" "image mode: mount"
+contains "$out" "bind-mount $TMP/external/images"
+! mock_has_mutations || fail "mount check executed a mutating command"
+
+pass "mount mode preserves symlinks and writes compose.media.yml"
+reset_mock_log
+rm -f "$TMP/new-mount/Tcas/.env"
+out=$(run_cfg "mount prepare" "$TMP/migration-mount.env" --yes prepare)
+mount_env="$TMP/new-mount/Tcas/.env"
+[[ -f "$mount_env" ]] || fail "mount prepare did not write .env"
+contains "$(cat "$mount_env")" "COMPOSE_FILE=compose.yml:compose.tcas.yml:compose.media.yml"
+[[ -L "$TMP/new-mount/Tcas/images/1" ]] || fail "mount mode did not preserve images/1 symlink"
+[[ "$(readlink "$TMP/new-mount/Tcas/images/1")" == "$TMP/external/images/1" ]] || fail "mount mode changed images/1 target"
+[[ -f "$TMP/new-mount/Tcas/compose.media.yml" ]] || fail "mount mode did not write compose.media.yml"
+contains "$(cat "$TMP/new-mount/Tcas/compose.media.yml")" "$TMP/external/images:$TMP/external/images:ro"
 
 pass "rollback without --dry-run issues stop and up"
 reset_mock_log
