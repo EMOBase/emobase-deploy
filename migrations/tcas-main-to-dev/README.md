@@ -50,14 +50,12 @@ Stop before changing anything if any of these is false.
 
 - There is enough local disk and time for the local copies (`data/private`,
   `oba/`, the Directus uploads volume, MySQL dumps and the Elasticsearch
-  snapshot). `PUBLIC_DATA_DIR` is not copied. Image handling depends on
-  `IMAGE_MODE`: `copy` needs about 3.9 GB for real image files; `mount` keeps
-  the symlinks and mounts their target read-only.
+  snapshot). `PUBLIC_DATA_DIR` and the NFS image directory are reused in place;
+  no 3.9 GB image copy is needed.
 
-- The old data paths in `.env` exist and are readable. `PUBLIC_DATA_DIR` may be
-  an absolute external mount. `IMAGE_DIR` may contain symlinks into an image
-  mount; `IMAGE_MODE` decides whether to materialize those files or mount the
-  target. Never copy `PUBLIC_DATA_DIR`.
+- The old data paths in `.env` exist and are readable. `PUBLIC_DATA_DIR` and
+  `IMAGE_DIR` may be absolute external mounts; the migration reuses them in
+  place. Never copy `PUBLIC_DATA_DIR`.
 
 - Docker/Compose access is available, and Apache can be edited and reloaded.
 
