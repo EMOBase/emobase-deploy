@@ -52,8 +52,7 @@ Stop before changing anything if any of these is false.
 - Docker/Compose access is available, and Apache can be edited and reloaded.
 
 - Ports `9092` (new species), `9204` (new infra ES) and `8181` (new infra
-  Keycloak) are free. The old site keeps using `HTTP_PORT` from its `.env`;
-  do not assume it is `9090`.
+  Keycloak) are free.
 
 - The old `mysql`, `keycloak` and `es` services are running, and the old
   Directus volume exists.
