@@ -333,7 +333,8 @@ contains "$(cat "$envfile")" "PUBLIC_DATA_DIR=$TMP/external/tcas5"
 contains "$(cat "$envfile")" "PRIVATE_DATA_DIR=./data/private"
 contains "$(cat "$envfile")" "IMAGE_DIR=./images"
 contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test:9443"
-contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
+contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test:9443/keycloak"
+contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test:9443/keycloak"
 contains "$(cat "$envfile")" "OBA_IMAGE=jboss/base-jdk:7"
 contains "$(cat "$envfile")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
 
@@ -348,6 +349,19 @@ contains "$(cat "$envfile")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
 [[ ! -e "$TMP/new/Tcas/compose.media.yml" ]] || fail "copy mode wrote compose.media.yml"
 
 # ---------------------------------------------------------------- infra init cwd
+pass "cutover moves Keycloak to the final URL"
+out=$(run cutover --yes cutover)
+contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test"
+contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
+contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
+contains "$out" "Keycloak is now at https://tcas.test/keycloak"
+
+pass "prepare resets an existing env to the migration URLs"
+out=$(run "prepare rerun" --yes prepare)
+contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test:9443"
+contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test:9443/keycloak"
+contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test:9443/keycloak"
+
 pass "prepare refuses an infra Keycloak with other realms"
 if out=$(MOCK_KEYCLOAK_EXTRA_REALMS=1 bash "$SCRIPT" --config "$TMP/migration.env" prepare 2>&1); then
   fail "prepare replaced a shared infra Keycloak"
@@ -370,7 +384,7 @@ MYSQL_ROOT_PASSWORD=infra-pass
 KEYCLOAK_ADMIN=admin
 KEYCLOAK_ADMIN_PASSWORD=infra-admin
 ELASTICSEARCH_HOST_PORT=19204
-KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak
+KEYCLOAK_PUBLIC_URL=https://tcas.test:9443/keycloak
 ENV
 EOF
 chmod +x "$TMP/new-init/infra/init.sh"

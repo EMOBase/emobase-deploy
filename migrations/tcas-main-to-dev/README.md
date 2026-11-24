@@ -17,7 +17,7 @@ The migration is parallel:
 | Compose project | `COMPOSE_PROJECT_NAME` from old `.env` (default `ibb`) | `tcas` |
 | Species site | `HTTP_PORT` from old `.env` (default `9090`) | `9092` |
 | Temporary Apache URL | — | `https://<TCAS_HOST>:9443` |
-| Keycloak | legacy at `/ibb/keycloak` | infra at `/keycloak`, port `8181` |
+| Keycloak | legacy at `/ibb/keycloak` | infra at `/keycloak`, port `8181`; on 9443 during migration, 443 after cutover |
 | Elasticsearch | old stack, `9202` | infra, host port `9204` |
 | Public URL | `<TCAS_URL>` until cutover | `<TCAS_URL>` after cutover |
 
@@ -91,7 +91,7 @@ values later, edit `migration.env` or rerun `./migrate.sh init --force`.
 | `TCAS_URL` | Final public species URL |
 | `MIGRATION_URL` | Temporary migration URL, `https://<TCAS_HOST>:9443` |
 | `PORTAL_URL` | Deployed multi-species portal |
-| `KEYCLOAK_PUBLIC_URL` | `<TCAS_URL>/keycloak` |
+| `KEYCLOAK_PUBLIC_URL` | Final Keycloak URL; during migration `MIGRATION_URL/keycloak` is used |
 | `NEW_HTTP_PORT` | `9092` |
 | `NEW_ES_PORT` | `9204` |
 | `NEW_PROJECT` | `tcas`; must differ from the old project |
@@ -213,30 +213,19 @@ After `prepare`:
 This is a pre-cutover smoke test, not the final data check. It catches login,
 Apache and Keycloak routing problems while the old site is still live.
 
-The new site needs an HTTPS URL so browser login can be tested. It uses a
-temporary port because the old site still owns 443; only one process can bind
-443. At cutover, Apache switches `/` from the old stack to the new one.
+The old site owns 443. The new site and its Keycloak use a temporary 9443
+vhost, so the old 443 vhost is not edited before cutover.
 
-The new site redirects login to `KEYCLOAK_PUBLIC_URL`, which is
-`https://<TCAS_HOST>/keycloak` on 443. The 9443 vhost is temporary; Keycloak
-is permanent infrastructure. Keeping Keycloak on 443 means its URL and OIDC
-issuer stay the same before and after cutover; only `/` changes. Moving
-Keycloak to 9443 would require changing its issuer and moving it back at
-cutover.
+`prepare` configures the new site and infra Keycloak with
+`KEYCLOAK_PUBLIC_URL=https://<TCAS_HOST>:9443/keycloak`. At cutover, both move
+to `https://<TCAS_HOST>/keycloak`.
 
 Apache applies `ProxyPass` in order, so the `/keycloak` line must come before
 the `/` catch-all.
 
-1. Add both blocks to the existing 443 vhost file. The `/keycloak` lines go
-   inside the 443 vhost before the species catch-all; the 9443 vhost goes
-   after it.
+1. Create the temporary vhost from `apache-migration.conf.example`:
 
    ```apache
-   # Inside the existing <VirtualHost *:443>, before ProxyPass /:
-   ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
-   ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
-
-   # After the 443 vhost, in the same file:
    Listen 9443
    <VirtualHost *:9443>
        ServerName <TCAS_HOST>
@@ -245,15 +234,12 @@ the `/` catch-all.
        SSLCertificateKeyFile /path/privkey.pem
        ProxyPreserveHost On
        RequestHeader set X-Forwarded-Proto "https"
+       ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
+       ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
        ProxyPass        /  http://127.0.0.1:9092/
        ProxyPassReverse /  http://127.0.0.1:9092/
    </VirtualHost>
    ```
-
-   If the 443 vhost does not already set them, add `ProxyPreserveHost On` and
-   `RequestHeader set X-Forwarded-Proto "https"` there too.
-
-   `apache-migration.conf.example` contains the same 9443 block.
 
 2. Check and reload Apache:
 
@@ -330,16 +316,21 @@ new index names before continuing.
 
 ## 7. Cut over the final URL
 
-First update the new application configuration:
+First move the application and Keycloak to the final URL:
 
 ```bash
 ./migrate.sh cutover
 ```
 
-This sets `PUBLIC_SERVER=<TCAS_URL>` in the new `.env`, restarts the species
-stack, and re-adds the final Keycloak origin. It does **not** edit Apache.
+This sets `PUBLIC_SERVER=<TCAS_URL>` and
+`KEYCLOAK_PUBLIC_URL=<TCAS_URL>/keycloak` in the new `.env`, moves the infra
+Keycloak to the same public URL, restarts Keycloak and the species stack, and
+re-adds the final origin. It does **not** edit Apache. The Keycloak issuer
+changes, so existing test sessions may need a fresh login. Keycloak is already
+on 443 at this point, so the 9443 site cannot log in until the final 443 vhost
+is applied.
 
-Then change the 443 vhost:
+Then replace the 443 vhost:
 
 ```apache
 ProxyPreserveHost On
@@ -398,7 +389,9 @@ intentionally abandoned. Do not run it after a successful migration.
 
 This stops the new species stack, starts the old stack, and prints the old
 Apache target. The new infra stack (MySQL, Keycloak, ES) is not stopped; it
-does not serve the public site and can stay up for diagnosis or a retry.
+does not serve the public site and can stay up for diagnosis or a retry. If
+cutover already moved Keycloak to 443, rollback moves it back to the migration
+URL.
 
 Restore the old 443 vhost:
 

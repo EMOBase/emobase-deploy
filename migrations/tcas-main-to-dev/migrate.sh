@@ -318,6 +318,7 @@ load_context() {
   INFRA_DIR="$NEW_WORKSPACE/infra"
   BACKUP_DIR="${BACKUP_DIR:-$NEW_WORKSPACE/backup}"
   KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL:-$TCAS_URL/keycloak}"
+  MIGRATION_KEYCLOAK_URL="${MIGRATION_URL%/}/keycloak"
   NEW_DIRECTUS_DB="${NEW_DIRECTUS_DB:-directus_${NEW_PROJECT}}"
   NEW_ES_PREFIX="${NEW_ES_PREFIX:-$NEW_PROJECT}"
   OLD_ES_PORT="${OLD_ES_PORT:-9202}"
@@ -553,7 +554,7 @@ cmd_init() {
     "${cfg_migration:-$(url_with_port "$TCAS_URL" 9443)}" valid_url \
     "Enter an http(s) URL"
   ask PORTAL_URL "Portal URL" "$cfg_portal" valid_url "Enter an http(s) URL"
-  ask KEYCLOAK_PUBLIC_URL "Keycloak public URL" \
+  ask KEYCLOAK_PUBLIC_URL "Final Keycloak URL" \
     "${cfg_kc:-${TCAS_URL%/}/keycloak}" valid_url "Enter an http(s) URL"
 
   ask NEW_HTTP_PORT "New species HTTP port" "${cfg_http:-9092}" valid_port \
@@ -825,14 +826,14 @@ init_infra() {
   fi
   if [[ ! -f "$INFRA_DIR/.env" ]]; then
     run_in "$INFRA_DIR" bash init.sh -y \
-      --keycloak-public-url "$KEYCLOAK_PUBLIC_URL" \
+      --keycloak-public-url "$MIGRATION_KEYCLOAK_URL" \
       --elasticsearch-host-port "$NEW_ES_PORT"
     [[ -f "$INFRA_DIR/.env" ]] \
       || die "infra init did not write $INFRA_DIR/.env"
   else
     log "using existing infra .env"
     set_env "$INFRA_DIR/.env" ELASTICSEARCH_HOST_PORT "$NEW_ES_PORT"
-    set_env "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL "$KEYCLOAK_PUBLIC_URL"
+    set_env "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL "$MIGRATION_KEYCLOAK_URL"
   fi
   run_in "$INFRA_DIR" docker compose up -d --wait
 
@@ -844,6 +845,8 @@ write_new_env() {
   local env_file="$NEW_SPECIES_DIR/.env"
   if [[ -f "$env_file" && $FORCE -eq 0 ]]; then
     log "using existing new .env: $env_file"
+    set_env "$env_file" PUBLIC_SERVER "$MIGRATION_URL"
+    set_env "$env_file" KEYCLOAK_PUBLIC_URL "$MIGRATION_KEYCLOAK_URL"
     return
   fi
   if [[ -f "$env_file" ]]; then
@@ -895,7 +898,7 @@ DIRECTUS_DB_USER=root
 DIRECTUS_DB_DATABASE=$NEW_DIRECTUS_DB
 EMOBASE_ES_INDEX_PREFIX=$NEW_ES_PREFIX
 
-KEYCLOAK_PUBLIC_URL=$KEYCLOAK_PUBLIC_URL
+KEYCLOAK_PUBLIC_URL=$MIGRATION_KEYCLOAK_URL
 KEYCLOAK_INTERNAL_URL=http://keycloak:8080/keycloak
 KEYCLOAK_REALM=$REALM
 KEYCLOAK_REALM_MODE=dedicated
@@ -1141,7 +1144,7 @@ verify_migration() {
 
 Migration URL:  $MIGRATION_URL
 Final URL:       $TCAS_URL
-Keycloak admin:  $KEYCLOAK_PUBLIC_URL/admin/
+Keycloak admin:  $MIGRATION_KEYCLOAK_URL/admin/
 
 Test one real user login on the migration URL before continuing.
 EOF
@@ -1178,7 +1181,7 @@ Next:
   3. Run: ./migrate.sh delta
 
 Final URL:       $TCAS_URL
-Keycloak admin:  $KEYCLOAK_PUBLIC_URL/admin/
+Keycloak admin:  $MIGRATION_KEYCLOAK_URL/admin/
 EOF
 }
 
@@ -1229,7 +1232,12 @@ cmd_cutover() {
   load_context
   require_admin
   [[ -f "$NEW_SPECIES_DIR/.env" ]] || die "prepare has not run"
+  [[ -f "$INFRA_DIR/.env" ]] || die "infra has not started"
+  log "moving Keycloak to $KEYCLOAK_PUBLIC_URL"
+  set_env "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL "$KEYCLOAK_PUBLIC_URL"
+  run_in "$INFRA_DIR" docker compose up -d --wait keycloak
   set_env "$NEW_SPECIES_DIR/.env" PUBLIC_SERVER "$TCAS_URL"
+  set_env "$NEW_SPECIES_DIR/.env" KEYCLOAK_PUBLIC_URL "$KEYCLOAK_PUBLIC_URL"
   run_in "$NEW_SPECIES_DIR" docker compose up -d --wait
   add_origins
   cat <<EOF
@@ -1243,8 +1251,11 @@ Final Apache configuration (apply manually, then remove the 9443 vhost):
   ProxyPass        /          http://127.0.0.1:$NEW_HTTP_PORT/
   ProxyPassReverse /          http://127.0.0.1:$NEW_HTTP_PORT/
 
-Apply apache-final.conf.example to the 443 vhost now. Until `/` points to
-$NEW_HTTP_PORT, <TCAS_URL> still reaches the old stack.
+Apply apache-final.conf.example to the 443 vhost now. Keycloak is already on
+$KEYCLOAK_PUBLIC_URL, so the 9443 site cannot log in until this is applied.
+Until `/` points to $NEW_HTTP_PORT, <TCAS_URL> still reaches the old stack.
+
+Keycloak is now at $KEYCLOAK_PUBLIC_URL.
 
 Then run: ./migrate.sh verify
 EOF
@@ -1276,10 +1287,24 @@ Open the site and test one real user login.
 EOF
 }
 
+restore_migration_keycloak() {
+  [[ -f "$INFRA_DIR/.env" ]] || return 0
+  local current
+  current=$(env_get "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL || true)
+  [[ "$current" == "$MIGRATION_KEYCLOAK_URL" ]] && return 0
+  log "restoring Keycloak to $MIGRATION_KEYCLOAK_URL"
+  set_env "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL "$MIGRATION_KEYCLOAK_URL"
+  run_in "$INFRA_DIR" docker compose up -d --wait keycloak
+  if [[ -f "$NEW_SPECIES_DIR/.env" ]]; then
+    set_env "$NEW_SPECIES_DIR/.env" KEYCLOAK_PUBLIC_URL "$MIGRATION_KEYCLOAK_URL"
+  fi
+}
+
 cmd_rollback() {
   load_context
   log "stopping the new stack"
   new_compose_run stop
+  restore_migration_keycloak
   log "starting the old stack"
   old_compose_run up -d --wait
   cat <<EOF

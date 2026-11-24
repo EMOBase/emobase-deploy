@@ -1,13 +1,6 @@
 # Temporary Apache vhost for the new stack.
-# Docker serves the new species site on 127.0.0.1:9092;
-# Apache exposes it as https://<TCAS_HOST>:9443 for pre-cutover checks.
-#
-# The existing 443 vhost must already route /keycloak to 127.0.0.1:8181:
-#
-#   ProxyPreserveHost On
-#   RequestHeader set X-Forwarded-Proto "https"
-#   ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
-#   ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
+# Apache exposes the new site and its Keycloak on https://<TCAS_HOST>:9443
+# for pre-cutover checks. At cutover, the same routes move to 443.
 
 Listen 9443
 
@@ -20,6 +13,9 @@ Listen 9443
 
     ProxyPreserveHost On
     RequestHeader set X-Forwarded-Proto "https"
+
+    ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
+    ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
 
     ProxyPass        /  http://127.0.0.1:9092/
     ProxyPassReverse /  http://127.0.0.1:9092/
