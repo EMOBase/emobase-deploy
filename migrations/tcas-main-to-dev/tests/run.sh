@@ -344,6 +344,37 @@ contains "$(cat "$envfile")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
 [[ ! -e "$TMP/new/Tcas/data/tcas5" ]] || fail "external public directory was copied"
 [[ ! -e "$TMP/new/Tcas/compose.media.yml" ]] || fail "copy mode wrote compose.media.yml"
 
+# ---------------------------------------------------------------- infra init cwd
+pass "infra init runs in the infra checkout"
+mkdir -p "$TMP/new-init/Tcas/.git" \
+         "$TMP/new-init/infra/.git" \
+         "$TMP/new-init/infra/scripts" \
+         "$TMP/new-init/backup"
+cp "$TMP/new/Tcas/compose.yml" "$TMP/new-init/Tcas/compose.yml"
+cp "$TMP/new/Tcas/compose.tcas.yml" "$TMP/new-init/Tcas/compose.tcas.yml"
+cp "$TMP/new/infra/scripts/allow-origin.sh" "$TMP/new-init/infra/scripts/allow-origin.sh"
+chmod +x "$TMP/new-init/infra/scripts/allow-origin.sh"
+cat > "$TMP/new-init/infra/init.sh" <<'EOF'
+#!/usr/bin/env bash
+cat > .env <<ENV
+MYSQL_ROOT_PASSWORD=infra-pass
+KEYCLOAK_ADMIN=admin
+KEYCLOAK_ADMIN_PASSWORD=infra-admin
+ELASTICSEARCH_HOST_PORT=19204
+KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak
+ENV
+EOF
+chmod +x "$TMP/new-init/infra/init.sh"
+sed -e "s#^NEW_WORKSPACE=.*#NEW_WORKSPACE=$TMP/new-init#" \
+    -e "s#^BACKUP_DIR=.*#BACKUP_DIR=$TMP/new-init/backup#" \
+    "$TMP/migration.env" > "$TMP/migration-init.env"
+if ! out=$(cd "$TMP" && bash "$SCRIPT" --config "$TMP/migration-init.env" --yes prepare 2>&1); then
+  printf '%s\n' "$out" >&2
+  fail "prepare failed when infra init was needed"
+fi
+[[ -f "$TMP/new-init/infra/.env" ]] || fail "infra init did not write .env in infra"
+[[ ! -e "$TMP/.env" ]] || fail "infra init wrote .env in the working directory"
+
 # ---------------------------------------------------------------- mount mode
 mkdir -p "$TMP/new-mount/Tcas/.git" \
          "$TMP/new-mount/infra/.git" \

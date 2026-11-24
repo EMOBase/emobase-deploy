@@ -824,9 +824,11 @@ init_infra() {
     return
   fi
   if [[ ! -f "$INFRA_DIR/.env" ]]; then
-    run "$INFRA_DIR/init.sh" -y \
+    run_in "$INFRA_DIR" bash init.sh -y \
       --keycloak-public-url "$KEYCLOAK_PUBLIC_URL" \
       --elasticsearch-host-port "$NEW_ES_PORT"
+    [[ -f "$INFRA_DIR/.env" ]] \
+      || die "infra init did not write $INFRA_DIR/.env"
   else
     log "using existing infra .env"
     set_env "$INFRA_DIR/.env" ELASTICSEARCH_HOST_PORT "$NEW_ES_PORT"
