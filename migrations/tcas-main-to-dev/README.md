@@ -374,7 +374,8 @@ during `transfer`.
 Keep the old stack stopped, its volumes and `<BACKUP_DIR>` until the agreed
 retention period. This is the rollback window.
 
-After that, review the teardown plan:
+After that, from the migration folder
+(`<NEW_WORKSPACE>/Tcas/migrations/tcas-main-to-dev`), review the teardown plan:
 
 ```bash
 ./migrate.sh cleanup
