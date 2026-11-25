@@ -531,7 +531,10 @@ Then delete this migration folder.
   the browser is sending too many or too large cookies, often because the old
   443 site and the new 9443 site share cookies. Raise the Apache/nginx header
   limit (for example `LimitRequestFieldSize 32768`) and clear site data for the
-  host or use a fresh browser profile.
+  host or use a fresh browser profile. There is no application-level guard:
+  Apache rejects the request before it reaches the app. Optionally, set an
+  Apache `ErrorDocument 400` page that tells users to clear site data; it
+  improves the message but does not prevent the failure.
 - **`migrate.sh apache` cannot detect the certificate**: it writes placeholders.
   Edit the generated vhosts, or set `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in
   `migration.env` and rerun `./migrate.sh apache`. `/etc/ssl/private` may be
