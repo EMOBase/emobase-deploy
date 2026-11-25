@@ -915,6 +915,7 @@ write_new_env() {
   if [[ -f "$env_file" && $FORCE -eq 0 ]]; then
     log "using existing new .env: $env_file"
     set_env "$env_file" PUBLIC_SERVER "$TCAS_URL"
+    set_env "$env_file" PUBLIC_HOST "$TCAS_HOST"
     set_env "$env_file" KEYCLOAK_PUBLIC_URL "$KEYCLOAK_PUBLIC_URL"
     return
   fi
@@ -957,6 +958,7 @@ EMOBASE_WEB_IMAGE=$EMOBASE_WEB_IMAGE
 
 COMPOSE_PROJECT_NAME=$NEW_PROJECT
 PUBLIC_SERVER=$TCAS_URL
+PUBLIC_HOST=$TCAS_HOST
 HTTP_PORT=$NEW_HTTP_PORT
 PUBLIC_DATA_DIR=$public_data
 PRIVATE_DATA_DIR=$private_data

@@ -72,6 +72,11 @@ realm/client credentials, `KEYCLOAK_REALM_MODE`, a new Directus database name,
 as `compose.tcas.yml`). `MYSQL_ROOT_PASSWORD` and the Keycloak URLs are read
 from `../infra/.env`.
 
+`PUBLIC_HOST` is the hostname part of `PUBLIC_SERVER`, without protocol, port or
+path. The species nginx serves only that name and rejects other `Host` headers,
+so open the site with the URL in `PUBLIC_SERVER`. Change both values together;
+editing `PUBLIC_HOST` alone breaks the site.
+
 The Elasticsearch prefix uses lowercase letters, digits, underscore and hyphen,
 and must not be `genomics` (reserved for the portal). The stack writes only
 `<prefix>-*` indices in the shared instance.

@@ -449,6 +449,7 @@ contains "$(cat "$envfile")" "PUBLIC_DATA_DIR=$TMP/external/tcas5"
 contains "$(cat "$envfile")" "PRIVATE_DATA_DIR=./data/private"
 contains "$(cat "$envfile")" "IMAGE_DIR=./images"
 contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test"
+contains "$(cat "$envfile")" "PUBLIC_HOST=tcas.test"
 contains "$(cat "$envfile")" "PORTAL_SERVER=https://portal.test"
 contains "$(cat "$envfile")" "INTERNAL_API_GENOMICS_SERVICE=https://portal.test/api/genomicsservice/v1"
 contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
@@ -481,6 +482,7 @@ grep -Fq "/new/infra compose compose up -d --wait" "$MOCK_LOG" \
 pass "prepare resets an existing env to the final URLs"
 out=$(run "prepare rerun" --yes prepare)
 contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test"
+contains "$(cat "$envfile")" "PUBLIC_HOST=tcas.test"
 contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
 contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
 

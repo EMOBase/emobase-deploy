@@ -406,6 +406,10 @@ ask PUBLIC_SERVER "🌐 Public server address" "$DEFAULT_PUBLIC_SERVER" \
 while [[ "$PUBLIC_SERVER" == */ ]]; do
   PUBLIC_SERVER="${PUBLIC_SERVER%/}"
 done
+PUBLIC_HOST=$(printf '%s' "$PUBLIC_SERVER" \
+  | sed -E 's#^[A-Za-z][A-Za-z0-9+.-]*://([^/:]+).*#\1#')
+[[ -n "$PUBLIC_HOST" ]] \
+  || fatal "Could not derive a hostname from PUBLIC_SERVER=${PUBLIC_SERVER}"
 
 if [[ -z "$PORTAL_DIR" ]] && [[ -f "${DEFAULT_PORTAL_DIR}/.env" ]]; then
   PORTAL_DIR="$DEFAULT_PORTAL_DIR"
@@ -695,6 +699,10 @@ EMOBASE_WEB_IMAGE=ghcr.io/emobase/emobase-web:dev
 
 # The full address to access the app from public, including protocol and port (if not 80 or 443)
 PUBLIC_SERVER=${PUBLIC_SERVER}
+
+# Hostname part of PUBLIC_SERVER. The species nginx answers only this name and
+# rejects other Host headers, so use PUBLIC_SERVER when opening the site.
+PUBLIC_HOST=${PUBLIC_HOST}
 
 # Public origin of the portal deployment that serves genomics, JBrowse2 and BLAST
 PORTAL_SERVER=${PORTAL_SERVER}
