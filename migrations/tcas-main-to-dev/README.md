@@ -297,9 +297,7 @@ Confirm the old site, Keycloak login and Directus work. Do not run `cleanup`:
 the old volumes are the rollback window and still hold the authoritative data.
 
 The old MySQL/Keycloak/ES volumes and the old `directus` database were not
-modified. Directus writes made on the new stack after Apache was repointed
-live only in
-`directus_tcas` and the new volumes; those writes are not copied back.
+modified.
 
 Rollback remains possible until the cleanup step removes the old volumes.
 If you want to retry, fix the failure, run `check` again, then rerun the phase
