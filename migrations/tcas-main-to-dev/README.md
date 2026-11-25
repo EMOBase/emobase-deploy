@@ -70,22 +70,6 @@ cd Tcas/migrations/tcas-main-to-dev
 The script runs from this checkout. It reads the old checkout from
 `OLD_SPECIES_DIR` and clones `emobase-infra` itself.
 
-### Install `emobase-cli`
-
-`emobase` is the cross-repository control point for EMOBase. The runbook uses
-it to check the new `infra/` and `Tcas/` configuration before the data copy,
-and to adopt the new workspace after the switch. Install it once, now:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/EMOBase/emobase-cli/main/install.sh | sh
-```
-
-See the [`emobase-cli` repository](https://github.com/EMOBase/emobase-cli) for
-pinned releases, per-user installs and source builds.
-
-The migration script does not call `emobase`; it is a checkpoint, not a
-dependency.
-
 Create the config interactively:
 
 ```bash
@@ -135,6 +119,23 @@ export must be mounted read-write for the new stack.
 
 `IMAGE_MODE=copy` is the fallback when the image source is read-only; it
 materializes the images into the new `./images`.
+
+### Install `emobase-cli`
+
+`emobase` is the cross-repository control point for EMOBase. The runbook uses
+it to check the new `infra/` and `Tcas/` configuration before the data copy,
+and to adopt the new workspace after the switch. Install it once, before the
+validation steps:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/EMOBase/emobase-cli/main/install.sh | sh
+```
+
+See the [`emobase-cli` repository](https://github.com/EMOBase/emobase-cli) for
+pinned releases, per-user installs and source builds.
+
+The migration script does not call `emobase`; it is a checkpoint, not a
+dependency.
 
 ## 3. Validate without changing anything
 
