@@ -782,9 +782,8 @@ EOF
   log "wrote $final"
   cat <<EOF
 
-Review the generated files and edit the certificate paths if needed:
+Review the migration vhost and edit the certificate paths if needed:
   $migration
-  $final
 
 Install the migration vhost:
   cp "$migration" /etc/apache2/sites-available/tcas-migration.conf
@@ -792,7 +791,7 @@ Install the migration vhost:
   apachectl configtest
   systemctl reload apache2
 
-At cutover, replace the 443 vhost with:
+Keep the final vhost for cutover:
   $final
 
 Remove tcas-migration after verification.
