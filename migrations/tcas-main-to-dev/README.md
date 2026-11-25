@@ -374,19 +374,27 @@ during `transfer`.
 Keep the old stack stopped, its volumes and `<BACKUP_DIR>` until the agreed
 retention period. This is the rollback window.
 
-After that, print the destructive commands:
+After that, review the teardown plan:
 
 ```bash
 ./migrate.sh cleanup
 ```
 
-The output stops the old Compose project and removes the old MySQL, ES, BLAST,
-JBrowse2 and Directus volumes. It keeps `tcas_directus-data`, which the new
-stack uses. The commands are printed only; review and run those commands manually.
+This prints the commands and deletes nothing. To run them:
+
+```bash
+./migrate.sh cleanup --apply
+```
+
+`--apply` prints the plan again and requires the old project name to be typed;
+it refuses `--yes`. It then stops the old Compose project and removes the old
+MySQL, ES, BLAST, JBrowse2 and Directus volumes. It stops at the first failure,
+skips volumes that no longer exist, and keeps `tcas_directus-data`, which the
+new stack uses. It refuses to run while the new species stack is stopped.
 
 The old checkout's `data/`, `images/` and `oba/` directories are not removed by
-the script. Remove local directories manually after the retention period if no
-longer needed.
+the script; `IMAGE_DIR` may be an external mount. Remove local directories
+manually after the retention period if no longer needed.
 
 Then delete this migration folder.
 

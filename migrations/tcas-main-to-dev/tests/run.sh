@@ -11,6 +11,7 @@
 #   - dry-run prepare/transfer/rollback never execute mutating commands
 #   - prepare writes the expected new .env and starts nothing
 #   - transfer starts the infra before copying data
+#   - cleanup prints by default; --apply needs the old project name
 #
 # It does not talk to any server and does not require a Docker daemon.
 
@@ -144,6 +145,13 @@ if [[ "${1:-}" == "compose" && "${2:-}" == "version" ]]; then
   exit 0
 fi
 if [[ "${1:-}" == "volume" && "${2:-}" == "inspect" ]]; then
+  case " ${MOCK_VOLUME_MISSING:-} " in
+    *" ${3:-} "*) exit 1 ;;
+  esac
+  exit 0
+fi
+if [[ "${1:-}" == "volume" && "${2:-}" == "rm" ]]; then
+  log "volume rm ${3:-}"
   exit 0
 fi
 if [[ "${1:-}" == "volume" && "${2:-}" == "create" ]]; then
@@ -157,6 +165,9 @@ fi
 if [[ "${1:-}" == "compose" ]]; then
   case " $* " in
     *" ps "*)
+      if [[ -n "${MOCK_PS_EMPTY:-}" ]]; then
+        exit 0
+      fi
       if [[ "$*" == *" -f "* ]]; then
         printf 'mysql\nkeycloak\nes\n'
       else
@@ -353,11 +364,62 @@ contains "$out" "Restore the old 443 vhost"
 contains "$out" "127.0.0.1:6092"
 ! mock_has_mutations || fail "dry-run rollback executed a mutating command"
 
-pass "dry-run cleanup only prints"
+pass "cleanup only prints by default"
 reset_mock_log
 out=$(run "dry-run cleanup" cleanup)
+contains "$out" "Nothing is deleted"
+contains "$out" "cleanup --apply"
 contains "$out" "docker volume rm"
 ! mock_has_mutations || fail "cleanup executed a mutating command"
+
+pass "cleanup refuses --yes"
+reset_mock_log
+if out=$(bash "$SCRIPT" --config "$TMP/migration.env" --yes cleanup 2>&1); then
+  fail "cleanup accepted --yes"
+fi
+contains "$out" "--yes is not valid with cleanup"
+! mock_has_mutations || fail "refused cleanup still mutated"
+
+pass "cleanup --apply needs the old project name"
+reset_mock_log
+if out=$(printf 'wrong\n' | bash "$SCRIPT" --config "$TMP/migration.env" cleanup --apply 2>&1); then
+  fail "cleanup accepted a wrong project name"
+fi
+contains "$out" "cancelled"
+! mock_has_mutations || fail "cancelled cleanup still mutated"
+
+pass "cleanup --apply stops the old stack and removes old volumes"
+reset_mock_log
+out=$(printf 'testold\n' | bash "$SCRIPT" --config "$TMP/migration.env" cleanup --apply 2>&1) \
+  || fail "cleanup --apply failed"
+grep -Fq "compose -f compose.yml -f compose.tcas.yml down" "$MOCK_LOG" \
+  || fail "cleanup did not stop the old stack"
+grep -Fq "volume rm testold_mysql-data" "$MOCK_LOG" \
+  || fail "cleanup did not remove the old mysql volume"
+grep -Fq "volume rm testold_directus-data" "$MOCK_LOG" \
+  || fail "cleanup did not remove the old directus volume"
+if grep -Fq "volume rm tcastest_" "$MOCK_LOG"; then
+  fail "cleanup removed a new-stack volume"
+fi
+
+pass "cleanup skips missing volumes"
+reset_mock_log
+out=$(printf 'testold\n' | MOCK_VOLUME_MISSING=testold_es-data \
+  bash "$SCRIPT" --config "$TMP/migration.env" cleanup --apply 2>&1) \
+  || fail "cleanup failed on a missing volume"
+contains "$out" "skip testold_es-data (missing)"
+if grep -Fq "volume rm testold_es-data" "$MOCK_LOG"; then
+  fail "cleanup tried to remove a missing volume"
+fi
+
+pass "cleanup --apply refuses when the new stack is down"
+reset_mock_log
+if out=$(printf 'testold\n' | MOCK_PS_EMPTY=1 \
+  bash "$SCRIPT" --config "$TMP/migration.env" cleanup --apply 2>&1); then
+  fail "cleanup ran while the new stack was down"
+fi
+contains "$out" "not running"
+! mock_has_mutations || fail "refused cleanup still mutated"
 
 pass "prepare writes the expected env without data"
 reset_mock_log

@@ -14,6 +14,7 @@ DRY_RUN=0
 ASSUME_YES=0
 FORCE=0
 KEEP_NEW=0
+APPLY=0
 COMMAND=
 ES_SNAPSHOT=
 
@@ -30,7 +31,7 @@ Commands:
   verify          check the final URL, Directus and Keycloak through Apache
   finish          stop the old stack after verification
   rollback        stop the new stack, start the old one and print the old proxy
-  cleanup         print destructive cleanup commands; does not run any command
+  cleanup         print the post-retention teardown; --apply runs it
 
 Options:
   --config FILE  use FILE instead of migration.env
@@ -38,6 +39,8 @@ Options:
   --yes, -y      do not ask for confirmations
   --force        overwrite migration.env or the new .env if it already exists
   --keep-new     rollback: leave the new stack running on 9092
+  --apply        cleanup: after confirmation, stop the old stack and remove
+                 its volumes
   -h, --help     show this help
 EOF
 }
@@ -1389,17 +1392,82 @@ EOF
 
 cmd_cleanup() {
   load_context
-  cat <<EOF
-After the retention period, review and run these on the server:
+  [[ "$OLD_PROJECT" != "$NEW_PROJECT" ]] \
+    || die "old and new project names are both '$OLD_PROJECT'"
 
-  cd "$OLD_SPECIES_DIR" && docker compose -f compose.yml -f compose.tcas.yml down
-  docker volume rm ${OLD_PROJECT}_mysql-data ${OLD_PROJECT}_es-data \\
-    ${OLD_PROJECT}_blast-data ${OLD_PROJECT}_jbrowse2-data \\
-    ${OLD_DIRECTUS_VOLUME}
-  # keep ${NEW_DIRECTUS_VOLUME}, which the new stack uses
-  # keep ${BACKUP_DIR} until the retention period ends
+  local -a volumes=(
+    "${OLD_PROJECT}_mysql-data"
+    "${OLD_PROJECT}_es-data"
+    "${OLD_PROJECT}_blast-data"
+    "${OLD_PROJECT}_jbrowse2-data"
+    "$OLD_DIRECTUS_VOLUME"
+  )
+  local files="-f compose.yml"
+  if [[ -f "$OLD_SPECIES_DIR/compose.tcas.yml" ]]; then
+    files="$files -f compose.tcas.yml"
+  fi
+
+  if (( ! APPLY )) || (( DRY_RUN )); then
+    cat <<EOF
+Post-retention teardown. Nothing is deleted by this command.
+
+Run it with confirmations:
+
+  ./migrate.sh cleanup --apply
+
+Or run these by hand, in this order:
+
+  cd "$OLD_SPECIES_DIR" && docker compose $files down
+  docker volume rm ${volumes[*]}
+  # keep $NEW_DIRECTUS_VOLUME, which the new stack uses
+  # keep $BACKUP_DIR until the retention period ends
+
+Not removed: $OLD_SPECIES_DIR/data, images/ and oba/. Delete them by hand if
+they are local and no longer needed.
 
 Then delete this migration folder.
+EOF
+    return 0
+  fi
+
+  local running
+  running=$(new_compose ps -q 2>/dev/null || true)
+  [[ -n "$running" ]] \
+    || die "the new species stack is not running; verify the new site before cleanup"
+
+  log "old project: $OLD_PROJECT (stop and remove)"
+  log "new project: $NEW_PROJECT (kept)"
+  printf '\nThis will run, in %s:\n' "$OLD_SPECIES_DIR"
+  printf '  docker compose %s down\n' "$files"
+  local v
+  for v in "${volumes[@]}"; do
+    printf '  docker volume rm %s\n' "$v"
+  done
+  printf '\nKept: %s, %s, and the local data/, images/ and oba/ directories.\n' \
+    "$NEW_DIRECTUS_VOLUME" "$BACKUP_DIR"
+
+  local answer
+  read -r -p "Type the old project name ($OLD_PROJECT) to continue: " answer \
+    || die "cancelled"
+  [[ "$answer" == "$OLD_PROJECT" ]] \
+    || die "cancelled: expected '$OLD_PROJECT'"
+
+  log "stopping the old stack"
+  old_compose_run down
+
+  for v in "${volumes[@]}"; do
+    if docker volume inspect "$v" >/dev/null 2>&1; then
+      run docker volume rm "$v"
+    else
+      log "skip $v (missing)"
+    fi
+  done
+
+  cat <<EOF
+
+The old containers and the listed volumes are removed.
+Still kept: $BACKUP_DIR and the local data/, images/ and oba/ directories.
+Delete this migration folder when the retention period is over.
 EOF
 }
 
@@ -1410,6 +1478,7 @@ while [[ $# -gt 0 ]]; do
     --yes|-y) ASSUME_YES=1; shift ;;
     --force) FORCE=1; shift ;;
     --keep-new) KEEP_NEW=1; shift ;;
+  --apply) APPLY=1; shift ;;
     -h|--help) usage; exit 0 ;;
     -*) die "unknown option: $1" ;;
     *) COMMAND=$1; shift ;;
@@ -1419,6 +1488,12 @@ done
 [[ -n "$COMMAND" ]] || { usage; exit 1; }
 if (( KEEP_NEW )) && [[ "$COMMAND" != "rollback" ]]; then
   die "--keep-new is only valid with rollback"
+fi
+if (( APPLY )) && [[ "$COMMAND" != "cleanup" ]]; then
+  die "--apply is only valid with cleanup"
+fi
+if [[ "$COMMAND" == "cleanup" ]] && (( ASSUME_YES )); then
+  die "--yes is not valid with cleanup; confirm by typing the old project name"
 fi
 
 case "$COMMAND" in
