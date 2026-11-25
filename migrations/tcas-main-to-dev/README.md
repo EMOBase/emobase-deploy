@@ -77,7 +77,13 @@ section 8 adopts the workspace with the same tool. Install it once, now:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/EMOBase/emobase-cli/main/install.sh | sh
-emobase --version
+```
+
+The installer prints the installed version. If it warns that the binary
+directory is not on `PATH`, export it before running `emobase`:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 See the [`emobase-cli` repository](https://github.com/EMOBase/emobase-cli) for
