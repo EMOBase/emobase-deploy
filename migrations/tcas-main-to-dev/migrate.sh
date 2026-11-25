@@ -13,6 +13,7 @@ CONFIG="${MIGRATION_CONFIG:-$SCRIPT_DIR/migration.env}"
 DRY_RUN=0
 ASSUME_YES=0
 FORCE=0
+KEEP_NEW=0
 COMMAND=
 ES_SNAPSHOT=
 
@@ -36,6 +37,7 @@ Options:
   --dry-run      print commands without execution
   --yes, -y      do not ask for confirmations
   --force        overwrite migration.env or the new .env if it already exists
+  --keep-new     rollback: leave the new species and infra stacks running
   -h, --help     show this help
 EOF
 }
@@ -1423,36 +1425,51 @@ Open the site and test one real user login.
 EOF
 }
 
-restore_migration_keycloak() {
-  [[ -f "$INFRA_DIR/.env" ]] || return 0
-  local current
-  current=$(env_get "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL || true)
-  [[ "$current" == "$MIGRATION_KEYCLOAK_URL" ]] && return 0
-  log "restoring Keycloak to $MIGRATION_KEYCLOAK_URL"
-  set_env "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL "$MIGRATION_KEYCLOAK_URL"
-  run_in "$INFRA_DIR" docker compose up -d --wait keycloak
+restore_migration_env() {
   if [[ -f "$NEW_SPECIES_DIR/.env" ]]; then
+    set_env "$NEW_SPECIES_DIR/.env" PUBLIC_SERVER "$MIGRATION_URL"
     set_env "$NEW_SPECIES_DIR/.env" KEYCLOAK_PUBLIC_URL "$MIGRATION_KEYCLOAK_URL"
+  fi
+  if [[ -f "$INFRA_DIR/.env" ]]; then
+    set_env "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL "$MIGRATION_KEYCLOAK_URL"
   fi
 }
 
 cmd_rollback() {
   load_context
-  log "stopping the new stack"
-  new_compose_run stop
-  restore_migration_keycloak
+  restore_migration_env
+
+  local new_state vhost_action
+  if (( KEEP_NEW )); then
+    log "keeping the new stacks running"
+    log "starting the new infra stack"
+    run_in "$INFRA_DIR" docker compose up -d --wait
+    new_compose_run up -d --wait
+    new_state="The new species and infra stacks are still running; $MIGRATION_URL remains available for diagnosis."
+    vhost_action="Keep the temporary 9443 vhost while diagnosing."
+  else
+    log "stopping the new stack"
+    new_compose_run stop
+    new_state="The new species and infra stacks are stopped; their volumes were kept for a retry."
+    vhost_action="Remove or disable the temporary 9443 vhost."
+  fi
+
   log "starting the old stack"
   old_compose_run up -d --wait
+
+  if (( ! KEEP_NEW )); then
+    log "stopping the new infra stack"
+    infra_compose_run stop
+  fi
+
   cat <<EOF
 
-The new species stack is stopped. The new infra stack, if running, was not
-stopped; it does not serve the public site and can stay up for diagnosis or a
-retry.
+$new_state
 
 Restore the old Apache configuration:
   443 / -> 127.0.0.1:$OLD_HTTP_PORT, and /ibb/keycloak through the old stack.
 
-Remove or disable the temporary 9443 vhost, then reload Apache:
+$vhost_action Then reload Apache:
 
   apachectl configtest
   systemctl reload apache2
@@ -1486,6 +1503,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1; shift ;;
     --yes|-y) ASSUME_YES=1; shift ;;
     --force) FORCE=1; shift ;;
+    --keep-new) KEEP_NEW=1; shift ;;
     -h|--help) usage; exit 0 ;;
     -*) die "unknown option: $1" ;;
     *) COMMAND=$1; shift ;;
@@ -1493,6 +1511,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$COMMAND" ]] || { usage; exit 1; }
+if (( KEEP_NEW )) && [[ "$COMMAND" != "rollback" ]]; then
+  die "--keep-new is only valid with rollback"
+fi
 
 case "$COMMAND" in
   init) cmd_init ;;

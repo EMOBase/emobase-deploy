@@ -394,11 +394,14 @@ intentionally abandoned. Do not run it after a successful migration.
 ./migrate.sh rollback
 ```
 
-This stops the new species stack, starts the old stack, and prints the old
-Apache target. The new infra stack (MySQL, Keycloak, ES) is not stopped; it
-does not serve the public site and can stay up for diagnosis or a retry. If
+By default, this stops the new species and infra stacks, starts the old stack,
+and prints the old Apache target. Their volumes are kept for a retry. If
 cutover already moved Keycloak to 443, rollback moves it back to the migration
 URL.
+
+Use `./migrate.sh rollback --keep-new` to start the old stack but leave the new
+species and infra stacks running for diagnosis. In that mode, the 9443 site
+stays available.
 
 Restore the old 443 vhost:
 
@@ -407,8 +410,8 @@ Restore the old 443 vhost:
 /ibb/keycloak through the old stack
 ```
 
-If you added a temporary `9443` vhost, remove or disable it. Then reload Apache
-and verify the old site:
+If you used the default full rollback, remove or disable the temporary `9443`
+vhost. Keep it for `--keep-new`. Then reload Apache and verify the old site:
 
 ```bash
 apachectl configtest

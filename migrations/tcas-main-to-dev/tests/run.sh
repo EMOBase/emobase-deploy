@@ -619,8 +619,19 @@ reset_mock_log
 out=$(run rollback --yes rollback)
 contains "$out" "Restore the old Apache configuration"
 contains "$out" "127.0.0.1:6092"
+contains "$out" "stopping the new infra stack"
 grep -Fq "compose stop" "$MOCK_LOG" || fail "rollback did not issue stop for the new stack"
 grep -Fq "compose -f compose.yml -f compose.tcas.yml up -d --wait" "$MOCK_LOG" \
   || fail "rollback did not issue up for the old stack"
+
+pass "rollback --keep-new leaves the new stacks running"
+reset_mock_log
+out=$(run "rollback keep-new" --yes --keep-new rollback)
+contains "$out" "keeping the new stacks running"
+contains "$out" "still running"
+! grep -Fq "compose stop" "$MOCK_LOG" || fail "keep-new stopped a stack"
+contains "$out" "starting the new infra stack"
+grep -Fq "compose -f compose.yml -f compose.tcas.yml up -d --wait" "$MOCK_LOG" \
+  || fail "keep-new did not start the old stack"
 
 pass "all tests passed"
