@@ -1247,7 +1247,7 @@ The new checkouts and configuration are ready. Nothing has been started and no
 data has been copied. The old site is still live.
 
 Next:
-  1. Install emobase-cli, then: cd $NEW_WORKSPACE && emobase doctor
+  1. Install emobase-cli, then: emobase --workspace $NEW_WORKSPACE doctor
   2. Run: ./migrate.sh transfer in the announced window; it starts the new infra
      and copies all data once.
 

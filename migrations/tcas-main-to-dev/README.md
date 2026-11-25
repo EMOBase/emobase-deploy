@@ -191,8 +191,7 @@ pinned releases, per-user installs and source builds.
 Then validate the prepared workspace:
 
 ```bash
-cd <NEW_WORKSPACE>
-emobase doctor
+emobase --workspace <NEW_WORKSPACE> doctor
 ```
 
 `emobase doctor` compares the new `infra/.env` and `Tcas/.env` against the
