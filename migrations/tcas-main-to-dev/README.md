@@ -77,8 +77,11 @@ Create the config interactively:
 ```
 
 It asks for the old checkout, workspace, backup directory, URLs, ports and
-names, then writes `migration.env`. Press Enter to accept a default. To change
+project, then writes `migration.env`. Press Enter to accept a default. To change
 values later, edit `migration.env` or rerun `./migrate.sh init --force`.
+
+`SPECIES_CODE`, `REALM` and `CLIENT_ID` are taken from the old `.env` when
+present, otherwise `Tcas`, `ibb` and `ibb-client`.
 
 `migration.env` is ignored by git. The values are:
 

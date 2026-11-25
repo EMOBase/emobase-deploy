@@ -533,11 +533,14 @@ cmd_init() {
 
   ask_path OLD_SPECIES_DIR "Old Tcas checkout" \
     "$cfg_old" valid_old_checkout "Enter a directory containing .env"
-  local old_public
+  local old_public old_species old_realm old_client
   old_public=$(env_get "$OLD_SPECIES_DIR/.env" PUBLIC_SERVER || true)
   if [[ -z "$old_public" ]]; then
     old_public=$(env_get "$OLD_SPECIES_DIR/.env" TCAS_URL || true)
   fi
+  old_species=$(env_get "$OLD_SPECIES_DIR/.env" MAIN_SPECIES || true)
+  old_realm=$(env_get "$OLD_SPECIES_DIR/.env" KEYCLOAK_REALM || true)
+  old_client=$(env_get "$OLD_SPECIES_DIR/.env" KEYCLOAK_CLIENT_ID || true)
   ask_path NEW_WORKSPACE "New workspace" \
     "$ws_default" valid_new_workspace "Must be outside the old checkout"
   ask_path BACKUP_DIR "Backup directory" \
@@ -555,9 +558,9 @@ cmd_init() {
     "Enter a port from 1 to 65535"
   ask NEW_PROJECT "New Compose project" "${cfg_project:-tcas}" valid_project \
     "Use lowercase letters, digits, _ or -"
-  ask SPECIES_CODE "Species code" "${cfg_species:-Tcas}" valid_nonempty "Required"
-  ask REALM "Keycloak realm" "${cfg_realm:-ibb}" valid_nonempty "Required"
-  ask CLIENT_ID "Keycloak client ID" "${cfg_client:-ibb-client}" valid_nonempty "Required"
+  SPECIES_CODE="${cfg_species:-${old_species:-Tcas}}"
+  REALM="${cfg_realm:-${old_realm:-ibb}}"
+  CLIENT_ID="${cfg_client:-${old_client:-ibb-client}}"
   ask ES_MODE "Elasticsearch mode (snapshot/rebuild)" \
     "${cfg_es_mode:-snapshot}" valid_es_mode "Use snapshot or rebuild"
   ask IMAGE_MODE "Image mode (auto/copy/mount)" \
