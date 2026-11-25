@@ -977,6 +977,24 @@ verify_infra_mysql() {
     "the infra MySQL volume was initialized with a different root password. The new infra has no data yet: cd $INFRA_DIR && docker compose down && docker volume rm emobase-infra_mysql-data"
 }
 
+prepare_es_backup_dir() {
+  [[ "$ES_MODE" == "snapshot" ]] || return 0
+  local dir="$OLD_SPECIES_DIR/es_bk"
+  [[ -d "$dir" ]] || die "old es_bk not found: $dir"
+  if (( DRY_RUN )); then
+    log "would make $dir writable by UID 1000 (the Elasticsearch container)"
+    return 0
+  fi
+  # The Elasticsearch image runs as UID 1000 and writes the snapshot into this
+  # bind mount. Fix ownership now, in the quiet phase, instead of failing the
+  # snapshot inside the transfer window.
+  local cid
+  cid=$(old_compose ps -q es 2>/dev/null || true)
+  [[ -n "$cid" ]] || die "old Elasticsearch container is not running"
+  log "making $dir writable by the Elasticsearch container (1000:0)"
+  run docker exec -u 0 "$cid" chown -R 1000:0 /es-bk
+}
+
 start_infra() {
   # Start MySQL alone so a volume that does not match infra/.env fails here,
   # instead of surfacing as an unhealthy Keycloak.
@@ -1290,6 +1308,7 @@ cmd_prepare() {
   cmd_check
   run mkdir -p "$BACKUP_DIR"
   clone_repos
+  prepare_es_backup_dir
   write_infra_env
   write_new_env
   write_media_override

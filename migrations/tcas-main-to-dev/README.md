@@ -167,9 +167,11 @@ checkouts and configuration:
 2. Writes `infra/.env` with the old MySQL root and Keycloak admin secrets, the
    final Keycloak URL and the ES port. It does not run the infra `init.sh` and
    does not start the stack; an existing `infra/.env` keeps its password.
-3. Writes the new species `.env` with the final `TCAS_URL` and
+3. Gives the old `es_bk` directory to UID `1000` (the Elasticsearch container)
+   when `ES_MODE=snapshot`, so it can write the snapshot during `transfer`.
+4. Writes the new species `.env` with the final `TCAS_URL` and
    `KEYCLOAK_PUBLIC_URL`.
-4. Writes the image media override if needed.
+5. Writes the image media override if needed.
 
 After `prepare`:
 
@@ -414,6 +416,12 @@ Then delete this migration folder.
   cd <NEW_WORKSPACE>/infra && docker compose down
   docker volume rm emobase-infra_mysql-data
   ```
+- **Snapshot fails with `AccessDeniedException: /es-bk/...`**: the old
+  Elasticsearch container runs as UID `1000` and cannot write the `es_bk` tree.
+  `prepare` corrects the ownership; to do it by hand:
+  `sudo chown -R 1000:0 <OLD_SPECIES_DIR>/es_bk`. Changing only the top
+  directory (`chmod o+w es_bk`) is not enough, because the index subdirectories
+  keep their owners.
 - **`check` fails on `9092` or `9204`**: an earlier attempt left the new
   species or infra stack running. Stop it while keeping volumes, then rerun the
   phase:

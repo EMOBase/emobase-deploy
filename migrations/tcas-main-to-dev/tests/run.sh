@@ -9,7 +9,8 @@
 #   - an external PUBLIC_DATA_DIR is reused, never copied
 #   - image copy and mount modes both work
 #   - dry-run prepare/transfer/rollback never execute mutating commands
-#   - prepare writes the expected new .env and starts nothing
+#   - prepare writes the expected new .env, fixes es_bk ownership and starts
+#     nothing
 #   - transfer starts the infra before copying data
 #   - cleanup prints by default; --apply needs the old project name
 #
@@ -160,6 +161,10 @@ if [[ "${1:-}" == "volume" && "${2:-}" == "create" ]]; then
 fi
 if [[ "${1:-}" == "run" ]]; then
   log "docker run $*"
+  exit 0
+fi
+if [[ "${1:-}" == "exec" ]]; then
+  log "docker exec $*"
   exit 0
 fi
 if [[ "${1:-}" == "compose" ]]; then
@@ -361,6 +366,8 @@ out=$(run "dry-run prepare" --dry-run prepare)
 contains "$out" "would write"
 not_contains "$out" "rsync -a $TMP/external/tcas5"
 ! mock_has_mutations || fail "dry-run prepare executed a mutating command"
+! grep -Fq "chown -R 1000:0 /es-bk" "$MOCK_LOG" \
+  || fail "dry-run prepare changed the es_bk ownership"
 [[ ! -e "$TMP/new/Tcas/data" ]] || fail "dry-run prepare created data/"
 
 pass "dry-run transfer does not stop the old stack"
@@ -460,6 +467,8 @@ contains "$(cat "$envfile")" "OBA_IMAGE=jboss/base-jdk:7"
 contains "$(cat "$envfile")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
 [[ ! -e "$TMP/new/Tcas/data" ]] || fail "prepare copied data"
 ! mock_has_mutations || fail "prepare started a container"
+grep -Fq "chown -R 1000:0 /es-bk" "$MOCK_LOG" \
+  || fail "prepare did not fix the es_bk ownership"
 
 pass "transfer starts the infra and then copies data"
 reset_mock_log
