@@ -326,12 +326,6 @@ writes made after the switch are not merged back automatically.
 Run this only after the final verification passes. Do not run it after a
 rollback; it applies to the new `tcas` stack.
 
-`emobase-cli` is the cross-repository control point for EMOBase. It discovers
-the `infra/` and `Tcas/` checkouts, validates the configuration shared between
-them, and records which database, realm and Elasticsearch index prefix belong
-to which checkout. It does not migrate data; it is for operating and monitoring
-the new stack.
-
 Run the commands from `<NEW_WORKSPACE>`, the directory containing `infra/` and
 `Tcas/`:
 
