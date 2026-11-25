@@ -222,11 +222,10 @@ It:
 1. Ensures the old MySQL/Keycloak/ES are running.
 2. Starts the new infra: MySQL first, verifies the root login, then Keycloak
    and Elasticsearch.
-3. Stops the new species stack from an earlier attempt.
-4. Dumps the final Directus and Keycloak databases.
-5. Mirrors local files and the Directus uploads volume.
-6. Takes/restores the Elasticsearch snapshot.
-7. Runs `setup-directus` and starts the new stack on `9092`.
+3. Dumps the final Directus and Keycloak databases.
+4. Mirrors local files and the Directus uploads volume.
+5. Takes/restores the Elasticsearch snapshot.
+6. Runs `setup-directus` and starts the new stack on `9092`.
 
 The old application is not stopped.
 
