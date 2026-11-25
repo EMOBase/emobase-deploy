@@ -194,11 +194,11 @@ Then validate the prepared workspace:
 emobase --workspace <NEW_WORKSPACE> doctor
 ```
 
-`emobase doctor` compares the new `infra/.env` and `Tcas/.env` against the
-shared contract and checks ports, URLs, realms, the ES index prefix and the
-compose overlay. It is read-only; do not pass `--fix` during the migration.
-Errors block `transfer`, warnings do not. The `workspace ownership ledger not
-found` advisory is expected until `sync` in the adoption step.
+`emobase doctor` checks the new `infra/.env` and `Tcas/.env` against the shared
+contract. Expect no errors and one warning, `workspace ownership ledger not
+found`: do not run `emobase sync` or `emobase bootstrap` as it suggests, the
+migration is in progress and the ledger is written after verification, in the
+adoption step. Fix any other finding before `transfer`.
 
 The migration script does not call `emobase`; it is a checkpoint, not a
 dependency.
