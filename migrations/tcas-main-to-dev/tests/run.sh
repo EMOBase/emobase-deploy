@@ -115,7 +115,7 @@ OLD_SPECIES_DIR=$TMP/old
 NEW_WORKSPACE=$TMP/new
 BACKUP_DIR=$TMP/new/backup
 TCAS_URL=https://tcas.test
-PORTAL_URL=https://portal.test
+PORTAL_URL=https://portal.test/
 KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak
 SSL_CERT_FILE=$TMP/cert.pem
 SSL_CERT_KEY_FILE=$TMP/key.pem
@@ -259,6 +259,16 @@ contains "$init_content" "NEW_WORKSPACE=$ws_abs"
 contains "$init_content" "KEYCLOAK_PUBLIC_URL=https://tcas.init/keycloak"
 contains "$init_content" "NEW_PROJECT=tcas"
 contains "$init_out" "Next:"
+
+pass "init strips trailing slashes from URLs"
+trim_cfg="$TMP/init-trim.env"
+OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-trim" \
+  TCAS_URL="https://tcas.init//" KEYCLOAK_PUBLIC_URL="https://auth.init/keycloak/" \
+  PORTAL_URL="https://portal.init/" \
+  bash "$SCRIPT" --config "$trim_cfg" init --yes >/dev/null 2>&1
+contains "$(cat "$trim_cfg")" "TCAS_URL=https://tcas.init"
+contains "$(cat "$trim_cfg")" "KEYCLOAK_PUBLIC_URL=https://auth.init/keycloak"
+contains "$(cat "$trim_cfg")" "PORTAL_URL=https://portal.init"
 
 pass "init defaults the Tcas URL from the old .env"
 url_cfg="$TMP/init-url.env"
@@ -433,6 +443,8 @@ contains "$(cat "$envfile")" "PUBLIC_DATA_DIR=$TMP/external/tcas5"
 contains "$(cat "$envfile")" "PRIVATE_DATA_DIR=./data/private"
 contains "$(cat "$envfile")" "IMAGE_DIR=./images"
 contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test"
+contains "$(cat "$envfile")" "PORTAL_SERVER=https://portal.test"
+contains "$(cat "$envfile")" "INTERNAL_API_GENOMICS_SERVICE=https://portal.test/api/genomicsservice/v1"
 contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
 contains "$(cat "$envfile")" "INTERNAL_KEYCLOAK_ISSUER=https://tcas.test/keycloak/realms/ibb"
 contains "$(cat "$envfile")" "INTERNAL_DIRECTUS_URL=http://directus:8055"

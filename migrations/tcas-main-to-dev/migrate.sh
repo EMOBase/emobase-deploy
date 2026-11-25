@@ -126,6 +126,16 @@ valid_url() {
   [[ "$1" =~ ^https?://[^/]+ ]]
 }
 
+# init.sh treats URL keys as having no trailing slash; keep the migration output
+# identical, so paths built as "$URL/path" do not become "//path".
+trim_url() {
+  local value=$1
+  while [[ "$value" == */ ]]; do
+    value="${value%/}"
+  done
+  printf '%s' "$value"
+}
+
 valid_port() {
   [[ "$1" =~ ^[0-9]+$ ]] && (( 10#$1 >= 1 && 10#$1 <= 65535 ))
 }
@@ -284,6 +294,8 @@ load_context() {
   : "${NEW_WORKSPACE:?NEW_WORKSPACE is required}"
   : "${TCAS_URL:?TCAS_URL is required}"
   : "${PORTAL_URL:?PORTAL_URL is required}"
+  TCAS_URL=$(trim_url "$TCAS_URL")
+  PORTAL_URL=$(trim_url "$PORTAL_URL")
 
   OLD_ENV="$OLD_SPECIES_DIR/.env"
   [[ -f "$OLD_ENV" ]] || die "old .env not found: $OLD_ENV"
@@ -310,6 +322,7 @@ load_context() {
   INFRA_DIR="$NEW_WORKSPACE/infra"
   BACKUP_DIR="${BACKUP_DIR:-$NEW_WORKSPACE/backup}"
   KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL:-$TCAS_URL/keycloak}"
+  KEYCLOAK_PUBLIC_URL=$(trim_url "$KEYCLOAK_PUBLIC_URL")
   TCAS_HOST=$(python3 - "$TCAS_URL" <<'PY'
 import sys
 from urllib.parse import urlsplit
@@ -554,6 +567,9 @@ cmd_init() {
   ask KEYCLOAK_PUBLIC_URL "Final Keycloak URL" \
     "${cfg_kc:-${TCAS_URL%/}/keycloak}" valid_url "Enter an http(s) URL"
   ask PORTAL_URL "Portal URL" "$cfg_portal" valid_url "Enter an http(s) URL"
+  TCAS_URL=$(trim_url "$TCAS_URL")
+  KEYCLOAK_PUBLIC_URL=$(trim_url "$KEYCLOAK_PUBLIC_URL")
+  PORTAL_URL=$(trim_url "$PORTAL_URL")
 
   NEW_HTTP_PORT="${NEW_HTTP_PORT:-${cfg_http:-9092}}"
   NEW_ES_PORT="${NEW_ES_PORT:-${cfg_es:-9204}}"
