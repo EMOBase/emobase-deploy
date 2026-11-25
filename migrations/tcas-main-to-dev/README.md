@@ -46,8 +46,7 @@ Stop before changing anything if any of these is false.
   and `emobase-infra`) and the local copies (`data/private`, `oba/`, the
   Directus uploads volume, MySQL dumps and the Elasticsearch snapshot).
 
-- The old data paths in `.env` exist and are readable. `PUBLIC_DATA_DIR` and
-  `IMAGE_DIR` may be absolute external mounts.
+- The old data paths in `.env` exist and are readable.
 
 - Docker/Compose access is available, and Apache can be edited and reloaded.
 
