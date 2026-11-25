@@ -300,6 +300,7 @@ The old MySQL/Keycloak/ES volumes and the old `directus` database were not
 modified.
 
 Rollback remains possible until the cleanup step removes the old volumes.
+
 If you want to retry, fix the failure, run `check` again, then rerun the phase
 that failed. The script re-copies the old data during `transfer`; new
 writes made after Apache was repointed are not merged back automatically.
@@ -331,7 +332,8 @@ emobase sync
   prefix in `<NEW_WORKSPACE>/.emobase/state.json`, and registers any missing
   database or origin. It does not restart containers or rewrite `.env`.
 
-If `doctor` reports `state.unrecorded`, running `sync` resolves it. After this,
+`emobase sync` creates the ledger that the CLI check reported as missing;
+rerun `emobase doctor --live` to confirm no state warning remains. After this,
 the workspace can be managed with `emobase status`, `emobase up`, `emobase down`
 and `emobase update`.
 
