@@ -745,6 +745,7 @@ Listen 9443
 
     ProxyPreserveHost On
     RequestHeader set X-Forwarded-Proto "https"
+    LimitRequestFieldSize 16384
 
     ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
     ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
@@ -766,6 +767,7 @@ EOF
 
     ProxyPreserveHost On
     RequestHeader set X-Forwarded-Proto "https"
+    LimitRequestFieldSize 16384
 
     ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
     ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
@@ -1379,6 +1381,7 @@ Final Apache configuration (apply manually, then remove the 9443 vhost):
 
   ProxyPreserveHost On
   RequestHeader set X-Forwarded-Proto "https"
+  LimitRequestFieldSize 16384
   ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
   ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
   ProxyPass        /          http://127.0.0.1:$NEW_HTTP_PORT/
