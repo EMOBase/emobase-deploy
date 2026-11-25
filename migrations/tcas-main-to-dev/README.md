@@ -94,7 +94,7 @@ present, otherwise `Tcas`, `ibb` and `ibb-client`.
 | `TCAS_URL`                                          | Final public species URL                                                                                                       |
 | `KEYCLOAK_PUBLIC_URL`                               | Final Keycloak URL, `<TCAS_URL>/keycloak`                                                                                      |
 | `PORTAL_URL`                                        | Deployed multi-species portal                                                                                                  |
-| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE`                | Optional certificate overrides for `apache`; set before running it                                                             |
+| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE`                | Optional certificate overrides for `apache-apply.sh`                                                                           |
 | `NEW_HTTP_PORT`                                     | `9092`                                                                                                                         |
 | `NEW_ES_PORT`                                       | `9204`                                                                                                                         |
 | `NEW_PROJECT`                                       | `tcas`; must differ from the old project                                                                                       |
@@ -233,36 +233,30 @@ The old application is not stopped.
 
 ## 7. Configure Apache and verify
 
-Generate the final vhost:
-
-```bash
-./migrate.sh apache
-```
-
-Review it:
-
-```bash
-less <NEW_WORKSPACE>/apache-final.conf
-```
-
-Check the certificate/key paths. The host, port and proxy order are generated
-from `migration.env`.
-
-The generated file is one complete `<VirtualHost *:443>` block. Install it
-with the helper script, which needs root:
+Install the final vhost with the helper script, which needs root:
 
 ```bash
 sudo ./apache-apply.sh
 ```
 
-It finds the active `*:443` vhost with `apachectl -S`, keeps its first copy as
-`<file>.bak`, installs `apache-final.conf` over it, runs
-`apachectl configtest` and reloads Apache. If `configtest` fails, it restores
-the backup and does not reload, so the old site keeps running.
+It reads `migration.env`, detects the certificate, writes
+`<NEW_WORKSPACE>/apache-final.conf`, replaces the active `*:443` vhost, tests
+the configuration and reloads Apache. The first run keeps the old vhost as
+`<file>.bak`; if `configtest` fails it restores that file and does not reload,
+so the old site keeps running.
 
-- `--dry-run` prints the file it would replace, without changing anything.
-- `--file PATH` picks the vhost when `apachectl -S` finds more than one.
-- The `.bak` file is what step 8 restores if verification fails.
+Review the generated block before touching Apache:
+
+```bash
+sudo ./apache-apply.sh --dry-run
+```
+
+It prints the vhost and the file it would replace, and changes nothing.
+`SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in `migration.env` override the detected
+certificate. Use `--file PATH` when `apachectl -S` finds more than one `*:443`
+vhost.
+
+The `.bak` file is what step 8 restores if verification fails.
 
 Verify:
 
@@ -449,11 +443,10 @@ Then delete this migration folder.
   Apache rejects the request before it reaches the app. Optionally, set an
   Apache `ErrorDocument 400` page that tells users to clear site data; it
   improves the message but does not prevent the failure.
-- **`migrate.sh apache` cannot detect the certificate**: it writes placeholders.
-  Edit the generated vhost, or set `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in
-  `migration.env` and rerun `./migrate.sh apache`. `/etc/ssl/private` may be
-  root-only; an explicit key path is accepted even if the deploy user cannot
-  read it.
+- **`apache-apply.sh` cannot detect the certificate**: it writes placeholders.
+  Set `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in `migration.env` and rerun
+  `sudo ./apache-apply.sh`. Run the script as root: `/etc/ssl/private` is usually
+  readable only by root.
 - **Keycloak admin login fails after the DB copy**: the copied master realm has
   the current admin password, not the old bootstrap password. Set the current
   admin in `migration.env` and rerun the phase that updates `infra/.env`.

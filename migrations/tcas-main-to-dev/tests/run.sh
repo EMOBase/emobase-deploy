@@ -330,43 +330,6 @@ dry_out=$(OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-workspace" \
 [[ ! -e "$dry_cfg" ]] || fail "init --dry-run wrote a config"
 contains "$dry_out" "would write"
 
-pass "apache generates the final vhost with the configured certificate"
-out=$(run apache apache)
-fin="$TMP/new/apache-final.conf"
-[[ -f "$fin" ]] || fail "apache did not write the final vhost"
-contains "$(cat "$fin")" "ServerName tcas.test"
-contains "$(cat "$fin")" "SSLCertificateFile    $TMP/cert.pem"
-contains "$(cat "$fin")" "ProxyPass        /keycloak"
-contains "$(cat "$fin")" "LimitRequestFieldSize 16384"
-contains "$(cat "$fin")" "127.0.0.1:19092"
-contains "$(cat "$fin")" "<VirtualHost *:443>"
-not_contains "$(cat "$fin")" "Listen 443"
-contains "$out" "sudo ./apache-apply.sh"
-
-pass "apache accepts an explicit root-only key path"
-rootkey_cfg="$TMP/apache-rootkey.env"
-sed "s#^SSL_CERT_KEY_FILE=.*#SSL_CERT_KEY_FILE=$TMP/missing-key.pem#" \
-  "$TMP/migration.env" > "$rootkey_cfg"
-if ! out=$(bash "$SCRIPT" --config "$rootkey_cfg" apache 2>&1); then
-  printf '%s\n' "$out" >&2
-  fail "apache rejected an explicit key path"
-fi
-contains "$out" "not visible"
-contains "$(cat "$TMP/new/apache-final.conf")" "missing-key.pem"
-
-pass "apache writes placeholders when no certificate is detected"
-noplaceholder_cfg="$TMP/apache-nocert.env"
-sed -e 's#^TCAS_URL=.*#TCAS_URL=https://no-cert.invalid#' \
-    -e 's#^SSL_CERT_FILE=.*#SSL_CERT_FILE=#' \
-    -e 's#^SSL_CERT_KEY_FILE=.*#SSL_CERT_KEY_FILE=#' \
-    "$TMP/migration.env" > "$noplaceholder_cfg"
-if ! out=$(bash "$SCRIPT" --config "$noplaceholder_cfg" apache 2>&1); then
-  printf '%s\n' "$out" >&2
-  fail "apache failed to generate placeholder vhosts"
-fi
-contains "$out" "using placeholders"
-contains "$(cat "$TMP/new/apache-final.conf")" "/path/fullchain.pem"
-
 pass "check reads old environment"
 reset_mock_log
 out=$(run check check)
@@ -764,11 +727,13 @@ contains "$out" "--restore"
 
 mkdir -p "$TMP/apache"
 printf 'old vhost\n' > "$TMP/apache/https-test.conf"
-printf '<VirtualHost *:443>\n  ServerName tcas.test\n</VirtualHost>\n' \
-  > "$TMP/apache/final.conf"
-
-pass "apache-apply --dry-run finds the 443 vhost and changes nothing"
-out=$(bash "$APACHE_APPLY" --dry-run --final "$TMP/apache/final.conf")
+pass "apache-apply --dry-run generates the vhost and changes nothing"
+out=$(bash "$APACHE_APPLY" --dry-run --config "$TMP/migration.env")
+contains "$out" "<VirtualHost *:443>"
+contains "$out" "ServerName tcas.test"
+contains "$out" "SSLCertificateFile    $TMP/cert.pem"
+contains "$out" "LimitRequestFieldSize 16384"
+contains "$out" "127.0.0.1:19092"
 contains "$out" "apache/https-test.conf"
 contains "$out" "apache/https-test.conf.bak"
 contains "$out" "install -m 0644"
@@ -777,20 +742,39 @@ contains "$out" "systemctl reload apache2"
   || fail "apache-apply dry-run changed the vhost"
 [[ ! -e "$TMP/apache/https-test.conf.bak" ]] \
   || fail "apache-apply dry-run wrote a backup"
+[[ ! -e "$TMP/new/apache-final.conf" ]] \
+  || fail "apache-apply dry-run wrote apache-final.conf"
+
+pass "apache-apply accepts an explicit root-only key path"
+rootkey_cfg="$TMP/apache-rootkey.env"
+sed "s#^SSL_CERT_KEY_FILE=.*#SSL_CERT_KEY_FILE=$TMP/missing-key.pem#" \
+  "$TMP/migration.env" > "$rootkey_cfg"
+out=$(bash "$APACHE_APPLY" --dry-run --config "$rootkey_cfg" 2>&1)
+contains "$out" "not visible"
+contains "$out" "missing-key.pem"
+
+pass "apache-apply writes placeholders when no certificate is detected"
+noplaceholder_cfg="$TMP/apache-nocert.env"
+sed -e 's#^TCAS_URL=.*#TCAS_URL=https://no-cert.invalid#' \
+    "$TMP/migration.env" \
+  | grep -v -E '^SSL_CERT_(FILE|KEY_FILE)=' > "$noplaceholder_cfg"
+out=$(bash "$APACHE_APPLY" --dry-run --config "$noplaceholder_cfg" 2>&1)
+contains "$out" "using placeholders"
+contains "$out" "/path/fullchain.pem"
 
 pass "apache-apply refuses more than one 443 vhost"
 if out=$(MOCK_VHOST_MULTI=1 bash "$APACHE_APPLY" --dry-run \
-  --final "$TMP/apache/final.conf" 2>&1); then
+  --config "$TMP/migration.env" 2>&1); then
   fail "apache-apply accepted two 443 vhosts"
 fi
 contains "$out" "more than one *:443 vhost"
 
-pass "apache-apply needs the generated vhost"
+pass "apache-apply needs migration.env"
 if out=$(bash "$APACHE_APPLY" --dry-run \
-  --final "$TMP/apache/missing.conf" 2>&1); then
-  fail "apache-apply accepted a missing vhost"
+  --config "$TMP/apache/missing.env" 2>&1); then
+  fail "apache-apply accepted a missing config"
 fi
-contains "$out" "run ./migrate.sh apache first"
+contains "$out" "missing.env not found"
 
 pass "apache-apply --restore needs a backup"
 if out=$(bash "$APACHE_APPLY" --restore --file "$TMP/apache/https-test.conf" 2>&1); then
@@ -800,10 +784,12 @@ contains "$out" "no backup at"
 
 if (( EUID != 0 )); then
   pass "apache-apply refuses to write without root"
-  if out=$(bash "$APACHE_APPLY" --final "$TMP/apache/final.conf" 2>&1); then
+  if out=$(bash "$APACHE_APPLY" --config "$TMP/migration.env" 2>&1); then
     fail "apache-apply wrote without root"
   fi
   contains "$out" "run it with sudo"
+  [[ ! -e "$TMP/new/apache-final.conf" ]] \
+    || fail "apache-apply wrote apache-final.conf without root"
 fi
 
 pass "all tests passed"

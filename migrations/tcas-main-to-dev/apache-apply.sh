@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
-# Install or restore the final *:443 vhost for the Tcas migration.
+# Generate and install the final *:443 vhost for the Tcas migration.
 # Run it as root: sudo ./apache-apply.sh
 #
-# It finds the vhost that currently serves 443, keeps the first copy as
+# It reads migration.env, detects the certificate, writes apache-final.conf,
+# finds the vhost that currently serves 443, keeps its first copy as
 # <file>.bak, installs the generated block, tests the configuration and only
 # then reloads Apache. A failing configtest restores the backup.
 
@@ -11,28 +12,38 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG="${MIGRATION_CONFIG:-$SCRIPT_DIR/migration.env}"
-FINAL=
 TARGET=
 RESTORE=0
 DRY_RUN=0
+
+TCAS_URL=
+TCAS_HOST=
+NEW_WORKSPACE=
+NEW_HTTP_PORT=9092
+SSL_CERT_FILE=
+SSL_CERT_KEY_FILE=
+FINAL=
 
 usage() {
   cat <<'EOF'
 Usage: sudo ./apache-apply.sh [options]
 
-Install <NEW_WORKSPACE>/apache-final.conf as the active *:443 vhost:
+Generate <NEW_WORKSPACE>/apache-final.conf from migration.env and install it
+as the active *:443 vhost:
 
-  1. find the vhost with `apachectl -S`
-  2. save its first copy as <file>.bak
-  3. install the generated block
-  4. run `apachectl configtest`; on failure restore the backup
-  5. `systemctl reload apache2`
+  1. read migration.env and detect the certificate
+  2. write apache-final.conf
+  3. find the vhost with `apachectl -S`
+  4. save its first copy as <file>.bak
+  5. install the generated block
+  6. run `apachectl configtest`; on failure restore the backup
+  7. `systemctl reload apache2`
 
 Options:
-  --final FILE   vhost to install (default: apache-final.conf in NEW_WORKSPACE)
+  --config FILE  use FILE instead of migration.env
   --file FILE    *:443 vhost to replace (default: detected with apachectl -S)
   --restore      copy <file>.bak back and reload Apache
-  --dry-run      print the plan; needs no root and changes nothing
+  --dry-run      print the vhost and the plan; needs no root, changes nothing
   -h, --help     show this help
 EOF
 }
@@ -43,7 +54,7 @@ warn() { printf 'WARN: %s\n' "$*" >&2; }
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --final) FINAL=$2; shift 2 ;;
+    --config) CONFIG=$2; shift 2 ;;
     --file) TARGET=$2; shift 2 ;;
     --restore) RESTORE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -51,6 +62,11 @@ while [[ $# -gt 0 ]]; do
     *) die "unknown option: $1 (see --help)" ;;
   esac
 done
+
+# Read one value; do not source a user-owned file as root.
+cfg() {
+  grep -E "^$1=" "$CONFIG" 2>/dev/null | tail -n1 | cut -d= -f2- || true
+}
 
 resolve() {
   local path=$1 resolved
@@ -76,12 +92,95 @@ detect_target() {
   printf '%s\n' "$files"
 }
 
-if [[ -z "$TARGET" ]]; then
-  TARGET=$(detect_target)
-fi
-TARGET=$(resolve "$TARGET")
+load_config() {
+  [[ -f "$CONFIG" ]] || die "$CONFIG not found; pass --config FILE"
+  TCAS_URL=$(cfg TCAS_URL)
+  NEW_WORKSPACE=$(cfg NEW_WORKSPACE)
+  NEW_HTTP_PORT=$(cfg NEW_HTTP_PORT)
+  SSL_CERT_FILE=$(cfg SSL_CERT_FILE)
+  SSL_CERT_KEY_FILE=$(cfg SSL_CERT_KEY_FILE)
+  [[ -n "$TCAS_URL" ]] || die "$CONFIG has no TCAS_URL"
+  [[ -n "$NEW_WORKSPACE" ]] || die "$CONFIG has no NEW_WORKSPACE"
+  NEW_HTTP_PORT=${NEW_HTTP_PORT:-9092}
+  TCAS_HOST=$(printf '%s' "$TCAS_URL" | sed -E 's#^[A-Za-z]+://([^/:]+).*#\1#')
+  [[ -n "$TCAS_HOST" ]] || die "could not parse a host from $TCAS_URL"
+  FINAL="$NEW_WORKSPACE/apache-final.conf"
+}
+
+detect_cert_pair() {
+  local cert="${SSL_CERT_FILE:-}" key="${SSL_CERT_KEY_FILE:-}"
+  if [[ -z "$cert" && -z "$key" ]]; then
+    if [[ -f "/etc/letsencrypt/live/$TCAS_HOST/fullchain.pem" \
+       && -f "/etc/letsencrypt/live/$TCAS_HOST/privkey.pem" ]]; then
+      cert="/etc/letsencrypt/live/$TCAS_HOST/fullchain.pem"
+      key="/etc/letsencrypt/live/$TCAS_HOST/privkey.pem"
+    else
+      local candidate base nullglob
+      nullglob=$(shopt -p nullglob || true)
+      shopt -s nullglob
+      for candidate in "/etc/ssl/certs/${TCAS_HOST}.pem" \
+                       "/etc/ssl/certs/${TCAS_HOST}"+*.pem; do
+        base=$(basename "$candidate" .pem)
+        if [[ -f "/etc/ssl/private/${base}-key.pem" ]]; then
+          cert=$candidate
+          key="/etc/ssl/private/${base}-key.pem"
+          break
+        fi
+      done
+      eval "$nullglob"
+    fi
+  fi
+  if [[ -z "$cert" || -z "$key" ]]; then
+    warn "could not detect a TLS certificate for $TCAS_HOST; using placeholders"
+    SSL_CERT_FILE="${cert:-/path/fullchain.pem}"
+    SSL_CERT_KEY_FILE="${key:-/path/privkey.pem}"
+    return 0
+  fi
+  if [[ ! -e "$cert" ]]; then
+    warn "certificate not found: $cert"
+  elif [[ ! -f "$cert" ]]; then
+    warn "certificate is not a file: $cert"
+  fi
+  if [[ ! -e "$key" ]]; then
+    if [[ -n "${SSL_CERT_KEY_FILE:-}" ]]; then
+      warn "private key is not visible to this user; using the configured path: $key"
+    else
+      warn "private key not found: $key"
+    fi
+  elif [[ ! -f "$key" ]]; then
+    warn "private key is not a file: $key"
+  fi
+  SSL_CERT_FILE=$cert
+  SSL_CERT_KEY_FILE=$key
+}
+
+render_vhost() {
+  cat <<EOF
+# Generated by ./apache-apply.sh for $TCAS_HOST.
+# Final 443 vhost; 443 is already in ports.conf.
+<VirtualHost *:443>
+    ServerName $TCAS_HOST
+
+    SSLEngine on
+    SSLCertificateFile    $SSL_CERT_FILE
+    SSLCertificateKeyFile $SSL_CERT_KEY_FILE
+
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "https"
+    LimitRequestFieldSize 16384
+
+    ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
+    ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
+
+    ProxyPass        /  http://127.0.0.1:$NEW_HTTP_PORT/
+    ProxyPassReverse /  http://127.0.0.1:$NEW_HTTP_PORT/
+</VirtualHost>
+EOF
+}
 
 if (( RESTORE )); then
+  if [[ -z "$TARGET" ]]; then TARGET=$(detect_target); fi
+  TARGET=$(resolve "$TARGET")
   BACKUP="$TARGET.bak"
   [[ -f "$BACKUP" ]] || die "no backup at $BACKUP"
   if (( DRY_RUN )); then
@@ -100,34 +199,32 @@ if (( RESTORE )); then
   exit 0
 fi
 
-if [[ -z "$FINAL" ]]; then
-  [[ -f "$CONFIG" ]] \
-    || die "$CONFIG not found; pass --final FILE"
-  # Read the one value instead of sourcing a user-owned file as root.
-  NEW_WORKSPACE=$(grep -E '^NEW_WORKSPACE=' "$CONFIG" | tail -n1 | cut -d= -f2-)
-  [[ -n "$NEW_WORKSPACE" ]] \
-    || die "$CONFIG has no NEW_WORKSPACE; pass --final FILE"
-  FINAL="$NEW_WORKSPACE/apache-final.conf"
-fi
+load_config
+detect_cert_pair
+VHOST=$(render_vhost)
 
-[[ -f "$FINAL" ]] \
-  || die "$FINAL not found; run ./migrate.sh apache first"
-grep -q '<VirtualHost \*:443>' "$FINAL" \
-  || die "$FINAL has no <VirtualHost *:443> block"
+if [[ -z "$TARGET" ]]; then TARGET=$(detect_target); fi
+TARGET=$(resolve "$TARGET")
 [[ -f "$TARGET" ]] || die "vhost not found: $TARGET"
-
 BACKUP="$TARGET.bak"
 
 if (( DRY_RUN )); then
-  log "vhost:  $TARGET"
-  log "final:  $FINAL"
-  log "backup: $BACKUP"
-  printf '\nWould run:\n  install -m 0644 %q %q\n  apachectl configtest\n  systemctl reload apache2\n' \
-    "$FINAL" "$TARGET"
+  log "vhost:   $TARGET"
+  log "final:   $FINAL"
+  log "backup:  $BACKUP"
+  log "cert:    $SSL_CERT_FILE"
+  log "key:     $SSL_CERT_KEY_FILE"
+  printf '\nWould write %s:\n\n%s\n\nWould run:\n  install -m 0644 %q %q\n  apachectl configtest\n  systemctl reload apache2\n' \
+    "$FINAL" "$VHOST" "$FINAL" "$TARGET"
   exit 0
 fi
 
 (( EUID == 0 )) || die "this script edits Apache configuration; run it with sudo"
+
+mkdir -p "$NEW_WORKSPACE"
+printf '%s\n' "$VHOST" > "$FINAL"
+chmod 644 "$FINAL"
+log "wrote $FINAL"
 
 if [[ -f "$BACKUP" ]]; then
   log "keeping existing backup: $BACKUP"
