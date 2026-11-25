@@ -91,8 +91,8 @@ present, otherwise `Tcas`, `ibb` and `ibb-client`.
 | `NEW_WORKSPACE` | New parent directory for `Tcas/` and `infra/` |
 | `BACKUP_DIR` | Backups and phase dumps; outside both checkouts |
 | `TCAS_URL` | Final public species URL |
-| `PORTAL_URL` | Deployed multi-species portal |
 | `KEYCLOAK_PUBLIC_URL` | Final Keycloak URL, `<TCAS_URL>/keycloak` |
+| `PORTAL_URL` | Deployed multi-species portal |
 | `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE` | Optional certificate overrides for `apache`; set before running it |
 | `NEW_HTTP_PORT` | `9092` |
 | `NEW_ES_PORT` | `9204` |

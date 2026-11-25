@@ -548,9 +548,9 @@ cmd_init() {
 
   ask TCAS_URL "Final Tcas URL" "${cfg_tcas:-$old_public}" valid_url \
     "Enter an http(s) URL"
-  ask PORTAL_URL "Portal URL" "$cfg_portal" valid_url "Enter an http(s) URL"
   ask KEYCLOAK_PUBLIC_URL "Final Keycloak URL" \
     "${cfg_kc:-${TCAS_URL%/}/keycloak}" valid_url "Enter an http(s) URL"
+  ask PORTAL_URL "Portal URL" "$cfg_portal" valid_url "Enter an http(s) URL"
 
   ask NEW_HTTP_PORT "New species HTTP port" "${cfg_http:-9092}" valid_port \
     "Enter a port from 1 to 65535"
