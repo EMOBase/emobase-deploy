@@ -427,6 +427,13 @@ Then delete this migration folder.
   Set `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in `migration.env` and rerun
   `sudo ./apache-apply.sh`. Run the script as root: `/etc/ssl/private` is usually
   readable only by root.
+- **Login ends at `/api/auth/error?error=Configuration`, and the `fe` log shows
+  `UNABLE_TO_VERIFY_LEAF_SIGNATURE` or `ENOTFOUND`**: the app container could not
+  call the server-side Keycloak issuer. `prepare` writes
+  `INTERNAL_KEYCLOAK_ISSUER=http://host.docker.internal:8181/keycloak/realms/<realm>`,
+  so server-side OIDC avoids the public proxy and its certificate. If it was
+  changed to the public URL, set it back and run
+  `cd <NEW_WORKSPACE>/Tcas && docker compose up -d fe`.
 - **Keycloak admin login fails after the DB copy**: the copied master realm has
   the current admin password, not the old bootstrap password. Set the current
   admin in `migration.env` and rerun the phase that updates `infra/.env`.

@@ -912,11 +912,16 @@ start_infra() {
 
 write_new_env() {
   local env_file="$NEW_SPECIES_DIR/.env"
+  # Server-side OIDC calls stay inside the host. Using the public URL would make
+  # the app container verify the proxy certificate and resolve the public name,
+  # which fails on private CAs and host-only names such as *.test.
+  local internal_issuer="http://host.docker.internal:8181/keycloak/realms/$REALM"
   if [[ -f "$env_file" && $FORCE -eq 0 ]]; then
     log "using existing new .env: $env_file"
     set_env "$env_file" PUBLIC_SERVER "$TCAS_URL"
     set_env "$env_file" PUBLIC_HOST "$TCAS_HOST"
     set_env "$env_file" KEYCLOAK_PUBLIC_URL "$KEYCLOAK_PUBLIC_URL"
+    set_env "$env_file" INTERNAL_KEYCLOAK_ISSUER "$internal_issuer"
     return
   fi
   if [[ -f "$env_file" ]]; then
@@ -936,15 +941,6 @@ write_new_env() {
   local image_dir="${NEW_IMAGE_DIR:-./images}"
   local uid="${OLD_UID:-1001}"
   local gid="${OLD_GID:-1001}"
-
-  # Same rule as emobase-deploy/init.sh: a loopback public URL is not reachable
-  # from the containers, so use the host gateway for the server-side issuer.
-  local internal_kc
-  if [[ "$KEYCLOAK_PUBLIC_URL" =~ ^https?://(localhost|127\.0\.0\.1)([:/]|$) ]]; then
-    internal_kc="http://host.docker.internal:8181/keycloak/realms/$REALM"
-  else
-    internal_kc="${KEYCLOAK_PUBLIC_URL%/}/realms/$REALM"
-  fi
 
   if (( DRY_RUN )); then
     log "would write $env_file"
@@ -980,7 +976,7 @@ EMOBASE_ES_INDEX_PREFIX=$NEW_ES_PREFIX
 
 KEYCLOAK_PUBLIC_URL=$KEYCLOAK_PUBLIC_URL
 KEYCLOAK_INTERNAL_URL=http://keycloak:8080/keycloak
-INTERNAL_KEYCLOAK_ISSUER=$internal_kc
+INTERNAL_KEYCLOAK_ISSUER=$internal_issuer
 INTERNAL_DIRECTUS_URL=http://directus:8055
 KEYCLOAK_REALM=$REALM
 KEYCLOAK_REALM_MODE=dedicated
