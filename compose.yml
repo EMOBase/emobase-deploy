@@ -36,10 +36,13 @@ services:
     image: nginx:1.19
     restart: always
     ports:
-      - ${HTTP_PORT:-80}:80
+      # Apache (or another local proxy) is the only client. A direct LAN path
+      # to this port would bypass TLS, X-Forwarded-Proto and host enforcement.
+      - "127.0.0.1:${HTTP_PORT:-80}:80"
     environment:
       # Substituted into nginx.conf.template by the image entrypoint.
       - PORTAL_INTERNAL_URL=${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}
+      - "PUBLIC_HOST=${PUBLIC_HOST:?PUBLIC_HOST is missing; set it to the hostname of PUBLIC_SERVER in .env}"
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
     extra_hosts:
       - "host.docker.internal:host-gateway"

@@ -19,7 +19,17 @@ http {
   proxy_buffers 4 256k;
   proxy_busy_buffers_size 256k;
 
+  # Only the configured public hostname is served. The web image trusts the
+  # proxy for the request origin, so any other Host must not reach it.
   server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
+  }
+
+  server {
+    listen 80;
+    server_name ${PUBLIC_HOST};
 
     # This is the internal docker dns server, cache for 30 seconds
     resolver 127.0.0.11 valid=30s;
@@ -39,6 +49,9 @@ http {
 
       # Needed for keycloak authentication, don't know why
       proxy_set_header Host $http_host;
+      # Astro prefers X-Forwarded-Host over Host. Pin it to the name nginx
+      # accepted so a client-supplied header cannot set the app's origin.
+      proxy_set_header X-Forwarded-Host $host;
       # Astro only trusts the public scheme when this is forwarded.
       proxy_set_header X-Forwarded-Proto $forwarded_proto;
     }
@@ -60,6 +73,7 @@ http {
       set $upstream http://fe:8080;
       proxy_pass $upstream;
       proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-Host $host;
       proxy_set_header X-Forwarded-Proto $forwarded_proto;
     }
 
