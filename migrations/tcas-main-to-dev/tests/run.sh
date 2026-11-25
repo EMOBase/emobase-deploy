@@ -183,6 +183,13 @@ if [[ "${1:-}" == "compose" ]]; then
       printf '%s\n' "${MOCK_KEYCLOAK_EXTRA_REALMS:-0}"
       exit 0
       ;;
+    *" exec "*"mysql"*)
+      if [[ -n "${MOCK_MYSQL_DENIED:-}" ]]; then
+        printf 'ERROR 1045 (28000): Access denied for user '\''root'\''\n' >&2
+        exit 1
+      fi
+      exit 0
+      ;;
     *" exec "*|*" run "*)
       exit 0
       ;;
@@ -482,35 +489,44 @@ if out=$(MOCK_KEYCLOAK_EXTRA_REALMS=1 bash "$SCRIPT" --config "$TMP/migration.en
 fi
 contains "$out" "refusing to replace its database"
 
-pass "infra init runs in the infra checkout"
+pass "prepare writes infra/.env from the old secrets"
 mkdir -p "$TMP/new-init/Tcas/.git" \
          "$TMP/new-init/infra/.git" \
-         "$TMP/new-init/infra/scripts" \
          "$TMP/new-init/backup"
 cp "$TMP/new/Tcas/compose.yml" "$TMP/new-init/Tcas/compose.yml"
 cp "$TMP/new/Tcas/compose.tcas.yml" "$TMP/new-init/Tcas/compose.tcas.yml"
-cp "$TMP/new/infra/scripts/allow-origin.sh" "$TMP/new-init/infra/scripts/allow-origin.sh"
-chmod +x "$TMP/new-init/infra/scripts/allow-origin.sh"
-cat > "$TMP/new-init/infra/init.sh" <<'EOF'
-#!/usr/bin/env bash
-cat > .env <<ENV
-MYSQL_ROOT_PASSWORD=infra-pass
-KEYCLOAK_ADMIN=admin
-KEYCLOAK_ADMIN_PASSWORD=infra-admin
-ELASTICSEARCH_HOST_PORT=19204
-KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak
-ENV
-EOF
-chmod +x "$TMP/new-init/infra/init.sh"
 sed -e "s#^NEW_WORKSPACE=.*#NEW_WORKSPACE=$TMP/new-init#" \
     -e "s#^BACKUP_DIR=.*#BACKUP_DIR=$TMP/new-init/backup#" \
     "$TMP/migration.env" > "$TMP/migration-init.env"
 if ! out=$(cd "$TMP" && bash "$SCRIPT" --config "$TMP/migration-init.env" --yes prepare 2>&1); then
   printf '%s\n' "$out" >&2
-  fail "prepare failed when infra init was needed"
+  fail "prepare failed when the infra .env was missing"
 fi
-[[ -f "$TMP/new-init/infra/.env" ]] || fail "infra init did not write .env in infra"
-[[ ! -e "$TMP/.env" ]] || fail "infra init wrote .env in the working directory"
+init_env="$TMP/new-init/infra/.env"
+[[ -f "$init_env" ]] || fail "prepare did not write infra/.env"
+contains "$(cat "$init_env")" "MYSQL_ROOT_PASSWORD=old-mysql-password"
+contains "$(cat "$init_env")" "KEYCLOAK_ADMIN=admin"
+contains "$(cat "$init_env")" "KEYCLOAK_ADMIN_PASSWORD=old-admin-password"
+contains "$(cat "$init_env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
+contains "$(cat "$init_env")" "ELASTICSEARCH_HOST_PORT=19204"
+contains "$(cat "$init_env")" "EMOBASE_INFRA_NETWORK=emobase-infra"
+contains "$(cat "$TMP/new-init/Tcas/.env")" "MYSQL_ROOT_PASSWORD=old-mysql-password"
+[[ ! -e "$TMP/.env" ]] || fail "prepare wrote .env in the working directory"
+
+pass "prepare keeps an existing infra password"
+out=$(run "prepare rerun" --yes prepare)
+contains "$(cat "$TMP/new/infra/.env")" "MYSQL_ROOT_PASSWORD=new-infra-mysql-password"
+
+pass "transfer stops when the infra MySQL password does not match the volume"
+reset_mock_log
+if out=$(MOCK_MYSQL_DENIED=1 bash "$SCRIPT" --config "$TMP/migration.env" --yes transfer 2>&1); then
+  fail "transfer continued with an unusable infra MySQL password"
+fi
+contains "$out" "initialized with a different root password"
+contains "$out" "emobase-infra_mysql-data"
+if grep -Fq "compose stop" "$MOCK_LOG"; then
+  fail "transfer stopped the new species stack before checking MySQL"
+fi
 
 # ---------------------------------------------------------------- mount mode
 mkdir -p "$TMP/new-mount/Tcas/.git" \

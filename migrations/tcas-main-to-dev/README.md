@@ -164,8 +164,9 @@ This phase neither copies data nor starts a container. It only prepares the
 checkouts and configuration:
 
 1. Clones `emobase-deploy` (if needed) and `emobase-infra`.
-2. Writes `infra/.env` with the secrets, the final Keycloak URL and the ES
-   port. It does not start the stack.
+2. Writes `infra/.env` with the old MySQL root and Keycloak admin secrets, the
+   final Keycloak URL and the ES port. It does not run the infra `init.sh` and
+   does not start the stack; an existing `infra/.env` keeps its password.
 3. Writes the new species `.env` with the final `TCAS_URL` and
    `KEYCLOAK_PUBLIC_URL`.
 4. Writes the image media override if needed.
@@ -219,7 +220,8 @@ carried over; announce that users should resubmit anything important.
 It:
 
 1. Ensures the old MySQL/Keycloak/ES are running.
-2. Starts the new infra and waits for it to be healthy.
+2. Starts the new infra: MySQL first, verifies the root login, then Keycloak
+   and Elasticsearch.
 3. Stops the new species stack from an earlier attempt.
 4. Dumps the final Directus and Keycloak databases.
 5. Mirrors local files and the Directus uploads volume.
@@ -405,6 +407,14 @@ Then delete this migration folder.
   (default `9090`) and `9202`; the new stack uses `9092`/`9204`. Stop the
   conflicting process or change `NEW_HTTP_PORT` / `NEW_ES_PORT` and the Apache
   examples.
+- **Keycloak cannot start, `Access denied for user 'root'`**: the infra MySQL
+  volume was initialized with a different password than `infra/.env`.
+  `mysqladmin ping` still reports MySQL as healthy. Before `transfer` the new
+  infra has no data, so recreate the volume:
+  ```bash
+  cd <NEW_WORKSPACE>/infra && docker compose down
+  docker volume rm emobase-infra_mysql-data
+  ```
 - **`check` fails on `9092` or `9204`**: an earlier attempt left the new
   species or infra stack running. Stop it while keeping volumes, then rerun the
   phase:

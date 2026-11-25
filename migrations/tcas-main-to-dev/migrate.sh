@@ -675,7 +675,7 @@ PY
   printf '\nNext:\n  ./migrate.sh check\n'
   if (( admin_note )); then
     printf '\nThe old .env has no KEYCLOAK_ADMIN. Set OLD_KEYCLOAK_ADMIN and\n'
-    printf 'OLD_KEYCLOAK_ADMIN_PASSWORD in %s if needed.\n' "$CONFIG"
+    printf 'OLD_KEYCLOAK_ADMIN_PASSWORD in %s before prepare.\n' "$CONFIG"
   fi
 }
 
@@ -861,7 +861,7 @@ cmd_check() {
   esac
 
   [[ -n "$OLD_KEYCLOAK_ADMIN" && -n "$OLD_KEYCLOAK_ADMIN_PASSWORD" ]] || warn \
-    "no Keycloak admin credentials; prepare will stop before adding origins"
+    "no Keycloak admin credentials; prepare will stop"
 
   log "checking new ports"
   local p
@@ -925,29 +925,63 @@ clone_repos() {
   fi
 }
 
-init_infra() {
+write_infra_env() {
+  local env_file="$INFRA_DIR/.env"
+  require_admin
+  [[ -n "$OLD_MYSQL_PASSWORD" ]] || die "old .env has no MYSQL_ROOT_PASSWORD"
+
   if (( DRY_RUN )); then
-    log "would init infra with ELASTICSEARCH_HOST_PORT=$NEW_ES_PORT"
-    NEW_INFRA_MYSQL_PASSWORD="dry-run"
+    log "would write $env_file with the old MySQL and Keycloak admin secrets"
+    NEW_INFRA_MYSQL_PASSWORD="$OLD_MYSQL_PASSWORD"
     return
   fi
-  if [[ ! -f "$INFRA_DIR/.env" ]]; then
-    run_in "$INFRA_DIR" bash init.sh -y \
-      --keycloak-public-url "$KEYCLOAK_PUBLIC_URL" \
-      --elasticsearch-host-port "$NEW_ES_PORT"
-    [[ -f "$INFRA_DIR/.env" ]] \
-      || die "infra init did not write $INFRA_DIR/.env"
+
+  if [[ -f "$env_file" ]]; then
+    # The volume was initialized from this file; never change its password.
+    log "using existing infra .env: $env_file"
+    set_env "$env_file" ELASTICSEARCH_HOST_PORT "$NEW_ES_PORT"
+    set_env "$env_file" KEYCLOAK_PUBLIC_URL "$KEYCLOAK_PUBLIC_URL"
+    set_env "$env_file" KEYCLOAK_INTERNAL_URL "http://keycloak:8080/keycloak"
+    set_env "$env_file" EMOBASE_INFRA_NETWORK "emobase-infra"
   else
-    log "using existing infra .env"
-    set_env "$INFRA_DIR/.env" ELASTICSEARCH_HOST_PORT "$NEW_ES_PORT"
-    set_env "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL "$KEYCLOAK_PUBLIC_URL"
+    umask 077
+    cat > "$env_file" <<EOF
+# Written by ./migrate.sh prepare for $TCAS_URL.
+# The new infrastructure keeps the old deployment's secrets.
+
+KEYCLOAK_PUBLIC_URL=$KEYCLOAK_PUBLIC_URL
+KEYCLOAK_INTERNAL_URL=http://keycloak:8080/keycloak
+KEYCLOAK_HOST_PORT=8181
+EMOBASE_INFRA_NETWORK=emobase-infra
+ELASTICSEARCH_HOST_PORT=$NEW_ES_PORT
+
+MYSQL_ROOT_PASSWORD=$OLD_MYSQL_PASSWORD
+KEYCLOAK_ADMIN=$OLD_KEYCLOAK_ADMIN
+KEYCLOAK_ADMIN_PASSWORD=$OLD_KEYCLOAK_ADMIN_PASSWORD
+
+KEYCLOAK_JAVA_OPTS="-Xms256m -Xmx768m"
+ELASTICSEARCH_JAVA_OPTS="-Xms512m -Xmx512m"
+ELASTICSEARCH_MEM_LIMIT=1g
+EOF
+    chmod 600 "$env_file"
+    log "wrote $env_file"
   fi
 
-  NEW_INFRA_MYSQL_PASSWORD=$(env_get "$INFRA_DIR/.env" MYSQL_ROOT_PASSWORD || true)
+  NEW_INFRA_MYSQL_PASSWORD=$(env_get "$env_file" MYSQL_ROOT_PASSWORD || true)
   [[ -n "$NEW_INFRA_MYSQL_PASSWORD" ]] || die "infra .env has no MYSQL_ROOT_PASSWORD"
 }
 
+verify_infra_mysql() {
+  (( DRY_RUN )) && return 0
+  infra_mysql_exec "SELECT 1" >/dev/null 2>&1 || die \
+    "the infra MySQL volume was initialized with a different root password. The new infra has no data yet: cd $INFRA_DIR && docker compose down && docker volume rm emobase-infra_mysql-data"
+}
+
 start_infra() {
+  # Start MySQL alone so a volume that does not match infra/.env fails here,
+  # instead of surfacing as an unhealthy Keycloak.
+  run_in "$INFRA_DIR" docker compose up -d --wait mysql
+  verify_infra_mysql
   run_in "$INFRA_DIR" docker compose up -d --wait
 }
 
@@ -1256,7 +1290,7 @@ cmd_prepare() {
   cmd_check
   run mkdir -p "$BACKUP_DIR"
   clone_repos
-  init_infra
+  write_infra_env
   write_new_env
   write_media_override
   log "prepare complete"
