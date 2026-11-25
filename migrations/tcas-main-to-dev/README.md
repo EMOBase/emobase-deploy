@@ -120,7 +120,7 @@ export must be mounted read-write for the new stack.
 `IMAGE_MODE=copy` is the fallback when the image source is read-only; it
 materializes the images into the new `./images`.
 
-## 3. Validate without changing anything
+## 3. Preflight check
 
 ```bash
 ./migrate.sh check
@@ -175,7 +175,7 @@ After `prepare`:
 - The old site is still serving on 443.
 - Nothing new is running; no data has been copied.
 
-## 5. Install the CLI and validate the workspace
+## 5. Install the CLI and check the new configuration
 
 `emobase` is the cross-repository control point for EMOBase. It checks the
 configuration shared between `infra/` and `Tcas/`, and later records what
