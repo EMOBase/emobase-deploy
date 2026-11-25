@@ -237,7 +237,23 @@ the `/` catch-all.
    `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in `migration.env`. The files follow
    `apache-migration.conf.example` and `apache-final.conf.example`.
 
-2. Install the migration vhost and reload Apache:
+2. Review the generated files before copying:
+
+   ```bash
+   less <NEW_WORKSPACE>/apache-migration.conf
+   less <NEW_WORKSPACE>/apache-final.conf
+   ```
+
+   Check `ServerName`, the certificate paths, `Listen 9443` / `*:443`, and that
+   `/keycloak` comes before `/`. To check only the key lines:
+
+   ```bash
+   grep -nE 'ServerName|SSLCertificate|Listen|ProxyPass' \
+     <NEW_WORKSPACE>/apache-migration.conf \
+     <NEW_WORKSPACE>/apache-final.conf
+   ```
+
+3. Install the migration vhost and reload Apache:
 
    ```bash
    cp <NEW_WORKSPACE>/apache-migration.conf \
@@ -247,7 +263,7 @@ the `/` catch-all.
    systemctl reload apache2
    ```
 
-3. Open `https://<TCAS_HOST>:9443` and verify:
+4. Open `https://<TCAS_HOST>:9443` and verify:
    - one real user signs in with the old password
    - the new site loads and Directus content/uploads from the initial copy are
      present
