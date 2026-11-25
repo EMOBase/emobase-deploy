@@ -958,6 +958,15 @@ write_new_env() {
   local uid="${OLD_UID:-1001}"
   local gid="${OLD_GID:-1001}"
 
+  # Same rule as emobase-deploy/init.sh: a loopback public URL is not reachable
+  # from the containers, so use the host gateway for the server-side issuer.
+  local internal_kc
+  if [[ "$KEYCLOAK_PUBLIC_URL" =~ ^https?://(localhost|127\.0\.0\.1)([:/]|$) ]]; then
+    internal_kc="http://host.docker.internal:8181/keycloak/realms/$REALM"
+  else
+    internal_kc="${KEYCLOAK_PUBLIC_URL%/}/realms/$REALM"
+  fi
+
   if (( DRY_RUN )); then
     log "would write $env_file"
     return
@@ -991,6 +1000,8 @@ EMOBASE_ES_INDEX_PREFIX=$NEW_ES_PREFIX
 
 KEYCLOAK_PUBLIC_URL=$KEYCLOAK_PUBLIC_URL
 KEYCLOAK_INTERNAL_URL=http://keycloak:8080/keycloak
+INTERNAL_KEYCLOAK_ISSUER=$internal_kc
+INTERNAL_DIRECTUS_URL=http://directus:8055
 KEYCLOAK_REALM=$REALM
 KEYCLOAK_REALM_MODE=dedicated
 KEYCLOAK_CLIENT_ID=$CLIENT_ID
@@ -1236,8 +1247,9 @@ The new checkouts and configuration are ready. Nothing has been started and no
 data has been copied. The old site is still live.
 
 Next:
-  Run: ./migrate.sh transfer in the announced window; it starts the new infra
-  and copies all data once.
+  1. Validate the workspace: cd $NEW_WORKSPACE && emobase doctor
+  2. Run: ./migrate.sh transfer in the announced window; it starts the new infra
+     and copies all data once.
 
 Final URL:       $TCAS_URL
 EOF

@@ -70,6 +70,22 @@ cd Tcas/migrations/tcas-main-to-dev
 The script runs from this checkout. It reads the old checkout from
 `OLD_SPECIES_DIR` and clones `emobase-infra` itself.
 
+### Install `emobase-cli`
+
+`prepare` is validated with `emobase doctor` before any data is copied, and
+section 8 adopts the workspace with the same tool. Install it once, now:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/EMOBase/emobase-cli/main/install.sh | sh
+emobase --version
+```
+
+See the [`emobase-cli` repository](https://github.com/EMOBase/emobase-cli) for
+pinned releases, per-user installs and source builds.
+
+The migration script does not call `emobase`; it is a checkpoint, not a
+dependency.
+
 Create the config interactively:
 
 ```bash
@@ -175,8 +191,21 @@ After `prepare`:
 - The old site is still serving on 443.
 - Nothing new is running; no data has been copied.
 
-Run `transfer` in the announced window; it starts the new infra and copies the
-data.
+Validate the prepared workspace before `transfer`:
+
+```bash
+cd <NEW_WORKSPACE>
+emobase doctor
+```
+
+`emobase doctor` compares the new `infra/.env` and `Tcas/.env` against the
+shared contract and checks ports, URLs, realms, the ES index prefix and the
+compose overlay. It is read-only; do not pass `--fix` during the migration.
+Errors block `transfer`, warnings do not. The `workspace ownership ledger not
+found` advisory is expected until `sync` in step 8.
+
+Then run `transfer` in the announced window; it starts the new infra and copies
+the data.
 
 ## 5. Copy all data (old site stays live)
 
@@ -303,16 +332,6 @@ the `infra/` and `Tcas/` checkouts, validates the configuration shared between
 them, and records which database, realm and Elasticsearch index prefix belong
 to which checkout. It does not migrate data; it is for operating and monitoring
 the new stack.
-
-Install the CLI:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/EMOBase/emobase-cli/main/install.sh | sh
-emobase --version
-```
-
-See the [`emobase-cli` repository](https://github.com/EMOBase/emobase-cli) for
-pinned releases, per-user installs and source builds.
 
 Run the commands from `<NEW_WORKSPACE>`, the directory containing `infra/` and
 `Tcas/`:
