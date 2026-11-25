@@ -160,20 +160,23 @@ them. It never stops a container or writes to the old checkout.
 ./migrate.sh prepare
 ```
 
-This phase does not copy data and does not start the new app. It only prepares
-infrastructure and configuration:
+This phase neither copies data nor starts a container. It only prepares the
+checkouts and configuration:
 
-1. Clones/initializes `emobase-infra` and starts it.
-2. Writes the new species `.env` with the final `TCAS_URL` and
+1. Clones `emobase-deploy` (if needed) and `emobase-infra`.
+2. Writes `infra/.env` with the secrets, the final Keycloak URL and the ES
+   port. It does not start the stack.
+3. Writes the new species `.env` with the final `TCAS_URL` and
    `KEYCLOAK_PUBLIC_URL`.
-3. Writes the image media override if needed.
+4. Writes the image media override if needed.
 
 After `prepare`:
 
 - The old site is still serving on 443.
-- Infra and configuration are ready; no data has been copied.
+- Nothing new is running; no data has been copied.
 
-Run `transfer` in the announced window.
+Run `transfer` in the announced window; it starts the new infra and copies the
+data.
 
 ## 5. Copy all data (old site stays live)
 
@@ -188,11 +191,12 @@ carried over; announce that users should resubmit anything important.
 It:
 
 1. Ensures the old MySQL/Keycloak/ES are running.
-2. Stops the new species stack.
-3. Dumps the final Directus and Keycloak databases.
-4. Mirrors local files and the Directus uploads volume.
-5. Takes/restores the Elasticsearch snapshot.
-6. Runs `setup-directus` and starts the new stack on `9092`.
+2. Starts the new infra and waits for it to be healthy.
+3. Stops the new species stack from an earlier attempt.
+4. Dumps the final Directus and Keycloak databases.
+5. Mirrors local files and the Directus uploads volume.
+6. Takes/restores the Elasticsearch snapshot.
+7. Runs `setup-directus` and starts the new stack on `9092`.
 
 The old application is not stopped.
 
@@ -380,9 +384,9 @@ Then delete this migration folder.
   (default `9090`) and `9202`; the new stack uses `9092`/`9204`. Stop the
   conflicting process or change `NEW_HTTP_PORT` / `NEW_ES_PORT` and the Apache
   examples.
-- **`check` fails on `9092` or `9204` after `prepare`**: the new species or
-  infra stack is still running. Stop it while keeping volumes, then rerun
-  `prepare`:
+- **`check` fails on `9092` or `9204`**: an earlier attempt left the new
+  species or infra stack running. Stop it while keeping volumes, then rerun the
+  phase:
   ```bash
   cd <NEW_WORKSPACE>/Tcas && docker compose down
   cd <NEW_WORKSPACE>/infra && docker compose down

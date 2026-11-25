@@ -9,7 +9,8 @@
 #   - an external PUBLIC_DATA_DIR is reused, never copied
 #   - image copy and mount modes both work
 #   - dry-run prepare/transfer/rollback never execute mutating commands
-#   - prepare writes the expected new .env
+#   - prepare writes the expected new .env and starts nothing
+#   - transfer starts the infra before copying data
 #
 # It does not talk to any server and does not require a Docker daemon.
 
@@ -137,7 +138,7 @@ EOF
 cat > "$TMP/bin/docker" <<'EOF'
 #!/usr/bin/env bash
 set -Eeuo pipefail
-log() { printf '%s\n' "$*" >> "${MOCK_LOG:-/dev/null}"; }
+log() { printf '%s %s\n' "$PWD" "$*" >> "${MOCK_LOG:-/dev/null}"; }
 if [[ "${1:-}" == "compose" && "${2:-}" == "version" ]]; then
   echo "Docker Compose version v2.0.0"
   exit 0
@@ -375,9 +376,13 @@ contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/k
 contains "$(cat "$envfile")" "OBA_IMAGE=jboss/base-jdk:7"
 contains "$(cat "$envfile")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
 [[ ! -e "$TMP/new/Tcas/data" ]] || fail "prepare copied data"
+! mock_has_mutations || fail "prepare started a container"
 
-pass "transfer copies data and preserves external paths"
+pass "transfer starts the infra and then copies data"
+reset_mock_log
 out=$(run "transfer" --yes transfer)
+grep -Fq "/new/infra compose compose up -d --wait" "$MOCK_LOG" \
+  || fail "transfer did not start the new infra"
 [[ -f "$TMP/new/Tcas/data/private/imageservice/keep" ]] || fail "private data was not copied"
 [[ -f "$TMP/new/Tcas/data/private/phenotypeservice/keep" ]] || fail "private phenotype data was not copied"
 [[ -f "$TMP/new/Tcas/oba/oba-server.jar" ]] || fail "oba was not copied"

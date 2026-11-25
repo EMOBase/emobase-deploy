@@ -25,7 +25,7 @@ Commands:
   init            ask for paths and URLs and write migration.env
   apache          generate the final Apache vhost
   check           validate config, paths, commands and portal release
-  prepare         clone, start infra, write config (no data copy)
+  prepare         clone and write config (no data copy, no containers)
   transfer        copy all data while the old site stays live
   verify          check the final URL, Directus and Keycloak through Apache
   finish          stop the old stack after verification
@@ -908,7 +908,7 @@ clone_repos() {
 
 init_infra() {
   if (( DRY_RUN )); then
-    log "would clone/init/start infra with ELASTICSEARCH_HOST_PORT=$NEW_ES_PORT"
+    log "would init infra with ELASTICSEARCH_HOST_PORT=$NEW_ES_PORT"
     NEW_INFRA_MYSQL_PASSWORD="dry-run"
     return
   fi
@@ -923,10 +923,13 @@ init_infra() {
     set_env "$INFRA_DIR/.env" ELASTICSEARCH_HOST_PORT "$NEW_ES_PORT"
     set_env "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL "$KEYCLOAK_PUBLIC_URL"
   fi
-  run_in "$INFRA_DIR" docker compose up -d --wait
 
   NEW_INFRA_MYSQL_PASSWORD=$(env_get "$INFRA_DIR/.env" MYSQL_ROOT_PASSWORD || true)
   [[ -n "$NEW_INFRA_MYSQL_PASSWORD" ]] || die "infra .env has no MYSQL_ROOT_PASSWORD"
+}
+
+start_infra() {
+  run_in "$INFRA_DIR" docker compose up -d --wait
 }
 
 write_new_env() {
@@ -1229,12 +1232,12 @@ cmd_prepare() {
   log "prepare complete"
   cat <<EOF
 
-The new infra and configuration are ready. No data has been copied yet.
-The old site is still live.
+The new checkouts and configuration are ready. Nothing has been started and no
+data has been copied. The old site is still live.
 
 Next:
-  1. Review the final vhost from ./migrate.sh apache.
-  2. Run: ./migrate.sh transfer in the announced window; it copies all data once.
+  Run: ./migrate.sh transfer in the announced window; it starts the new infra
+  and copies all data once.
 
 Final URL:       $TCAS_URL
 EOF
@@ -1253,6 +1256,8 @@ cmd_transfer() {
 
   log "copying final data while the old site stays live"
   old_compose_run up -d --wait mysql keycloak es
+  log "starting the new infra"
+  start_infra
   new_compose_run stop
 
   import_directus "$BACKUP_DIR/directus-final.sql"
