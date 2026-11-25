@@ -326,10 +326,9 @@ contains "$out" "PUBLIC_DATA_DIR is external"
 contains "$out" "new project: tcastest"
 ! mock_has_mutations || fail "check executed a mutating command"
 
-pass "dry-run prepare never copies public data"
+pass "dry-run prepare does not copy data"
 reset_mock_log
 out=$(run "dry-run prepare" --dry-run prepare)
-contains "$out" "+ rsync -a"
 contains "$out" "would write"
 not_contains "$out" "rsync -a $TMP/external/tcas5"
 ! mock_has_mutations || fail "dry-run prepare executed a mutating command"
@@ -359,7 +358,7 @@ out=$(run "dry-run cleanup" cleanup)
 contains "$out" "docker volume rm"
 ! mock_has_mutations || fail "cleanup executed a mutating command"
 
-pass "prepare writes the expected env and preserves external paths"
+pass "prepare writes the expected env without data"
 reset_mock_log
 rm -f "$TMP/new/Tcas/.env"
 out=$(run prepare --yes prepare)
@@ -375,7 +374,10 @@ contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
 contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
 contains "$(cat "$envfile")" "OBA_IMAGE=jboss/base-jdk:7"
 contains "$(cat "$envfile")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
+[[ ! -e "$TMP/new/Tcas/data" ]] || fail "prepare copied data"
 
+pass "delta copies data and preserves external paths"
+out=$(run "delta" --yes delta)
 [[ -f "$TMP/new/Tcas/data/private/imageservice/keep" ]] || fail "private data was not copied"
 [[ -f "$TMP/new/Tcas/data/private/phenotypeservice/keep" ]] || fail "private phenotype data was not copied"
 [[ -f "$TMP/new/Tcas/oba/oba-server.jar" ]] || fail "oba was not copied"
@@ -399,9 +401,9 @@ contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test"
 contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
 contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
 
-pass "prepare refuses an infra Keycloak with other realms"
-if out=$(MOCK_KEYCLOAK_EXTRA_REALMS=1 bash "$SCRIPT" --config "$TMP/migration.env" prepare 2>&1); then
-  fail "prepare replaced a shared infra Keycloak"
+pass "delta refuses an infra Keycloak with other realms"
+if out=$(MOCK_KEYCLOAK_EXTRA_REALMS=1 bash "$SCRIPT" --config "$TMP/migration.env" delta 2>&1); then
+  fail "delta replaced a shared infra Keycloak"
 fi
 contains "$out" "refusing to replace its database"
 
@@ -500,6 +502,7 @@ out=$(run_cfg "mount prepare" "$TMP/migration-mount.env" --yes prepare)
 mount_env="$TMP/new-mount/Tcas/.env"
 [[ -f "$mount_env" ]] || fail "mount prepare did not write .env"
 contains "$(cat "$mount_env")" "COMPOSE_FILE=compose.yml:compose.tcas.yml:compose.media.yml"
+out=$(run_cfg "mount delta" "$TMP/migration-mount.env" --yes delta)
 [[ -L "$TMP/new-mount/Tcas/images/1" ]] || fail "mount mode did not preserve images/1 symlink"
 [[ "$(readlink "$TMP/new-mount/Tcas/images/1")" == "$TMP/external/images/1" ]] || fail "mount mode changed images/1 target"
 [[ -f "$TMP/new-mount/Tcas/compose.media.yml" ]] || fail "mount mode did not write compose.media.yml"
@@ -553,6 +556,7 @@ whole_env="$TMP/new-whole/Tcas/.env"
 [[ -f "$whole_env" ]] || fail "whole prepare did not write .env"
 contains "$(cat "$whole_env")" "IMAGE_DIR=./images"
 contains "$(cat "$whole_env")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
+out=$(run_cfg "whole delta" "$TMP/migration-whole.env" --yes delta)
 [[ -L "$TMP/new-whole/Tcas/images" ]] || fail "whole image directory is not a symlink"
 [[ "$(readlink -f "$TMP/new-whole/Tcas/images")" == "$(readlink -f "$TMP/external/whole-images")" ]] || fail "whole image symlink target is wrong"
 [[ ! -e "$TMP/new-whole/Tcas/compose.media.yml" ]] || fail "whole layout wrote compose.media.yml"
@@ -604,6 +608,7 @@ direct_env="$TMP/new-direct/Tcas/.env"
 [[ -f "$direct_env" ]] || fail "direct prepare did not write .env"
 contains "$(cat "$direct_env")" "IMAGE_DIR=$TMP/external/whole-images"
 contains "$(cat "$direct_env")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
+out=$(run_cfg "direct delta" "$TMP/migration-direct.env" --yes delta)
 [[ ! -e "$TMP/new-direct/Tcas/images" ]] || fail "direct layout created a local images directory"
 [[ ! -e "$TMP/new-direct/Tcas/compose.media.yml" ]] || fail "direct layout wrote compose.media.yml"
 

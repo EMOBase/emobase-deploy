@@ -157,20 +157,18 @@ them. It never stops a container or writes to the old checkout.
 ./migrate.sh prepare
 ```
 
-This phase does not stop the old application and does not change the old
-checkout. It performs a live bulk copy:
+This phase does not copy data and does not start the new app. It only prepares
+infrastructure and configuration:
 
 1. Clones/initializes `emobase-infra` and starts it.
 2. Writes the new species `.env` with the final `TCAS_URL` and
    `KEYCLOAK_PUBLIC_URL`.
-3. Copies images/local data and mirrors the Directus uploads volume.
-4. Imports an initial Directus dump and copies the Keycloak database.
-5. Runs `setup-directus` and starts the new species stack on `9092`.
+3. Writes the image media override if needed.
 
 After `prepare`:
 
 - The old site is still serving on 443.
-- The new stack is running on `9092`, not yet public.
+- Infra and configuration are ready; no data has been copied.
 - Generate and review the final Apache vhost:
 
   ```bash
@@ -179,15 +177,15 @@ After `prepare`:
 
 - Run `delta` in the announced window.
 
-## 5. Final copy (old site stays live)
+## 5. Copy all data (old site stays live)
 
 ```bash
 ./migrate.sh delta
 ```
 
-This is the short stateful copy before the switch. The old application keeps
-serving reads. Writes made during this window may not be carried over; announce
-that users should resubmit anything important.
+This is the only data copy. It runs before the switch while the old
+application keeps serving reads. Writes made during this window may not be
+carried over; announce that users should resubmit anything important.
 
 It:
 

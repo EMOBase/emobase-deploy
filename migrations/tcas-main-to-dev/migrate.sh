@@ -25,8 +25,8 @@ Commands:
   init           ask for paths and URLs and write migration.env
   apache         generate the final Apache vhost
   check          validate config, paths, commands and portal release
-  prepare        clone, start infra, live bulk copy, start the new stack
-  delta          final copy while the old site stays live
+  prepare        clone, start infra, write config (no data copy)
+  delta          copy all data while the old site stays live
   cutover        print the final Apache switch instructions
   verify         check the final URL, Directus and Keycloak through Apache
   finish         stop the old stack after verification
@@ -1176,17 +1176,15 @@ copy_keycloak_db() {
   local label=$1
   require_admin
   [[ "$NEW_INFRA_MYSQL_PASSWORD" != "" ]] || die "infra MySQL password is missing"
-  if [[ "$label" == "initial" ]]; then
-    local extra_realms=""
-    if (( ! DRY_RUN )); then
-      extra_realms=$(infra_compose exec -T mysql sh -c \
-        "exec mysql -N -s -uroot -p\"\$MYSQL_ROOT_PASSWORD\" -e \"SELECT COUNT(*) FROM keycloak.REALM WHERE NAME NOT IN ('master', '$REALM');\"" \
-        2>/dev/null || true)
-      extra_realms=${extra_realms//[^0-9]/}
-    fi
-    if [[ -n "$extra_realms" && "$extra_realms" != "0" ]]; then
-      die "infra Keycloak already hosts $extra_realms realm(s) other than master and $REALM; refusing to replace its database"
-    fi
+  local extra_realms=""
+  if (( ! DRY_RUN )); then
+    extra_realms=$(infra_compose exec -T mysql sh -c \
+      "exec mysql -N -s -uroot -p\"\$MYSQL_ROOT_PASSWORD\" -e \"SELECT COUNT(*) FROM keycloak.REALM WHERE NAME NOT IN ('master', '$REALM');\"" \
+      2>/dev/null || true)
+    extra_realms=${extra_realms//[^0-9]/}
+  fi
+  if [[ -n "$extra_realms" && "$extra_realms" != "0" ]]; then
+    die "infra Keycloak already hosts $extra_realms realm(s) other than master and $REALM; refusing to replace its database"
   fi
   local dump="$BACKUP_DIR/keycloak-$label.sql"
   old_mysql_dump "keycloak" "$dump"
@@ -1218,31 +1216,20 @@ start_new() {
 cmd_prepare() {
   load_context
   cmd_check
-  require_admin
-  case "$ES_MODE" in
-    snapshot|rebuild) ;;
-    *) die "ES_MODE must be snapshot or rebuild" ;;
-  esac
   run mkdir -p "$BACKUP_DIR"
   clone_repos
   init_infra
   write_new_env
   write_media_override
-  copy_files
-  mirror_volume
-  import_directus "$BACKUP_DIR/directus-initial.sql"
-  copy_keycloak_db initial
-  setup_directus
-  start_new
   log "prepare complete"
   cat <<EOF
 
-The new species stack is running on 127.0.0.1:$NEW_HTTP_PORT.
+The new infra and configuration are ready. No data has been copied yet.
 The old site is still live.
 
 Next:
   1. Review the final vhost from ./migrate.sh apache.
-  2. Run: ./migrate.sh delta
+  2. Run: ./migrate.sh delta in the announced window; it copies all data once.
 
 Final URL:       $TCAS_URL
 EOF
