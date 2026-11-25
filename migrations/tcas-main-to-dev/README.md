@@ -239,9 +239,9 @@ sudo ./apache-apply.sh             # generate, install, test and reload
 ```
 
 It reads `migration.env`, detects the certificate, replaces the active `*:443`
-vhost, tests the configuration and reloads Apache. The first run keeps the old vhost as
-`<file>.bak`; if `configtest` fails it restores that file and does not reload,
-so the old site keeps running.
+vhost, tests the configuration and reloads Apache. The first run keeps the old
+vhost as `<file>.bak`; if `configtest` fails it restores that file and does not
+reload, so the old site keeps running.
 
 `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in `migration.env` override the detected
 certificate. Use `--file PATH` when `apachectl -S` finds more than one `*:443`
