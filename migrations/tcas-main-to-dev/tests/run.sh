@@ -52,6 +52,8 @@ printf 'oba\n' > "$TMP/old/oba/oba-server.jar"
 printf 'snapshot\n' > "$TMP/old/es_bk/indices/keep"
 printf '424GB-style external file\n' > "$TMP/external/tcas5/public-file.txt"
 printf 'image\n' > "$TMP/external/images/1"
+printf 'cert\n' > "$TMP/cert.pem"
+printf 'key\n' > "$TMP/key.pem"
 ln -s "$TMP/external/images/1" "$TMP/old/images/1"
 
 cat > "$TMP/old/compose.yml" <<'EOF'
@@ -114,6 +116,8 @@ TCAS_URL=https://tcas.test
 MIGRATION_URL=https://tcas.test:9443
 PORTAL_URL=https://portal.test
 KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak
+SSL_CERT_FILE=$TMP/cert.pem
+SSL_CERT_KEY_FILE=$TMP/key.pem
 NEW_HTTP_PORT=19092
 NEW_ES_PORT=19204
 NEW_PROJECT=tcastest
@@ -276,6 +280,20 @@ dry_out=$(OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-workspace" \
   bash "$SCRIPT" --config "$dry_cfg" init --yes --dry-run 2>&1)
 [[ ! -e "$dry_cfg" ]] || fail "init --dry-run wrote a config"
 contains "$dry_out" "would write"
+
+pass "apache generates both vhosts with the configured certificate"
+out=$(run apache apache)
+mig="$TMP/new/apache-migration.conf"
+fin="$TMP/new/apache-final.conf"
+[[ -f "$mig" && -f "$fin" ]] || fail "apache did not write both vhosts"
+contains "$(cat "$mig")" "ServerName tcas.test"
+contains "$(cat "$mig")" "Listen 9443"
+contains "$(cat "$mig")" "SSLCertificateFile    $TMP/cert.pem"
+contains "$(cat "$mig")" "ProxyPass        /keycloak"
+contains "$(cat "$mig")" "127.0.0.1:19092"
+contains "$(cat "$fin")" "<VirtualHost *:443>"
+not_contains "$(cat "$fin")" "Listen 443"
+contains "$out" "Install the migration vhost"
 
 pass "check reads old environment"
 reset_mock_log
