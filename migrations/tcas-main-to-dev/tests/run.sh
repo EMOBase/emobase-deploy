@@ -233,6 +233,10 @@ case "$*" in
   *"/_cat/indices"*)
     printf 'index docs.count store.size\n'
     ;;
+  *"-I"*"/keycloak/realms/"*)
+    printf '405 Method Not Allowed\n' >&2
+    exit 22
+    ;;
 esac
 exit 0
 EOF
@@ -425,6 +429,13 @@ if out=$(printf 'testold\n' | MOCK_PS_EMPTY=1 \
 fi
 contains "$out" "not running"
 ! mock_has_mutations || fail "refused cleanup still mutated"
+
+pass "verify uses GET for Keycloak"
+reset_mock_log
+out=$(run verify verify)
+contains "$out" "Final site:"
+not_contains "$out" "Keycloak realm ibb is not reachable"
+! mock_has_mutations || fail "verify executed a mutating command"
 
 pass "prepare writes the expected env without data"
 reset_mock_log

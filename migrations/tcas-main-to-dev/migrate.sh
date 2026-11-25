@@ -1294,7 +1294,9 @@ cmd_verify() {
     || die "$TCAS_URL is not reachable; is the 443 vhost pointing at $NEW_HTTP_PORT?"
   curl -fsSI "$TCAS_URL/ibb/directus" >/dev/null \
     || warn "Directus is not reachable at $TCAS_URL/ibb/directus"
-  curl -fsSI "$TCAS_URL/keycloak/realms/$REALM" >/dev/null \
+  # Keycloak rejects HEAD with 405, so use GET on the discovery document.
+  curl -fsS -o /dev/null \
+    "$TCAS_URL/keycloak/realms/$REALM/.well-known/openid-configuration" \
     || warn "Keycloak realm $REALM is not reachable at $TCAS_URL/keycloak"
 
   cat <<EOF
