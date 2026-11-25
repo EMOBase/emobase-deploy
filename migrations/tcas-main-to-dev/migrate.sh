@@ -696,16 +696,25 @@ detect_cert_pair() {
       eval "$nullglob"
     fi
   fi
-  [[ -n "$cert" && -n "$key" ]] || die \
-    "could not detect a TLS certificate for $TCAS_HOST; set SSL_CERT_FILE and SSL_CERT_KEY_FILE in migration.env (the key may be root-only under /etc/ssl/private)"
-  [[ -e "$cert" ]] || die "certificate not found: $cert"
-  [[ -f "$cert" ]] || die "certificate is not a file: $cert"
-  if [[ -e "$key" ]]; then
-    [[ -f "$key" ]] || die "private key is not a file: $key"
-  elif [[ -n "${SSL_CERT_KEY_FILE:-}" ]]; then
-    warn "private key is not visible to this user; using the configured path: $key"
-  else
-    die "private key not found: $key"
+  if [[ -z "$cert" || -z "$key" ]]; then
+    warn "could not detect a TLS certificate for $TCAS_HOST; using placeholders"
+    SSL_CERT_FILE="${cert:-/path/fullchain.pem}"
+    SSL_CERT_KEY_FILE="${key:-/path/privkey.pem}"
+    return 0
+  fi
+  if [[ ! -e "$cert" ]]; then
+    warn "certificate not found: $cert (edit the generated vhosts)"
+  elif [[ ! -f "$cert" ]]; then
+    warn "certificate is not a file: $cert (edit the generated vhosts)"
+  fi
+  if [[ ! -e "$key" ]]; then
+    if [[ -n "${SSL_CERT_KEY_FILE:-}" ]]; then
+      warn "private key is not visible to this user; using the configured path: $key"
+    else
+      warn "private key not found: $key (edit the generated vhosts)"
+    fi
+  elif [[ ! -f "$key" ]]; then
+    warn "private key is not a file: $key (edit the generated vhosts)"
   fi
   SSL_CERT_FILE=$cert
   SSL_CERT_KEY_FILE=$key
@@ -772,6 +781,10 @@ EOF
   log "wrote $migration"
   log "wrote $final"
   cat <<EOF
+
+Review the generated files and edit the certificate paths if needed:
+  $migration
+  $final
 
 Install the migration vhost:
   cp "$migration" /etc/apache2/sites-available/tcas-migration.conf

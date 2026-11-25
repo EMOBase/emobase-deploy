@@ -232,8 +232,9 @@ the `/` catch-all.
 
    It writes `<NEW_WORKSPACE>/apache-migration.conf` and
    `<NEW_WORKSPACE>/apache-final.conf`, using the host from `TCAS_URL` and the
-   detected certificate paths. If detection fails, set `SSL_CERT_FILE` and
-   `SSL_CERT_KEY_FILE` in `migration.env`. The files follow
+   detected certificate paths. If detection fails, it writes placeholders:
+   edit the certificate paths in the generated files before installing, or set
+   `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in `migration.env`. The files follow
    `apache-migration.conf.example` and `apache-final.conf.example`.
 
 2. Install the migration vhost and reload Apache:
@@ -508,9 +509,10 @@ Then delete this migration folder.
   ```
 - **Migration URL login fails**: the migration origin is missing, the 443 `/keycloak`
   route is missing, or the Keycloak admin credentials are stale.
-- **`migrate.sh apache` cannot detect the certificate**: `/etc/ssl/private` may
-  be root-only. Set `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in `migration.env`;
-  an explicit key path is accepted even if the deploy user cannot read it.
+- **`migrate.sh apache` cannot detect the certificate**: it writes placeholders.
+  Edit the generated vhosts, or set `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in
+  `migration.env`. `/etc/ssl/private` may be root-only; an explicit key path is
+  accepted even if the deploy user cannot read it.
 - **Keycloak admin login fails after the DB copy**: the copied master realm has
   the current admin password, not the old bootstrap password. Set the current
   admin in `migration.env` and rerun the phase that updates `infra/.env`.

@@ -306,6 +306,19 @@ fi
 contains "$out" "not visible"
 contains "$(cat "$TMP/new/apache-migration.conf")" "missing-key.pem"
 
+pass "apache writes placeholders when no certificate is detected"
+noplaceholder_cfg="$TMP/apache-nocert.env"
+sed -e 's#^TCAS_URL=.*#TCAS_URL=https://no-cert.invalid#' \
+    -e 's#^SSL_CERT_FILE=.*#SSL_CERT_FILE=#' \
+    -e 's#^SSL_CERT_KEY_FILE=.*#SSL_CERT_KEY_FILE=#' \
+    "$TMP/migration.env" > "$noplaceholder_cfg"
+if ! out=$(bash "$SCRIPT" --config "$noplaceholder_cfg" apache 2>&1); then
+  printf '%s\n' "$out" >&2
+  fail "apache failed to generate placeholder vhosts"
+fi
+contains "$out" "using placeholders"
+contains "$(cat "$TMP/new/apache-migration.conf")" "/path/fullchain.pem"
+
 pass "check reads old environment"
 reset_mock_log
 out=$(run check check)
