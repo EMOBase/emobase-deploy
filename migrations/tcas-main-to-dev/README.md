@@ -120,23 +120,6 @@ export must be mounted read-write for the new stack.
 `IMAGE_MODE=copy` is the fallback when the image source is read-only; it
 materializes the images into the new `./images`.
 
-### Install `emobase-cli`
-
-`emobase` is the cross-repository control point for EMOBase. The runbook uses
-it to check the new `infra/` and `Tcas/` configuration before the data copy,
-and to adopt the new workspace after the switch. Install it once, before the
-validation steps:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/EMOBase/emobase-cli/main/install.sh | sh
-```
-
-See the [`emobase-cli` repository](https://github.com/EMOBase/emobase-cli) for
-pinned releases, per-user installs and source builds.
-
-The migration script does not call `emobase`; it is a checkpoint, not a
-dependency.
-
 ## 3. Validate without changing anything
 
 ```bash
@@ -192,7 +175,20 @@ After `prepare`:
 - The old site is still serving on 443.
 - Nothing new is running; no data has been copied.
 
-Validate the prepared workspace before `transfer`:
+## 5. Install the CLI and validate the workspace
+
+`emobase` is the cross-repository control point for EMOBase. It checks the
+configuration shared between `infra/` and `Tcas/`, and later records what
+belongs to the new stack. Install it once:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/EMOBase/emobase-cli/main/install.sh | sh
+```
+
+See the [`emobase-cli` repository](https://github.com/EMOBase/emobase-cli) for
+pinned releases, per-user installs and source builds.
+
+Then validate the prepared workspace:
 
 ```bash
 cd <NEW_WORKSPACE>
@@ -203,12 +199,15 @@ emobase doctor
 shared contract and checks ports, URLs, realms, the ES index prefix and the
 compose overlay. It is read-only; do not pass `--fix` during the migration.
 Errors block `transfer`, warnings do not. The `workspace ownership ledger not
-found` advisory is expected until `sync` in step 8.
+found` advisory is expected until `sync` in the adoption step.
+
+The migration script does not call `emobase`; it is a checkpoint, not a
+dependency.
 
 Then run `transfer` in the announced window; it starts the new infra and copies
 the data.
 
-## 5. Copy all data (old site stays live)
+## 6. Copy all data (old site stays live)
 
 ```bash
 ./migrate.sh transfer
@@ -230,7 +229,7 @@ It:
 
 The old application is not stopped.
 
-## 6. Switch 443 and verify
+## 7. Switch 443 and verify
 
 Generate the final vhost:
 
@@ -278,7 +277,7 @@ After verification, stop the old stack:
 The old volumes are kept. If verification fails, switch the 443 vhost back and
 start the old stack; see Rolling back.
 
-## 7. Rolling back
+## 8. Rolling back
 
 
 Run this only if the final verification failed, or if the switch is
@@ -323,7 +322,7 @@ If you want to retry, fix the failure, run `check` again, then rerun the phase
 that failed. The script re-copies the old data during `transfer`; new
 writes made after the switch are not merged back automatically.
 
-## 8. Adopt the workspace in `emobase-cli`
+## 9. Adopt the workspace in `emobase-cli`
 
 Run this only after the final verification passes. Do not run it after a
 rollback; it applies to the new `tcas` stack.
@@ -360,7 +359,7 @@ If `doctor` reports `state.unrecorded`, running `sync` resolves it. After this,
 the workspace can be managed with `emobase status`, `emobase up`, `emobase down`
 and `emobase update`.
 
-## 9. Elasticsearch snapshot restore
+## 10. Elasticsearch snapshot restore
 
 `ES_MODE=snapshot` is the default and the recommended path for this migration.
 The old deployment's `data/private` directories are empty, and the ontology, GO
@@ -377,7 +376,7 @@ indices from the copied data. The old host's existing
 `full_backup_<date>` snapshot is not a substitute for the fresh snapshot taken
 during `transfer`.
 
-## 10. Retention and cleanup
+## 11. Retention and cleanup
 
 Keep the old stack stopped, its volumes and `<BACKUP_DIR>` until the agreed
 retention period. This is the rollback window.
