@@ -370,7 +370,7 @@ pass "dry-run rollback does not execute stop"
 reset_mock_log
 out=$(run "dry-run rollback" --dry-run rollback)
 contains "$out" "Restore the old 443 vhost"
-contains "$out" "127.0.0.1:6092"
+contains "$out" "apache-apply.sh --restore"
 ! mock_has_mutations || fail "dry-run rollback executed a mutating command"
 
 pass "cleanup only prints by default"
@@ -714,7 +714,7 @@ pass "rollback without --dry-run issues stop and up"
 reset_mock_log
 out=$(run rollback --yes rollback)
 contains "$out" "Restore the old 443 vhost"
-contains "$out" "127.0.0.1:6092"
+contains "$out" "apache-apply.sh --restore"
 contains "$out" "stopping the new infra stack"
 grep -Fq "compose stop" "$MOCK_LOG" || fail "rollback did not issue stop for the new stack"
 grep -Fq "compose -f compose.yml -f compose.tcas.yml up -d --wait" "$MOCK_LOG" \
