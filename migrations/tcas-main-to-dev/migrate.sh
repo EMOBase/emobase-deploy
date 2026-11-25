@@ -652,8 +652,8 @@ except Exception:
 PY
 
   log "wrote $CONFIG"
-  printf '\nNext:\n  ./migrate.sh check\n'
   printf 'Other values use defaults or the old config. Edit migration.env to change them.\n'
+  printf '\nNext:\n  ./migrate.sh check\n'
   if (( admin_note )); then
     printf '\nThe old .env has no KEYCLOAK_ADMIN. Set OLD_KEYCLOAK_ADMIN and\n'
     printf 'OLD_KEYCLOAK_ADMIN_PASSWORD in %s if needed.\n' "$CONFIG"
