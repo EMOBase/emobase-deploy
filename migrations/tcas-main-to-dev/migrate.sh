@@ -767,7 +767,7 @@ EOF
 Review the final vhost and edit the certificate paths if needed:
   $final
 
-At the switch, replace the 443 vhost with this file.
+When the data copy is done, replace the 443 vhost with this file.
 EOF
 }
 
@@ -1369,7 +1369,7 @@ cmd_transfer() {
 Final data is in the new stack, running on 127.0.0.1:$NEW_HTTP_PORT.
 The old site is still live.
 
-Switch 443 to the new stack:
+Point Apache at the new stack:
   ./migrate.sh apache
   review $NEW_WORKSPACE/apache-final.conf
   replace the 443 vhost with it

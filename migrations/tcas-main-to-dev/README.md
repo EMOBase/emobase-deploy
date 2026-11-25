@@ -4,7 +4,7 @@
 > verified.
 >
 > This is not a fresh deployment. It copies live data, replaces the infra
-> Keycloak database, switches 443 to the new stack and later stops the old
+> Keycloak database, points Apache at the new stack and later stops the old
 > site. Read the whole runbook before running any command, and do not continue
 > past a failed checkpoint.
 
@@ -19,7 +19,7 @@ The old stack stays live while the new one is prepared:
 | Species site    | `HTTP_PORT` from old `.env` (default `9090`)           | `9092`                                           |
 | Keycloak        | legacy at `/ibb/keycloak`                              | infra at `/keycloak`, port `8181`, public on 443 |
 | Elasticsearch   | old stack, `9202`                                      | infra, host port `9204`                          |
-| Public URL      | `<TCAS_URL>` until the switch                          | `<TCAS_URL>` after the switch                    |
+| Public URL      | `<TCAS_URL>`, served by the old stack                  | `<TCAS_URL>`, served by the new stack            |
 
 The old checkout, project name, volumes and container names are not changed.
 The new stack uses separate volumes and a separate Directus database.
@@ -86,24 +86,24 @@ present, otherwise `Tcas`, `ibb` and `ibb-client`.
 
 `migration.env` is ignored by git. The values are:
 
-| Variable | Meaning |
-| --- | --- |
-| `OLD_SPECIES_DIR` | Existing running Tcas checkout; read-only |
-| `NEW_WORKSPACE` | New parent directory for `Tcas/` and `infra/` |
-| `BACKUP_DIR` | Backups and phase dumps; outside both checkouts |
-| `TCAS_URL` | Final public species URL |
-| `KEYCLOAK_PUBLIC_URL` | Final Keycloak URL, `<TCAS_URL>/keycloak` |
-| `PORTAL_URL` | Deployed multi-species portal |
-| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE` | Optional certificate overrides for `apache`; set before running it |
-| `NEW_HTTP_PORT` | `9092` |
-| `NEW_ES_PORT` | `9204` |
-| `NEW_PROJECT` | `tcas`; must differ from the old project |
-| `SPECIES_CODE`, `REALM`, `CLIENT_ID` | `Tcas`, `ibb`, `ibb-client` |
-| `OLD_KEYCLOAK_ADMIN`, `OLD_KEYCLOAK_ADMIN_PASSWORD` | Override only if the old `.env` is stale |
-| `ES_MODE` | `snapshot`; takes a fresh old-cluster snapshot and restores it. `rebuild` is only for deployments that can rebuild every index |
-| `IMAGE_MODE` | `auto` (recommended); `copy` is the fallback when the image source is read-only |
-| `EMOBASE_WEB_IMAGE` | Pin a release or SHA for a long-lived deployment |
-| `OBA_IMAGE` | `jboss/base-jdk:7`; the old server needed this because `openjdk:7` does not run the OBA jar |
+| Variable                                            | Meaning                                                                                                                        |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `OLD_SPECIES_DIR`                                   | Existing running Tcas checkout; read-only                                                                                      |
+| `NEW_WORKSPACE`                                     | New parent directory for `Tcas/` and `infra/`                                                                                  |
+| `BACKUP_DIR`                                        | Backups and phase dumps; outside both checkouts                                                                                |
+| `TCAS_URL`                                          | Final public species URL                                                                                                       |
+| `KEYCLOAK_PUBLIC_URL`                               | Final Keycloak URL, `<TCAS_URL>/keycloak`                                                                                      |
+| `PORTAL_URL`                                        | Deployed multi-species portal                                                                                                  |
+| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE`                | Optional certificate overrides for `apache`; set before running it                                                             |
+| `NEW_HTTP_PORT`                                     | `9092`                                                                                                                         |
+| `NEW_ES_PORT`                                       | `9204`                                                                                                                         |
+| `NEW_PROJECT`                                       | `tcas`; must differ from the old project                                                                                       |
+| `SPECIES_CODE`, `REALM`, `CLIENT_ID`                | `Tcas`, `ibb`, `ibb-client`                                                                                                    |
+| `OLD_KEYCLOAK_ADMIN`, `OLD_KEYCLOAK_ADMIN_PASSWORD` | Override only if the old `.env` is stale                                                                                       |
+| `ES_MODE`                                           | `snapshot`; takes a fresh old-cluster snapshot and restores it. `rebuild` is only for deployments that can rebuild every index |
+| `IMAGE_MODE`                                        | `auto` (recommended); `copy` is the fallback when the image source is read-only                                                |
+| `EMOBASE_WEB_IMAGE`                                 | Pin a release or SHA for a long-lived deployment                                                                               |
+| `OBA_IMAGE`                                         | `jboss/base-jdk:7`; the old server needed this because `openjdk:7` does not run the OBA jar                                    |
 
 The old Compose project name, HTTP port and data paths are read from
 `OLD_SPECIES_DIR/.env`; they are not set in `migration.env`. The new stack
@@ -215,8 +215,8 @@ the data.
 ./migrate.sh transfer
 ```
 
-This is the only data copy. It runs before the switch while the old
-application keeps serving reads. Writes made during this window may not be
+This is the only data copy. It runs while Apache still points at the old
+stack, so the old application keeps serving reads. Writes made during this window may not be
 carried over; announce that users should resubmit anything important.
 
 It:
@@ -231,7 +231,7 @@ It:
 
 The old application is not stopped.
 
-## 7. Switch 443 and verify
+## 7. Configure Apache and verify
 
 Generate the final vhost:
 
@@ -276,14 +276,14 @@ After verification, stop the old stack:
 ./migrate.sh finish
 ```
 
-The old volumes are kept. If verification fails, switch the 443 vhost back and
-start the old stack; see Rolling back.
+The old volumes are kept. If verification fails, point the 443 vhost back at
+the old stack and start it; see Rolling back.
 
 ## 8. Rolling back
 
 
-Run this only if the final verification failed, or if the switch is
-intentionally abandoned. Do not run it after a successful migration.
+Run this only if the final verification failed, or if Apache should stay on
+the old stack. Do not run it after a successful migration.
 
 ```bash
 ./migrate.sh rollback
@@ -292,7 +292,7 @@ intentionally abandoned. Do not run it after a successful migration.
 By default, this stops the new species and infra stacks, starts the old stack,
 and prints the old Apache target. Their volumes are kept for a retry. The old
 application keeps running until `finish`, so before that step rollback is just
-the 443 vhost switch.
+repointing the 443 vhost.
 
 Use `./migrate.sh rollback --keep-new` to start the old stack but leave the new
 species and infra stacks running. In that mode, the new app remains available
@@ -316,13 +316,14 @@ Confirm the old site, Keycloak login and Directus work. Do not run `cleanup`:
 the old volumes are the rollback window and still hold the authoritative data.
 
 The old MySQL/Keycloak/ES volumes and the old `directus` database were not
-modified. Directus writes made on the new stack after the switch live only in
+modified. Directus writes made on the new stack after Apache was repointed
+live only in
 `directus_tcas` and the new volumes; those writes are not copied back.
 
 Rollback remains possible until the cleanup step removes the old volumes.
 If you want to retry, fix the failure, run `check` again, then rerun the phase
 that failed. The script re-copies the old data during `transfer`; new
-writes made after the switch are not merged back automatically.
+writes made after Apache was repointed are not merged back automatically.
 
 ## 9. Adopt the workspace in `emobase-cli`
 
