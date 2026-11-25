@@ -1370,7 +1370,9 @@ Final data is in the new stack, running on 127.0.0.1:$NEW_HTTP_PORT.
 The old site is still live.
 
 Switch 443 to the new stack:
-  replace the 443 vhost with <NEW_WORKSPACE>/apache-final.conf
+  ./migrate.sh apache
+  review $NEW_WORKSPACE/apache-final.conf
+  replace the 443 vhost with it
   apachectl configtest
   systemctl reload apache2
 
