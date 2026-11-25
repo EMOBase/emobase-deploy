@@ -20,6 +20,7 @@ set -Eeuo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$HERE/../migrate.sh"
+APACHE_APPLY="$HERE/../apache-apply.sh"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/tcas-migrate-test.XXXXXX")"
 MOCK_LOG="$TMP/mock.log"
 export MOCK_LOG
@@ -205,6 +206,23 @@ exit 0
 EOF
 chmod +x "$TMP/bin/docker"
 
+cat > "$TMP/bin/apachectl" <<EOF
+#!/usr/bin/env bash
+case " \$* " in
+  *" -S "*)
+    printf '%s\n' '*:443                  is a NameVirtualHost'
+    printf '         default server tcas.test (${TMP}/apache/https-test.conf:1)\n'
+    printf '         port 443 namevhost tcas.test (${TMP}/apache/https-test.conf:1)\n'
+    if [[ -n "\${MOCK_VHOST_MULTI:-}" ]]; then
+      printf '         port 443 namevhost other.test (${TMP}/apache/other.conf:1)\n'
+    fi
+    ;;
+  *" configtest "*) printf 'Syntax OK\n' ;;
+esac
+exit 0
+EOF
+chmod +x "$TMP/bin/apachectl"
+
 cat > "$TMP/bin/curl" <<'EOF'
 #!/usr/bin/env bash
 set -Eeuo pipefail
@@ -323,7 +341,7 @@ contains "$(cat "$fin")" "LimitRequestFieldSize 16384"
 contains "$(cat "$fin")" "127.0.0.1:19092"
 contains "$(cat "$fin")" "<VirtualHost *:443>"
 not_contains "$(cat "$fin")" "Listen 443"
-contains "$out" "back up the active *:443 vhost"
+contains "$out" "sudo ./apache-apply.sh"
 
 pass "apache accepts an explicit root-only key path"
 rootkey_cfg="$TMP/apache-rootkey.env"
@@ -737,5 +755,55 @@ contains "$out" "still running"
 contains "$out" "starting the new infra stack"
 grep -Fq "compose -f compose.yml -f compose.tcas.yml up -d --wait" "$MOCK_LOG" \
   || fail "keep-new did not start the old stack"
+
+# ---------------------------------------------------------------- apache-apply
+pass "apache-apply help names sudo"
+out=$(bash "$APACHE_APPLY" --help)
+contains "$out" "sudo"
+contains "$out" "--restore"
+
+mkdir -p "$TMP/apache"
+printf 'old vhost\n' > "$TMP/apache/https-test.conf"
+printf '<VirtualHost *:443>\n  ServerName tcas.test\n</VirtualHost>\n' \
+  > "$TMP/apache/final.conf"
+
+pass "apache-apply --dry-run finds the 443 vhost and changes nothing"
+out=$(bash "$APACHE_APPLY" --dry-run --final "$TMP/apache/final.conf")
+contains "$out" "apache/https-test.conf"
+contains "$out" "apache/https-test.conf.bak"
+contains "$out" "install -m 0644"
+contains "$out" "systemctl reload apache2"
+[[ "$(cat "$TMP/apache/https-test.conf")" == "old vhost" ]] \
+  || fail "apache-apply dry-run changed the vhost"
+[[ ! -e "$TMP/apache/https-test.conf.bak" ]] \
+  || fail "apache-apply dry-run wrote a backup"
+
+pass "apache-apply refuses more than one 443 vhost"
+if out=$(MOCK_VHOST_MULTI=1 bash "$APACHE_APPLY" --dry-run \
+  --final "$TMP/apache/final.conf" 2>&1); then
+  fail "apache-apply accepted two 443 vhosts"
+fi
+contains "$out" "more than one *:443 vhost"
+
+pass "apache-apply needs the generated vhost"
+if out=$(bash "$APACHE_APPLY" --dry-run \
+  --final "$TMP/apache/missing.conf" 2>&1); then
+  fail "apache-apply accepted a missing vhost"
+fi
+contains "$out" "run ./migrate.sh apache first"
+
+pass "apache-apply --restore needs a backup"
+if out=$(bash "$APACHE_APPLY" --restore --file "$TMP/apache/https-test.conf" 2>&1); then
+  fail "apache-apply restored without a backup"
+fi
+contains "$out" "no backup at"
+
+if (( EUID != 0 )); then
+  pass "apache-apply refuses to write without root"
+  if out=$(bash "$APACHE_APPLY" --final "$TMP/apache/final.conf" 2>&1); then
+    fail "apache-apply wrote without root"
+  fi
+  contains "$out" "run it with sudo"
+fi
 
 pass "all tests passed"

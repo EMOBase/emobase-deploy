@@ -767,10 +767,8 @@ EOF
 Review the final vhost and edit the certificate paths if needed:
   $final
 
-When the data copy is done, back up the active *:443 vhost, copy this
-file over it, then run:
-  sudo apachectl configtest
-  sudo systemctl reload apache2
+When the data copy is done, install it as the active *:443 vhost:
+  sudo ./apache-apply.sh
 EOF
 }
 
@@ -1374,10 +1372,7 @@ The old site is still live.
 
 Point Apache at the new stack:
   ./migrate.sh apache
-  back up the active *:443 vhost, then copy
-    $NEW_WORKSPACE/apache-final.conf over it
-  sudo apachectl configtest
-  sudo systemctl reload apache2
+  sudo ./apache-apply.sh
 
 Then run: ./migrate.sh verify
 After verification: ./migrate.sh finish

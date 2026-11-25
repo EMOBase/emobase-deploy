@@ -249,33 +249,20 @@ Check the certificate/key paths. The host, port and proxy order are generated
 from `migration.env`.
 
 The generated file is one complete `<VirtualHost *:443>` block. Install it
-over the file that currently defines that vhost.
-
-Find that file:
+with the helper script, which needs root:
 
 ```bash
-sudo apachectl -S
+sudo ./apache-apply.sh
 ```
 
-The `*:443` line ends with the config file in parentheses, for example
-`/etc/apache2/sites-available/https-test.conf`.
+It finds the active `*:443` vhost with `apachectl -S`, keeps its first copy as
+`<file>.bak`, installs `apache-final.conf` over it, runs
+`apachectl configtest` and reloads Apache. If `configtest` fails, it restores
+the backup and does not reload, so the old site keeps running.
 
-Back it up, copy the generated block over it, test and reload:
-
-```bash
-sudo cp /etc/apache2/sites-available/https-test.conf \
-        /etc/apache2/sites-available/https-test.conf.bak
-sudo cp <NEW_WORKSPACE>/apache-final.conf \
-        /etc/apache2/sites-available/https-test.conf
-sudo apachectl configtest
-sudo systemctl reload apache2
-```
-
-Use the path printed by `apachectl -S` instead of `https-test.conf`. If that
-file contains other directives besides the vhost block, keep them and replace
-only the `<VirtualHost *:443>` block.
-
-The `.bak` file is what step 8 restores if verification fails.
+- `--dry-run` prints the file it would replace, without changing anything.
+- `--file PATH` picks the vhost when `apachectl -S` finds more than one.
+- The `.bak` file is what step 8 restores if verification fails.
 
 Verify:
 
@@ -297,8 +284,8 @@ After verification, stop the old stack:
 ./migrate.sh finish
 ```
 
-The old volumes are kept. If verification fails, point the 443 vhost back at
-the old stack and start it; see Rolling back.
+The old volumes are kept. If verification fails, run
+`sudo ./apache-apply.sh --restore` and start the old stack; see Rolling back.
 
 ## 8. Rolling back
 
@@ -319,18 +306,17 @@ Use `./migrate.sh rollback --keep-new` to start the old stack but leave the new
 species and infra stacks running. In that mode, the new app remains available
 on `127.0.0.1:9092` for local diagnosis.
 
-Restore the old 443 vhost:
+Restore the old 443 vhost and reload Apache:
+
+```bash
+sudo ./apache-apply.sh --restore
+```
+
+The old vhost serves these paths:
 
 ```text
 /        -> 127.0.0.1:<OLD_HTTP_PORT>   # default 9090
 /ibb/keycloak through the old stack
-```
-
-Then reload Apache and verify the old site:
-
-```bash
-apachectl configtest
-systemctl reload apache2
 ```
 
 Confirm the old site, Keycloak login and Directus work. Do not run `cleanup`:
