@@ -293,13 +293,6 @@ sudo ./apache-apply.sh --restore
 
 Pass `--backup FILE` to restore a different backup.
 
-The old vhost serves these paths:
-
-```text
-/        -> 127.0.0.1:<OLD_HTTP_PORT>   # default 9090
-/ibb/keycloak through the old stack
-```
-
 Confirm the old site, Keycloak login and Directus work. Do not run `cleanup`:
 the old volumes are the rollback window and still hold the authoritative data.
 

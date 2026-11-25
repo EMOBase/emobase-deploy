@@ -1355,11 +1355,8 @@ Restore the old 443 vhost and reload Apache:
 
   sudo ./apache-apply.sh --restore
 
-It serves these paths:
-  / -> 127.0.0.1:$OLD_HTTP_PORT, and /ibb/keycloak through the old stack.
-
-Verify the old site and login. Do not run cleanup: the old volumes are the
-rollback window and still hold the authoritative data.
+Then confirm the old site and login work. Do not run cleanup: the old volumes
+are the rollback window and still hold the authoritative data.
 
 Old project: $OLD_PROJECT
 EOF
