@@ -22,16 +22,16 @@ usage() {
 Usage: ./migrate.sh [options] <command>
 
 Commands:
-  init           ask for paths and URLs and write migration.env
-  apache         generate the final Apache vhost
-  check          validate config, paths, commands and portal release
-  prepare        clone, start infra, write config (no data copy)
-  delta          copy all data while the old site stays live
-  cutover        print the final Apache switch instructions
-  verify         check the final URL, Directus and Keycloak through Apache
-  finish         stop the old stack after verification
-  rollback       stop the new stack, start the old one and print the old proxy
-  cleanup        print destructive cleanup commands; does not run any command
+  init            ask for paths and URLs and write migration.env
+  apache          generate the final Apache vhost
+  check           validate config, paths, commands and portal release
+  prepare         clone, start infra, write config (no data copy)
+  transfer        copy all data while the old site stays live
+  cutover         print the final Apache switch instructions
+  verify          check the final URL, Directus and Keycloak through Apache
+  finish          stop the old stack after verification
+  rollback        stop the new stack, start the old one and print the old proxy
+  cleanup         print destructive cleanup commands; does not run any command
 
 Options:
   --config FILE  use FILE instead of migration.env
@@ -1229,13 +1229,13 @@ The old site is still live.
 
 Next:
   1. Review the final vhost from ./migrate.sh apache.
-  2. Run: ./migrate.sh delta in the announced window; it copies all data once.
+  2. Run: ./migrate.sh transfer in the announced window; it copies all data once.
 
 Final URL:       $TCAS_URL
 EOF
 }
 
-cmd_delta() {
+cmd_transfer() {
   load_context
   require_admin
   case "$ES_MODE" in
@@ -1421,7 +1421,7 @@ case "$COMMAND" in
   apache) cmd_apache ;;
   check) cmd_check ;;
   prepare) cmd_prepare ;;
-  delta) cmd_delta ;;
+  transfer) cmd_transfer ;;
   cutover) cmd_cutover ;;
   verify) cmd_verify ;;
   rollback) cmd_rollback ;;

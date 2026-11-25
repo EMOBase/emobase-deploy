@@ -147,7 +147,7 @@ Do not run `prepare` if `check` fails. Fix the config and rerun.
 
 ### Dry-run safety
 
-`--dry-run` is safe for every phase, including `delta` and `rollback`: it
+`--dry-run` is safe for every phase, including `transfer` and `rollback`: it
 prints the Compose, `rsync`, `curl` and SQL operations instead of executing
 them. It never stops a container or writes to the old checkout.
 
@@ -175,12 +175,12 @@ After `prepare`:
   ./migrate.sh apache
   ```
 
-- Run `delta` in the announced window.
+- Run `transfer` in the announced window.
 
 ## 5. Copy all data (old site stays live)
 
 ```bash
-./migrate.sh delta
+./migrate.sh transfer
 ```
 
 This is the only data copy. It runs before the switch while the old
@@ -284,7 +284,7 @@ modified. Directus writes made on the new stack after cutover live only in
 
 Rollback remains possible until the cleanup step removes the old volumes.
 If you want to retry, fix the failure, run `check` again, then rerun the phase
-that failed. The script re-copies the old data during `prepare`/`delta`; new
+that failed. The script re-copies the old data during `transfer`; new
 writes made after cutover are not merged back automatically.
 
 ## 8. Adopt the workspace in `emobase-cli`
@@ -340,7 +340,7 @@ and `emobase update`.
 The old deployment's `data/private` directories are empty, and the ontology, GO
 annotation and publication services have no local data mounts, so they cannot
 rebuild every index from files. The script takes a fresh snapshot of the old
-cluster during `delta` and restores it into the new infra ES with the `tcas-`
+cluster during `transfer` and restores it into the new infra ES with the `tcas-`
 index prefix. It prints `_cat/indices` so you can check names and document
 counts.
 
@@ -349,7 +349,7 @@ Do not copy the old `es-data` volume between Elasticsearch versions.
 Use `ES_MODE=rebuild` only after verifying that every service rebuilds its own
 indices from the copied data. The old host's existing
 `full_backup_<date>` snapshot is not a substitute for the fresh snapshot taken
-during `delta`.
+during `transfer`.
 
 ## 10. Retention and cleanup
 
@@ -407,7 +407,7 @@ Then delete this migration folder.
   admin in `migration.env` and rerun the phase that updates `infra/.env`.
 - **Directus shows no uploads**: the `directus-data` mirror did not run, or the
   new project name is not `tcas`.
-- **Search or ontology data is empty after delta**: check the snapshot restore
+- **Search or ontology data is empty after transfer**: check the snapshot restore
   output. The snapshot path is the default; `rebuild` requires every service to
   have its source data.
 - **Images fail or `imageservice` restarts with `community-data: Read-only file
