@@ -527,6 +527,11 @@ Then delete this migration folder.
   ```
 - **Migration URL login fails**: the migration origin is missing, the 443 `/keycloak`
   route is missing, or the Keycloak admin credentials are stale.
+- **400 Bad Request, "Size of a request header field exceeds server limit"**:
+  the browser is sending too many or too large cookies, often because the old
+  443 site and the new 9443 site share cookies. Raise the Apache/nginx header
+  limit (for example `LimitRequestFieldSize 32768`) and clear site data for the
+  host or use a fresh browser profile.
 - **`migrate.sh apache` cannot detect the certificate**: it writes placeholders.
   Edit the generated vhosts, or set `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in
   `migration.env` and rerun `./migrate.sh apache`. `/etc/ssl/private` may be
