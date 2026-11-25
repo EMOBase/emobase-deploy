@@ -243,10 +243,6 @@ It reads `migration.env`, detects the certificate, backs up the current
 Apache. If `configtest` fails it restores the backup and does not reload, so the
 old site keeps running.
 
-`SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in `migration.env` override the detected
-certificate. Use `--file PATH` when `apachectl -S` finds more than one `*:443`
-vhost. The `.bak` file is what step 8 restores if verification fails.
-
 Verify:
 
 ```bash
