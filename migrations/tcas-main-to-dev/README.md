@@ -172,13 +172,8 @@ After `prepare`:
 
 - The old site is still serving on 443.
 - Infra and configuration are ready; no data has been copied.
-- Generate and review the final Apache vhost:
 
-  ```bash
-  ./migrate.sh apache
-  ```
-
-- Run `transfer` in the announced window.
+Run `transfer` in the announced window.
 
 ## 5. Copy all data (old site stays live)
 
@@ -203,7 +198,13 @@ The old application is not stopped.
 
 ## 6. Switch 443 and verify
 
-Review the final vhost:
+Generate the final vhost:
+
+```bash
+./migrate.sh apache
+```
+
+Review it:
 
 ```bash
 less <NEW_WORKSPACE>/apache-final.conf
