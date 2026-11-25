@@ -72,8 +72,9 @@ The script runs from this checkout. It reads the old checkout from
 
 ### Install `emobase-cli`
 
-`prepare` is validated with `emobase doctor` before any data is copied, and
-section 8 adopts the workspace with the same tool. Install it once, now:
+`emobase` is the cross-repository control point for EMOBase. The runbook uses
+it to check the new `infra/` and `Tcas/` configuration before the data copy,
+and to adopt the new workspace after the switch. Install it once, now:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/EMOBase/emobase-cli/main/install.sh | sh
