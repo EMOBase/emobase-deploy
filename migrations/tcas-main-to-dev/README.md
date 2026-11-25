@@ -76,9 +76,10 @@ Create the config interactively:
 ./migrate.sh init
 ```
 
-It asks for the old checkout, workspace, backup directory, URLs, ports and
-project, then writes `migration.env`. Press Enter to accept a default. To change
-values later, edit `migration.env` or rerun `./migrate.sh init --force`.
+It asks for the old checkout, workspace, backup directory, Tcas URL, Keycloak
+URL and portal URL, then writes `migration.env`. Press Enter to accept a
+default. All other values use defaults or the existing config; edit
+`migration.env` to change them, or rerun `./migrate.sh init --force`.
 
 `SPECIES_CODE`, `REALM` and `CLIENT_ID` are taken from the old `.env` when
 present, otherwise `Tcas`, `ibb` and `ibb-client`.

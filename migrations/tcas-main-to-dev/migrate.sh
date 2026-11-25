@@ -552,22 +552,24 @@ cmd_init() {
     "${cfg_kc:-${TCAS_URL%/}/keycloak}" valid_url "Enter an http(s) URL"
   ask PORTAL_URL "Portal URL" "$cfg_portal" valid_url "Enter an http(s) URL"
 
-  ask NEW_HTTP_PORT "New species HTTP port" "${cfg_http:-9092}" valid_port \
-    "Enter a port from 1 to 65535"
-  ask NEW_ES_PORT "New infra Elasticsearch port" "${cfg_es:-9204}" valid_port \
-    "Enter a port from 1 to 65535"
-  ask NEW_PROJECT "New Compose project" "${cfg_project:-tcas}" valid_project \
-    "Use lowercase letters, digits, _ or -"
+  NEW_HTTP_PORT="${NEW_HTTP_PORT:-${cfg_http:-9092}}"
+  NEW_ES_PORT="${NEW_ES_PORT:-${cfg_es:-9204}}"
+  NEW_PROJECT="${NEW_PROJECT:-${cfg_project:-tcas}}"
   SPECIES_CODE="${cfg_species:-${old_species:-Tcas}}"
   REALM="${cfg_realm:-${old_realm:-ibb}}"
   CLIENT_ID="${cfg_client:-${old_client:-ibb-client}}"
-  ask ES_MODE "Elasticsearch mode (snapshot/rebuild)" \
-    "${cfg_es_mode:-snapshot}" valid_es_mode "Use snapshot or rebuild"
-  ask IMAGE_MODE "Image mode (auto/copy/mount)" \
-    "${cfg_image_mode:-auto}" valid_image_mode "Use auto, copy or mount"
-  ask EMOBASE_WEB_IMAGE "New web image" \
-    "${cfg_web:-ghcr.io/emobase/emobase-web:dev}" valid_nonempty "Required"
-  ask OBA_IMAGE "OBA image" "${cfg_oba:-jboss/base-jdk:7}" valid_nonempty "Required"
+  ES_MODE="${ES_MODE:-${cfg_es_mode:-snapshot}}"
+  IMAGE_MODE="${IMAGE_MODE:-${cfg_image_mode:-auto}}"
+  EMOBASE_WEB_IMAGE="${EMOBASE_WEB_IMAGE:-${cfg_web:-ghcr.io/emobase/emobase-web:dev}}"
+  OBA_IMAGE="${OBA_IMAGE:-${cfg_oba:-jboss/base-jdk:7}}"
+
+  valid_port "$NEW_HTTP_PORT" || die "invalid NEW_HTTP_PORT: $NEW_HTTP_PORT"
+  valid_port "$NEW_ES_PORT" || die "invalid NEW_ES_PORT: $NEW_ES_PORT"
+  valid_project "$NEW_PROJECT" || die "invalid NEW_PROJECT: $NEW_PROJECT"
+  valid_es_mode "$ES_MODE" || die "invalid ES_MODE: $ES_MODE"
+  valid_image_mode "$IMAGE_MODE" || die "invalid IMAGE_MODE: $IMAGE_MODE"
+  [[ -n "$SPECIES_CODE" && -n "$REALM" && -n "$CLIENT_ID" ]] \
+    || die "SPECIES_CODE, REALM and CLIENT_ID must not be empty"
 
   local admin_note=0
   env_get "$OLD_SPECIES_DIR/.env" KEYCLOAK_ADMIN >/dev/null 2>&1 || admin_note=1
@@ -651,6 +653,7 @@ PY
 
   log "wrote $CONFIG"
   printf '\nNext:\n  ./migrate.sh check\n'
+  printf 'Other values use defaults or the old config. Edit migration.env to change them.\n'
   if (( admin_note )); then
     printf '\nThe old .env has no KEYCLOAK_ADMIN. Set OLD_KEYCLOAK_ADMIN and\n'
     printf 'OLD_KEYCLOAK_ADMIN_PASSWORD in %s if needed.\n' "$CONFIG"
