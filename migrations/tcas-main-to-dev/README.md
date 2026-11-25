@@ -530,8 +530,9 @@ Then delete this migration folder.
 - **400 Bad Request, "Size of a request header field exceeds server limit"**:
   the browser is sending too many or too large cookies, often because the old
   443 site and the new 9443 site share cookies. Raise the Apache/nginx header
-  limit (for example `LimitRequestFieldSize 32768`) and clear site data for the
-  host or use a fresh browser profile. There is no application-level guard:
+  limit (for example Apache `LimitRequestFieldSize 16384` or nginx
+  `large_client_header_buffers 4 16k`) and clear site data for the host or use
+  a fresh browser profile. There is no application-level guard:
   Apache rejects the request before it reaches the app. Optionally, set an
   Apache `ErrorDocument 400` page that tells users to clear site data; it
   improves the message but does not prevent the failure.
