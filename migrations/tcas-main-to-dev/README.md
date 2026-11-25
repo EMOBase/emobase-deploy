@@ -233,7 +233,14 @@ The old application is not stopped.
 
 ## 7. Configure Apache and verify
 
-Install the final vhost with the helper script, which needs root:
+Optionally review what the helper will install. This prints the generated
+vhost and the file it would replace, and changes nothing:
+
+```bash
+sudo ./apache-apply.sh --dry-run
+```
+
+Then install it:
 
 ```bash
 sudo ./apache-apply.sh
@@ -245,18 +252,9 @@ the configuration and reloads Apache. The first run keeps the old vhost as
 `<file>.bak`; if `configtest` fails it restores that file and does not reload,
 so the old site keeps running.
 
-Review the generated block before touching Apache:
-
-```bash
-sudo ./apache-apply.sh --dry-run
-```
-
-It prints the vhost and the file it would replace, and changes nothing.
 `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in `migration.env` override the detected
 certificate. Use `--file PATH` when `apachectl -S` finds more than one `*:443`
-vhost.
-
-The `.bak` file is what step 8 restores if verification fails.
+vhost. The `.bak` file is what step 8 restores if verification fails.
 
 Verify:
 
