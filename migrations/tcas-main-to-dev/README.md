@@ -248,13 +248,34 @@ less <NEW_WORKSPACE>/apache-final.conf
 Check the certificate/key paths. The host, port and proxy order are generated
 from `migration.env`.
 
-Replace the `<VirtualHost *:443>` block with
-`<NEW_WORKSPACE>/apache-final.conf`, then reload Apache:
+The generated file is one complete `<VirtualHost *:443>` block. Install it
+over the file that currently defines that vhost.
+
+Find that file:
 
 ```bash
-apachectl configtest
-systemctl reload apache2
+sudo apachectl -S
 ```
+
+The `*:443` line ends with the config file in parentheses, for example
+`/etc/apache2/sites-available/https-test.conf`.
+
+Back it up, copy the generated block over it, test and reload:
+
+```bash
+sudo cp /etc/apache2/sites-available/https-test.conf \
+        /etc/apache2/sites-available/https-test.conf.bak
+sudo cp <NEW_WORKSPACE>/apache-final.conf \
+        /etc/apache2/sites-available/https-test.conf
+sudo apachectl configtest
+sudo systemctl reload apache2
+```
+
+Use the path printed by `apachectl -S` instead of `https-test.conf`. If that
+file contains other directives besides the vhost block, keep them and replace
+only the `<VirtualHost *:443>` block.
+
+The `.bak` file is what step 8 restores if verification fails.
 
 Verify:
 

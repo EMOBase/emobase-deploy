@@ -323,7 +323,7 @@ contains "$(cat "$fin")" "LimitRequestFieldSize 16384"
 contains "$(cat "$fin")" "127.0.0.1:19092"
 contains "$(cat "$fin")" "<VirtualHost *:443>"
 not_contains "$(cat "$fin")" "Listen 443"
-contains "$out" "replace the 443 vhost with this file"
+contains "$out" "back up the active *:443 vhost"
 
 pass "apache accepts an explicit root-only key path"
 rootkey_cfg="$TMP/apache-rootkey.env"
