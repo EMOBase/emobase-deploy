@@ -13,6 +13,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG="${MIGRATION_CONFIG:-$SCRIPT_DIR/migration.env}"
 TARGET=
+BACKUP_OPT=
 RESTORE=0
 DRY_RUN=0
 
@@ -39,7 +40,8 @@ Generate the final vhost from migration.env and install it as the active
 Options:
   --config FILE  use FILE instead of migration.env
   --file FILE    *:443 vhost to replace (default: detected with apachectl -S)
-  --restore      copy <file>.bak back and reload Apache
+  --restore      copy the saved vhost back and reload Apache
+  --backup FILE  restore: backup to use (default: the recorded one)
   --dry-run      print the vhost and the plan; needs no root, changes nothing
   -h, --help     show this help
 EOF
@@ -53,6 +55,7 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --config) CONFIG=$2; shift 2 ;;
     --file) TARGET=$2; shift 2 ;;
+    --backup) BACKUP_OPT=$2; shift 2 ;;
     --restore) RESTORE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -69,6 +72,36 @@ resolve() {
   local path=$1 resolved
   resolved=$(readlink -f "$path" 2>/dev/null || true)
   printf '%s\n' "${resolved:-$path}"
+}
+
+STATE_FILE="$(dirname "$CONFIG")/.apache-backup"
+
+recorded_backup() {
+  [[ -f "$STATE_FILE" ]] || return 1
+  local bak
+  bak=$(cat "$STATE_FILE")
+  [[ -f "$bak" ]] || return 1
+  printf '%s\n' "$bak"
+}
+
+# The vhost saved before the first install. An existing <file>.bak may belong
+# to another deployment, so it is only reused when it matches the current
+# vhost; otherwise the current vhost is copied to a timestamped file.
+plan_backup() {
+  local bak
+  if bak=$(recorded_backup); then
+    printf '%s\n' "$bak"
+    return 0
+  fi
+  if [[ -f "$TARGET.bak" ]]; then
+    if cmp -s "$TARGET.bak" "$TARGET"; then
+      printf '%s\n' "$TARGET.bak"
+    else
+      printf '%s\n' "$TARGET.bak.$(date +%Y%m%d%H%M%S)"
+    fi
+  else
+    printf '%s\n' "$TARGET.bak"
+  fi
 }
 
 detect_target() {
@@ -175,8 +208,15 @@ EOF
 if (( RESTORE )); then
   if [[ -z "$TARGET" ]]; then TARGET=$(detect_target); fi
   TARGET=$(resolve "$TARGET")
-  BACKUP="$TARGET.bak"
-  [[ -f "$BACKUP" ]] || die "no backup at $BACKUP"
+  if [[ -n "$BACKUP_OPT" ]]; then
+    BACKUP=$(resolve "$BACKUP_OPT")
+  elif BACKUP=$(recorded_backup); then
+    :
+  else
+    BACKUP="$TARGET.bak"
+  fi
+  [[ -f "$BACKUP" ]] \
+    || die "no backup recorded in $STATE_FILE; pass --backup FILE"
   if (( DRY_RUN )); then
     log "vhost:  $TARGET"
     log "backup: $BACKUP"
@@ -202,6 +242,11 @@ TARGET=$(resolve "$TARGET")
 [[ -f "$TARGET" ]] || die "vhost not found: $TARGET"
 BACKUP="$TARGET.bak"
 
+BACKUP=$(plan_backup)
+if [[ "$BACKUP" == "$TARGET.bak."* ]]; then
+  warn "existing $TARGET.bak belongs to another change; the current vhost will be saved as $BACKUP"
+fi
+
 if (( DRY_RUN )); then
   log "vhost:   $TARGET"
   log "backup:  $BACKUP"
@@ -214,12 +259,11 @@ fi
 
 (( EUID == 0 )) || die "this script edits Apache configuration; run it with sudo"
 
-if [[ -f "$BACKUP" ]]; then
-  log "keeping existing backup: $BACKUP"
-else
+if [[ ! -f "$BACKUP" ]]; then
   cp -p "$TARGET" "$BACKUP"
-  log "backup: $BACKUP"
 fi
+printf '%s\n' "$BACKUP" > "$STATE_FILE"
+log "backup: $BACKUP"
 
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT

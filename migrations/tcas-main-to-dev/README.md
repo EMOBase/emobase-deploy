@@ -240,9 +240,11 @@ sudo ./apache-apply.sh             # generate, install, test and reload
 
 It reads `migration.env`, detects the certificate, replaces the active `*:443`
 vhost, tests the configuration and reloads Apache. Before replacing it, it
-saves the current vhost as `<file>.bak`; an existing backup is never
-overwritten, so a retry still restores the pre-migration vhost. If `configtest`
-fails it restores that file and does not reload, so the old site keeps running.
+saves the current vhost as `<file>.bak` and records that path in
+`.apache-backup` next to `migration.env`, so `--restore` finds it. If a `.bak`
+from another change already exists, it is not reused: the current vhost goes to
+a timestamped file instead. If `configtest` fails it restores the saved file and
+does not reload, so the old site keeps running.
 
 `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in `migration.env` override the detected
 certificate. Use `--file PATH` when `apachectl -S` finds more than one `*:443`
@@ -295,6 +297,9 @@ Restore the old 443 vhost and reload Apache:
 ```bash
 sudo ./apache-apply.sh --restore
 ```
+
+It uses the backup recorded in `.apache-backup`; pass `--backup FILE` to pick a
+different one.
 
 The old vhost serves these paths:
 

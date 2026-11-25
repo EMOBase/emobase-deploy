@@ -742,6 +742,23 @@ contains "$out" "systemctl reload apache2"
   || fail "apache-apply dry-run changed the vhost"
 [[ ! -e "$TMP/apache/https-test.conf.bak" ]] \
   || fail "apache-apply dry-run wrote a backup"
+[[ ! -e "$TMP/.apache-backup" ]] \
+  || fail "apache-apply dry-run wrote the backup state"
+
+pass "apache-apply does not reuse a stale .bak from another deployment"
+printf 'older deployment\n' > "$TMP/apache/https-test.conf.bak"
+out=$(bash "$APACHE_APPLY" --dry-run --config "$TMP/migration.env" 2>&1)
+contains "$out" "belongs to another change"
+contains "$out" "https-test.conf.bak."
+[[ ! -e "$TMP/.apache-backup" ]] || fail "dry-run wrote the backup state"
+rm -f "$TMP/apache/https-test.conf.bak"
+
+pass "apache-apply reuses a .bak that matches the current vhost"
+cp -p "$TMP/apache/https-test.conf" "$TMP/apache/https-test.conf.bak"
+out=$(bash "$APACHE_APPLY" --dry-run --config "$TMP/migration.env")
+contains "$out" "https-test.conf.bak"
+not_contains "$out" "https-test.conf.bak."
+rm -f "$TMP/apache/https-test.conf.bak"
 
 pass "apache-apply accepts an explicit root-only key path"
 rootkey_cfg="$TMP/apache-rootkey.env"
@@ -775,10 +792,17 @@ fi
 contains "$out" "missing.env not found"
 
 pass "apache-apply --restore needs a backup"
-if out=$(bash "$APACHE_APPLY" --restore --file "$TMP/apache/https-test.conf" 2>&1); then
+if out=$(bash "$APACHE_APPLY" --restore --config "$TMP/migration.env" --file "$TMP/apache/https-test.conf" 2>&1); then
   fail "apache-apply restored without a backup"
 fi
-contains "$out" "no backup at"
+contains "$out" "no backup recorded"
+
+pass "apache-apply --restore uses the recorded backup"
+printf 'recorded backup\n' > "$TMP/apache/recorded.bak"
+printf '%s\n' "$TMP/apache/recorded.bak" > "$TMP/.apache-backup"
+out=$(bash "$APACHE_APPLY" --dry-run --restore --config "$TMP/migration.env" --file "$TMP/apache/https-test.conf")
+contains "$out" "recorded.bak"
+rm -f "$TMP/.apache-backup" "$TMP/apache/recorded.bak"
 
 if (( EUID != 0 )); then
   pass "apache-apply refuses to write without root"
