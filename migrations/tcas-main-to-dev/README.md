@@ -154,7 +154,7 @@ Do not run `prepare` if `check` fails. Fix the config and rerun.
 prints the Compose, `rsync`, `curl` and SQL operations instead of executing
 them. It never stops a container or writes to the old checkout.
 
-## 4. Prepare the new stack (old site stays live)
+## 4. Prepare the new stack
 
 ```bash
 ./migrate.sh prepare
@@ -207,7 +207,7 @@ dependency.
 Then run `transfer` in the announced window; it starts the new infra and copies
 the data.
 
-## 6. Copy all data (old site stays live)
+## 6. Copy all data
 
 ```bash
 ./migrate.sh transfer
