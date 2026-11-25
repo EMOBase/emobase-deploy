@@ -10,6 +10,8 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG="${MIGRATION_CONFIG:-$SCRIPT_DIR/migration.env}"
+# shellcheck source=../../lib/species-env.sh
+source "$SCRIPT_DIR/../../lib/species-env.sh"
 DRY_RUN=0
 ASSUME_YES=0
 FORCE=0
@@ -123,16 +125,6 @@ PY
 
 valid_url() {
   [[ "$1" =~ ^https?://[^/]+ ]]
-}
-
-# init.sh treats URL keys as having no trailing slash; keep the migration output
-# identical, so paths built as "$URL/path" do not become "//path".
-trim_url() {
-  local value=$1
-  while [[ "$value" == */ ]]; do
-    value="${value%/}"
-  done
-  printf '%s' "$value"
 }
 
 valid_port() {
@@ -912,10 +904,9 @@ start_infra() {
 
 write_new_env() {
   local env_file="$NEW_SPECIES_DIR/.env"
-  # Server-side OIDC calls stay inside the host. Using the public URL would make
-  # the app container verify the proxy certificate and resolve the public name,
-  # which fails on private CAs and host-only names such as *.test.
-  local internal_issuer="http://host.docker.internal:8181/keycloak/realms/$REALM"
+  local internal_issuer
+  internal_issuer=$(internal_keycloak_issuer 8181 "$REALM")
+
   if [[ -f "$env_file" && $FORCE -eq 0 ]]; then
     log "using existing new .env: $env_file"
     set_env "$env_file" PUBLIC_SERVER "$TCAS_URL"
@@ -947,55 +938,50 @@ write_new_env() {
     return
   fi
 
+  # Inputs for lib/species-env.sh. The old deployment's secrets, paths and
+  # owner are preserved; the migration only changes identity and URLs.
+  MAIN_SPECIES="$SPECIES_CODE"
+  EMOBASE_WEB_IMAGE="$EMOBASE_WEB_IMAGE"
+  PUBLIC_SERVER="$TCAS_URL"
+  PUBLIC_HOST="$TCAS_HOST"
+  PORTAL_SERVER="$PORTAL_URL"
+  PORTAL_INTERNAL_URL=""
+  INTERNAL_API_GENOMICS_SERVICE="$PORTAL_URL/api/genomicsservice/v1"
+  EMOBASE_INFRA_NETWORK="emobase-infra"
+  MYSQL_ROOT_PASSWORD="$NEW_INFRA_MYSQL_PASSWORD"
+  DIRECTUS_DB_DATABASE="$NEW_DIRECTUS_DB"
+  EMOBASE_ES_INDEX_PREFIX="$NEW_ES_PREFIX"
+  KEYCLOAK_PUBLIC_URL="$KEYCLOAK_PUBLIC_URL"
+  KEYCLOAK_INTERNAL_URL="http://keycloak:8080/keycloak"
+  INTERNAL_KEYCLOAK_ISSUER="$internal_issuer"
+  KEYCLOAK_REALM="$REALM"
+  KEYCLOAK_REALM_MODE="dedicated"
+  KEYCLOAK_CLIENT_ID="$CLIENT_ID"
+  KEYCLOAK_CLIENT_SECRET="$OLD_CLIENT_SECRET"
+  DIRECTUS_SECRET="$OLD_DIRECTUS_SECRET"
+  DIRECTUS_ADMIN_EMAIL="$OLD_DIRECTUS_ADMIN_EMAIL"
+  DIRECTUS_ADMIN_PASSWORD="$OLD_DIRECTUS_ADMIN_PASSWORD"
+  SSR_OIDC_SESSION_SECRET="$OLD_SSR_SECRET"
+  COCO_USERNAME="$OLD_COCO_USER"
+  COCO_PASSWORD="$OLD_COCO_PASSWORD"
+  HTTP_PORT="$NEW_HTTP_PORT"
+  COMPOSE_PROJECT_NAME="$NEW_PROJECT"
+  COMPOSE_FILE="$compose_file"
+  PUBLIC_DATA_DIR="$public_data"
+  PRIVATE_DATA_DIR="$private_data"
+  IMAGE_DIR="$image_dir"
+  SPECIES_UID="$uid"
+  SPECIES_GID="$gid"
+
+
+  local tmp_env
+  tmp_env=$(mktemp)
   umask 077
-  cat > "$env_file" <<EOF
-MAIN_SPECIES=$SPECIES_CODE
-EMOBASE_WEB_IMAGE=$EMOBASE_WEB_IMAGE
-
-COMPOSE_PROJECT_NAME=$NEW_PROJECT
-PUBLIC_SERVER=$TCAS_URL
-PUBLIC_HOST=$TCAS_HOST
-HTTP_PORT=$NEW_HTTP_PORT
-PUBLIC_DATA_DIR=$public_data
-PRIVATE_DATA_DIR=$private_data
-IMAGE_DIR=$image_dir
-UID=$uid
-GID=$gid
-
-PORTAL_SERVER=$PORTAL_URL
-PORTAL_INTERNAL_URL=
-INTERNAL_API_GENOMICS_SERVICE=$PORTAL_URL/api/genomicsservice/v1
-
-EMOBASE_INFRA_NETWORK=emobase-infra
-MYSQL_ROOT_PASSWORD=$NEW_INFRA_MYSQL_PASSWORD
-DIRECTUS_DB_HOST=mysql
-DIRECTUS_DB_PORT=3306
-DIRECTUS_DB_USER=root
-DIRECTUS_DB_DATABASE=$NEW_DIRECTUS_DB
-EMOBASE_ES_INDEX_PREFIX=$NEW_ES_PREFIX
-
-KEYCLOAK_PUBLIC_URL=$KEYCLOAK_PUBLIC_URL
-KEYCLOAK_INTERNAL_URL=http://keycloak:8080/keycloak
-INTERNAL_KEYCLOAK_ISSUER=$internal_issuer
-INTERNAL_DIRECTUS_URL=http://directus:8055
-KEYCLOAK_REALM=$REALM
-KEYCLOAK_REALM_MODE=dedicated
-KEYCLOAK_CLIENT_ID=$CLIENT_ID
-KEYCLOAK_CLIENT_SECRET=$OLD_CLIENT_SECRET
-DIRECTUS_KEYCLOAK_ISSUER_URL=http://keycloak:8080/keycloak/realms/$REALM
-
-DIRECTUS_SECRET=$OLD_DIRECTUS_SECRET
-DIRECTUS_ADMIN_EMAIL=$OLD_DIRECTUS_ADMIN_EMAIL
-DIRECTUS_ADMIN_PASSWORD=$OLD_DIRECTUS_ADMIN_PASSWORD
-SSR_OIDC_SESSION_SECRET=$OLD_SSR_SECRET
-COCO_USERNAME=$OLD_COCO_USER
-COCO_PASSWORD=$OLD_COCO_PASSWORD
-
-COMPOSE_FILE=$compose_file
-EOF
-  if [[ -n "${OBA_IMAGE:-}" ]]; then
-    printf 'OBA_IMAGE=%s\n' "$OBA_IMAGE" >> "$env_file"
+  if ! render_species_env > "$tmp_env"; then
+    rm -f "$tmp_env"
+    die "could not render $env_file"
   fi
+  mv "$tmp_env" "$env_file"
   chmod 600 "$env_file"
   log "wrote $env_file"
 }

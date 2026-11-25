@@ -478,6 +478,30 @@ grep -Fq "/new/infra compose compose up -d --wait" "$MOCK_LOG" \
 [[ ! -e "$TMP/new/Tcas/data/tcas5" ]] || fail "external public directory was copied"
 [[ ! -e "$TMP/new/Tcas/compose.media.yml" ]] || fail "copy mode wrote compose.media.yml"
 
+# ---------------------------------------------------------------- shared renderer
+pass "shared renderer helpers"
+out=$(bash -c 'source "$1/lib/species-env.sh"; printf "%s|%s|%s\n" \
+  "$(trim_url "https://x///")" \
+  "$(url_host "https://h:8443/path")" \
+  "$(internal_keycloak_issuer 8181 ibb)"' _ "$HERE/../../..")
+contains "$out" "https://x|h|http://host.docker.internal:8181/keycloak/realms/ibb"
+
+pass "init.sh and prepare render the same keys"
+init_out=$(bash "$HERE/../../../init.sh" --print --yes \
+  --species Tcas --infra-dir "$TMP/new/infra" \
+  --public-server https://tcas.test --http-port 19092 \
+  --portal-server https://portal.test --portal-internal-url "" \
+  --container-prefix tcastest --directus-db directus_tcastest \
+  --es-index-prefix tcastest --keycloak-realm new:ibb \
+  --keycloak-client-id ibb-client --keycloak-client-secret old-client-secret \
+  --coco-username coco --coco-password old-coco-password 2>/dev/null)
+contains "$init_out" "PUBLIC_HOST=tcas.test"
+contains "$init_out" "INTERNAL_KEYCLOAK_ISSUER=http://host.docker.internal:8181/keycloak/realms/ibb"
+init_keys=$(printf '%s\n' "$init_out" | grep -E '^[A-Z][A-Z0-9_]*=' | cut -d= -f1 | sort -u)
+env_keys=$(grep -E '^[A-Z][A-Z0-9_]*=' "$envfile" | cut -d= -f1 | sort -u)
+missing_keys=$(comm -23 <(printf '%s\n' "$init_keys") <(printf '%s\n' "$env_keys"))
+[[ -z "$missing_keys" ]] || fail "migration .env misses init keys: $missing_keys"
+
 # ---------------------------------------------------------------- infra init cwd
 pass "prepare resets an existing env to the final URLs"
 out=$(run "prepare rerun" --yes prepare)

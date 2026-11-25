@@ -2,6 +2,10 @@
 
 set -eo pipefail
 
+INIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/species-env.sh
+source "$INIT_DIR/lib/species-env.sh"
+
 PASSWORD_LENGTH=16
 FORCE=false
 YES=false
@@ -403,11 +407,8 @@ if [[ "$LOCAL" == true ]] && [[ -z "$PUBLIC_SERVER" ]]; then
 fi
 ask PUBLIC_SERVER "🌐 Public server address" "$DEFAULT_PUBLIC_SERVER" \
   valid_url "PUBLIC_SERVER must be a full URL starting with http:// or https://"
-while [[ "$PUBLIC_SERVER" == */ ]]; do
-  PUBLIC_SERVER="${PUBLIC_SERVER%/}"
-done
-PUBLIC_HOST=$(printf '%s' "$PUBLIC_SERVER" \
-  | sed -E 's#^[A-Za-z][A-Za-z0-9+.-]*://([^/:]+).*#\1#')
+PUBLIC_SERVER=$(trim_url "$PUBLIC_SERVER")
+PUBLIC_HOST=$(url_host "$PUBLIC_SERVER")
 [[ -n "$PUBLIC_HOST" ]] \
   || fatal "Could not derive a hostname from PUBLIC_SERVER=${PUBLIC_SERVER}"
 
@@ -673,11 +674,10 @@ if is_loopback_url "$KEYCLOAK_PUBLIC_URL" \
   >&2 echo "⚠️  KEYCLOAK_PUBLIC_URL points at localhost but PUBLIC_SERVER does not."
   >&2 echo "   Set --keycloak-public-url in the infra checkout's init.sh."
 fi
-if is_loopback_url "$KEYCLOAK_PUBLIC_URL"; then
-  INTERNAL_KEYCLOAK_ISSUER="http://host.docker.internal:${INFRA_KEYCLOAK_HOST_PORT}/keycloak/realms/${KEYCLOAK_REALM}"
-else
-  INTERNAL_KEYCLOAK_ISSUER="${KEYCLOAK_PUBLIC_URL}/realms/${KEYCLOAK_REALM}"
-fi
+# Server-side OIDC stays on this host: the app container may not trust the
+# public certificate or resolve a host-only name. The public issuer above is
+# still what clients see and what the token `iss` claim uses.
+INTERNAL_KEYCLOAK_ISSUER="${INTERNAL_KEYCLOAK_ISSUER:-$(internal_keycloak_issuer "${INFRA_KEYCLOAK_HOST_PORT:-8181}" "$KEYCLOAK_REALM")}"
 
 if [[ -z "$DIRECTUS_DB_DATABASE" ]]; then
   DIRECTUS_DB_DATABASE="directus_${species_slug}"
@@ -685,115 +685,32 @@ fi
 [[ "$DIRECTUS_DB_DATABASE" =~ ^[A-Za-z0-9_]+$ ]] \
   || fatal "DIRECTUS_DB_DATABASE may only contain letters, digits and underscores"
 
-ENV_CONTENT="# 4-letter code of your species (e.g. Tcas, Dmel, Ptep)
-MAIN_SPECIES=${MAIN_SPECIES}
-
-# Web UI image
+# Values for the shared species .env renderer (lib/species-env.sh).
 EMOBASE_WEB_IMAGE=ghcr.io/emobase/emobase-web:dev
-
-# Local image build instead of pulling from GHCR:
-#   docker compose -f compose.yml -f compose.local.yml up -d --build
-# Point this at the source checkout; the default assumes it sits next to this
-# checkout.
-# EMOBASE_WEB_DIR=../emobase-web
-
-# The full address to access the app from public, including protocol and port (if not 80 or 443)
-PUBLIC_SERVER=${PUBLIC_SERVER}
-
-# Hostname part of PUBLIC_SERVER. The species nginx answers only this name and
-# rejects other Host headers, so use PUBLIC_SERVER when opening the site.
-PUBLIC_HOST=${PUBLIC_HOST}
-
-# Public origin of the portal deployment that serves genomics, JBrowse2 and BLAST
-PORTAL_SERVER=${PORTAL_SERVER}
-
-# Portal origin used from inside this stack's containers (BLAST proxy, SSR API
-# calls). Use an internal hostname/URL when the portal is on the same Docker
-# host; otherwise this may be the same as PORTAL_SERVER.
-PORTAL_INTERNAL_URL=${PORTAL_INTERNAL_URL}
-
-# ── Shared infrastructure ───────────────────────────────────────────────────
-# MySQL, Keycloak and Elasticsearch run in the shared infra stack.
-# Start it first. This stack joins its Docker network; the service names below
-# resolve there.
-EMOBASE_INFRA_NETWORK=${INFRA_NETWORK}
-DIRECTUS_DB_HOST=mysql
-DIRECTUS_DB_PORT=3306
-DIRECTUS_DB_USER=root
-DIRECTUS_DB_DATABASE=${DIRECTUS_DB_DATABASE}
-
-# This species' Elasticsearch indices in the shared instance. The es-proxy
-# sidecar forwards the local name es:9200 to elasticsearch:9200, so the
-# application services keep their built-in es:9200 configuration. Indices are
-# named <prefix>-<service>-...; never reuse another stack's prefix.
-EMOBASE_ES_INDEX_PREFIX=${EMOBASE_ES_INDEX_PREFIX}
-
-# Keycloak endpoint/realm/client. The realm is either an existing realm this
-# species joined or a new independent realm owned by this checkout.
-KEYCLOAK_PUBLIC_URL=${KEYCLOAK_PUBLIC_URL}
-KEYCLOAK_INTERNAL_URL=${KEYCLOAK_INTERNAL_URL}
-KEYCLOAK_REALM=${KEYCLOAK_REALM}
-KEYCLOAK_REALM_MODE=${KEYCLOAK_REALM_MODE}
-KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
-
-# Internal service URLs used for server-side calls. These must be absolute.
-# They fall back to the matching PUBLIC_* URL if omitted.
-INTERNAL_API_GENOMICS_SERVICE=${PORTAL_INTERNAL_URL:+${PORTAL_INTERNAL_URL}/api/genomicsservice/v1}
-INTERNAL_API_PHENOTYPE_SERVICE=http://phenotypeservice:8080
-INTERNAL_API_IMAGE_SERVICE=http://imageservice:8080
-INTERNAL_API_ONTOLOGY_SERVICE=http://ontologyservice:8080
-INTERNAL_API_GO_ANNOTATION_SERVICE=http://goannotationservice:8080
-INTERNAL_API_PUBLICATION_SERVICE=http://publicationservice:8080
-INTERNAL_API_QUERY_PIPELINE_SERVICE=http://querypipelineservice:8080
-# Server-side Keycloak calls go to this server's emobase-infra Keycloak. They
-# do not depend on the portal being reachable.
-INTERNAL_KEYCLOAK_ISSUER=${INTERNAL_KEYCLOAK_ISSUER}
-INTERNAL_DIRECTUS_URL=http://directus:8055
-
-# The port to access the app from localhost
-HTTP_PORT=${HTTP_PORT}
-
-# Project name (prefix for containers)
-COMPOSE_PROJECT_NAME=${CONTAINER_PREFIX}
-
-# Compose files. init.sh adds a species overlay (for example compose.tcas.yml)
-# so every docker compose command and the emobase CLI include it.
-COMPOSE_FILE=${COMPOSE_FILES}
-
-# Directory for data that is publicly downloadable at \$PUBLIC_SERVER/download/
+EMOBASE_INFRA_NETWORK="$INFRA_NETWORK"
+INTERNAL_API_GENOMICS_SERVICE="${PORTAL_INTERNAL_URL:+${PORTAL_INTERNAL_URL}/api/genomicsservice/v1}"
+COMPOSE_PROJECT_NAME="$CONTAINER_PREFIX"
+COMPOSE_FILE="$COMPOSE_FILES"
 PUBLIC_DATA_DIR=./data/public
-
-# Directory for private data used by internal services
 PRIVATE_DATA_DIR=./data/private
-
-# Directory for storing uploaded images
 IMAGE_DIR=./images
-
-# uid and gid of the user who can write to the image directory
-UID=$(id -u)
-GID=$(id -g)
-
-# Secrets
-# MYSQL_ROOT_PASSWORD is shared with emobase-infra. KEYCLOAK_CLIENT_SECRET
-# belongs to this species' chosen realm.
+SPECIES_UID=$(id -u)
+SPECIES_GID=$(id -g)
 SSR_OIDC_SESSION_SECRET=$(generate_secret_key 48)
-KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
 DIRECTUS_SECRET=$(generate_secret_key 32)
-MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-
-# Credentials
 DIRECTUS_ADMIN_EMAIL=admin@emobase.org
 DIRECTUS_ADMIN_PASSWORD=$(generate_password)
-
-# Seed Keycloak user. For a joined realm these are copied from the owner; for
-# a new realm the password is temporary and must be changed on first login.
-COCO_USERNAME=${COCO_USERNAME}
-COCO_PASSWORD=${COCO_PASSWORD}"
+unset OBA_IMAGE
 
 if [[ "$PRINT" == true ]]; then
-  echo "$ENV_CONTENT"
+  render_species_env
 else
-  printf '%s\n' "$ENV_CONTENT" > .env
+  tmp_env=$(mktemp)
+  if ! render_species_env > "$tmp_env"; then
+    rm -f "$tmp_env"
+    fatal "could not render .env; the missing values are listed above"
+  fi
+  mv "$tmp_env" .env
   chmod 600 .env
   >&2 echo "✅ .env file generated successfully"
   >&2 echo "   Species URL:  ${PUBLIC_SERVER}"

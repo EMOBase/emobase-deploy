@@ -102,11 +102,13 @@ BLAST is proxied through this stack's nginx so its iframe stays same-origin;
 the proxy uses `PORTAL_INTERNAL_URL`. JBrowse2 and browser-facing genomics
 links use `PORTAL_SERVER`.
 
-Server-side calls prefer `INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER` and
-`INTERNAL_DIRECTUS_URL`. When those are not set, they fall back to the matching
-public URL. The fallback is correct for a separate server; the app only warns
-when the public URL is a loopback address and therefore cannot work from inside
-a container.
+Server-side calls use `INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER` and
+`INTERNAL_DIRECTUS_URL`. `init.sh` writes the Keycloak issuer as
+`http://host.docker.internal:<KEYCLOAK_HOST_PORT>/keycloak/realms/<realm>`, so
+sign-in does not depend on the public proxy certificate or on the container
+resolving the public name. Set `INTERNAL_KEYCLOAK_ISSUER` only when infra runs
+on a different host. The other `INTERNAL_*` values fall back to the matching
+public URL; that is correct for a separate server.
 
 ## Elasticsearch
 
