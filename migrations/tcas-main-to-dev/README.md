@@ -92,7 +92,7 @@ values later, edit `migration.env` or rerun `./migrate.sh init --force`.
 | `MIGRATION_URL` | Temporary migration URL, `https://<TCAS_HOST>:9443` |
 | `PORTAL_URL` | Deployed multi-species portal |
 | `KEYCLOAK_PUBLIC_URL` | Final Keycloak URL; during migration `MIGRATION_URL/keycloak` is used |
-| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE` | Optional Apache certificate overrides; otherwise `apache` detects them |
+| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE` | Optional certificate overrides for `apache`; set before running it |
 | `NEW_HTTP_PORT` | `9092` |
 | `NEW_ES_PORT` | `9204` |
 | `NEW_PROJECT` | `tcas`; must differ from the old project |
@@ -233,9 +233,9 @@ the `/` catch-all.
    It writes `<NEW_WORKSPACE>/apache-migration.conf` for this step and
    `<NEW_WORKSPACE>/apache-final.conf` for cutover, using the host from
    `TCAS_URL` and the detected certificate paths. If detection fails, it writes
-   placeholders: edit the certificate paths before installing, or set
-   `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in `migration.env`. The files follow
-   `apache-migration.conf.example` and `apache-final.conf.example`.
+   placeholders: edit the certificate paths in the generated file before
+   installing. The files follow `apache-migration.conf.example` and
+   `apache-final.conf.example`.
 
 2. Review the migration vhost before copying:
 
@@ -529,8 +529,9 @@ Then delete this migration folder.
   route is missing, or the Keycloak admin credentials are stale.
 - **`migrate.sh apache` cannot detect the certificate**: it writes placeholders.
   Edit the generated vhosts, or set `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in
-  `migration.env`. `/etc/ssl/private` may be root-only; an explicit key path is
-  accepted even if the deploy user cannot read it.
+  `migration.env` and rerun `./migrate.sh apache`. `/etc/ssl/private` may be
+  root-only; an explicit key path is accepted even if the deploy user cannot
+  read it.
 - **Keycloak admin login fails after the DB copy**: the copied master realm has
   the current admin password, not the old bootstrap password. Set the current
   admin in `migration.env` and rerun the phase that updates `infra/.env`.
