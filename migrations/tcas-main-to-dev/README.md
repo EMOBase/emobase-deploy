@@ -233,17 +233,9 @@ The old application is not stopped.
 
 ## 7. Configure Apache and verify
 
-Optionally review what the helper will install. This prints the generated
-vhost and the file it would replace, and changes nothing:
-
 ```bash
-sudo ./apache-apply.sh --dry-run
-```
-
-Then install it:
-
-```bash
-sudo ./apache-apply.sh
+sudo ./apache-apply.sh --dry-run   # optional: print the vhost and the target
+sudo ./apache-apply.sh             # generate, install, test and reload
 ```
 
 It reads `migration.env`, detects the certificate, writes
