@@ -295,6 +295,17 @@ contains "$(cat "$fin")" "<VirtualHost *:443>"
 not_contains "$(cat "$fin")" "Listen 443"
 contains "$out" "Install the migration vhost"
 
+pass "apache accepts an explicit root-only key path"
+rootkey_cfg="$TMP/apache-rootkey.env"
+sed "s#^SSL_CERT_KEY_FILE=.*#SSL_CERT_KEY_FILE=$TMP/missing-key.pem#" \
+  "$TMP/migration.env" > "$rootkey_cfg"
+if ! out=$(bash "$SCRIPT" --config "$rootkey_cfg" apache 2>&1); then
+  printf '%s\n' "$out" >&2
+  fail "apache rejected an explicit key path"
+fi
+contains "$out" "not visible"
+contains "$(cat "$TMP/new/apache-migration.conf")" "missing-key.pem"
+
 pass "check reads old environment"
 reset_mock_log
 out=$(run check check)

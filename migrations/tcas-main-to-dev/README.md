@@ -508,6 +508,9 @@ Then delete this migration folder.
   ```
 - **Migration URL login fails**: the migration origin is missing, the 443 `/keycloak`
   route is missing, or the Keycloak admin credentials are stale.
+- **`migrate.sh apache` cannot detect the certificate**: `/etc/ssl/private` may
+  be root-only. Set `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in `migration.env`;
+  an explicit key path is accepted even if the deploy user cannot read it.
 - **Keycloak admin login fails after the DB copy**: the copied master realm has
   the current admin password, not the old bootstrap password. Set the current
   admin in `migration.env` and rerun the phase that updates `infra/.env`.

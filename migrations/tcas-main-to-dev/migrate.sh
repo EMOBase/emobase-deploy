@@ -697,9 +697,16 @@ detect_cert_pair() {
     fi
   fi
   [[ -n "$cert" && -n "$key" ]] || die \
-    "could not detect a TLS certificate for $TCAS_HOST; set SSL_CERT_FILE and SSL_CERT_KEY_FILE in migration.env"
-  [[ -f "$cert" ]] || die "certificate not found: $cert"
-  [[ -f "$key" ]] || die "private key not found: $key"
+    "could not detect a TLS certificate for $TCAS_HOST; set SSL_CERT_FILE and SSL_CERT_KEY_FILE in migration.env (the key may be root-only under /etc/ssl/private)"
+  [[ -e "$cert" ]] || die "certificate not found: $cert"
+  [[ -f "$cert" ]] || die "certificate is not a file: $cert"
+  if [[ -e "$key" ]]; then
+    [[ -f "$key" ]] || die "private key is not a file: $key"
+  elif [[ -n "${SSL_CERT_KEY_FILE:-}" ]]; then
+    warn "private key is not visible to this user; using the configured path: $key"
+  else
+    die "private key not found: $key"
+  fi
   SSL_CERT_FILE=$cert
   SSL_CERT_KEY_FILE=$key
 }
