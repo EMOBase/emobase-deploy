@@ -13,13 +13,13 @@ This runbook migrates the running Tcas deployment to the `dev` layout with
 
 The old stack stays live while the new one is prepared:
 
-| | Old stack | New stack |
-| --- | --- | --- |
-| Compose project | `COMPOSE_PROJECT_NAME` from old `.env` (default `ibb`) | `tcas` |
-| Species site | `HTTP_PORT` from old `.env` (default `9090`) | `9092` |
-| Keycloak | legacy at `/ibb/keycloak` | infra at `/keycloak`, port `8181`, public on 443 |
-| Elasticsearch | old stack, `9202` | infra, host port `9204` |
-| Public URL | `<TCAS_URL>` until cutover | `<TCAS_URL>` after cutover |
+|                 | Old stack                                              | New stack                                        |
+| --------------- | ------------------------------------------------------ | ------------------------------------------------ |
+| Compose project | `COMPOSE_PROJECT_NAME` from old `.env` (default `ibb`) | `tcas`                                           |
+| Species site    | `HTTP_PORT` from old `.env` (default `9090`)           | `9092`                                           |
+| Keycloak        | legacy at `/ibb/keycloak`                              | infra at `/keycloak`, port `8181`, public on 443 |
+| Elasticsearch   | old stack, `9202`                                      | infra, host port `9204`                          |
+| Public URL      | `<TCAS_URL>` until the switch                          | `<TCAS_URL>` after the switch                    |
 
 The old checkout, project name, volumes and container names are not changed.
 The new stack uses separate volumes and a separate Directus database.
@@ -217,8 +217,6 @@ apachectl configtest
 systemctl reload apache2
 ```
 
-`./migrate.sh cutover` prints the same switch instructions.
-
 Verify:
 
 ```bash
@@ -245,7 +243,7 @@ start the old stack; see Rolling back.
 ## 7. Rolling back
 
 
-Run this only if the final verification failed, or if the cutover is
+Run this only if the final verification failed, or if the switch is
 intentionally abandoned. Do not run it after a successful migration.
 
 ```bash
@@ -279,13 +277,13 @@ Confirm the old site, Keycloak login and Directus work. Do not run `cleanup`:
 the old volumes are the rollback window and still hold the authoritative data.
 
 The old MySQL/Keycloak/ES volumes and the old `directus` database were not
-modified. Directus writes made on the new stack after cutover live only in
+modified. Directus writes made on the new stack after the switch live only in
 `directus_tcas` and the new volumes; those writes are not copied back.
 
 Rollback remains possible until the cleanup step removes the old volumes.
 If you want to retry, fix the failure, run `check` again, then rerun the phase
 that failed. The script re-copies the old data during `transfer`; new
-writes made after cutover are not merged back automatically.
+writes made after the switch are not merged back automatically.
 
 ## 8. Adopt the workspace in `emobase-cli`
 

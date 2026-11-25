@@ -27,7 +27,6 @@ Commands:
   check           validate config, paths, commands and portal release
   prepare         clone, start infra, write config (no data copy)
   transfer        copy all data while the old site stays live
-  cutover         print the final Apache switch instructions
   verify          check the final URL, Directus and Keycloak through Apache
   finish          stop the old stack after verification
   rollback        stop the new stack, start the old one and print the old proxy
@@ -743,7 +742,7 @@ EOF
 Review the final vhost and edit the certificate paths if needed:
   $final
 
-At cutover, replace the 443 vhost with this file.
+At the switch, replace the 443 vhost with this file.
 EOF
 }
 
@@ -1285,23 +1284,6 @@ After verification: ./migrate.sh finish
 EOF
 }
 
-cmd_cutover() {
-  load_context
-  local final="$NEW_WORKSPACE/apache-final.conf"
-  [[ -f "$final" ]] || die "run ./migrate.sh apache first"
-  cat <<EOF
-
-Switch the 443 vhost to the final configuration:
-  $final
-
-Reload Apache:
-  apachectl configtest
-  systemctl reload apache2
-
-Then run: ./migrate.sh verify
-EOF
-}
-
 cmd_verify() {
   load_context
   log "final checks"
@@ -1422,7 +1404,6 @@ case "$COMMAND" in
   check) cmd_check ;;
   prepare) cmd_prepare ;;
   transfer) cmd_transfer ;;
-  cutover) cmd_cutover ;;
   verify) cmd_verify ;;
   rollback) cmd_rollback ;;
   finish) cmd_finish ;;
