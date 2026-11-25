@@ -238,9 +238,8 @@ sudo ./apache-apply.sh --dry-run   # optional: print the vhost and the target
 sudo ./apache-apply.sh             # generate, install, test and reload
 ```
 
-It reads `migration.env`, detects the certificate, writes
-`<NEW_WORKSPACE>/apache-final.conf`, replaces the active `*:443` vhost, tests
-the configuration and reloads Apache. The first run keeps the old vhost as
+It reads `migration.env`, detects the certificate, replaces the active `*:443`
+vhost, tests the configuration and reloads Apache. The first run keeps the old vhost as
 `<file>.bak`; if `configtest` fails it restores that file and does not reload,
 so the old site keeps running.
 

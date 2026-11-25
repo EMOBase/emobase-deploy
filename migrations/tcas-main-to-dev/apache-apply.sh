@@ -3,8 +3,8 @@
 # Generate and install the final *:443 vhost for the Tcas migration.
 # Run it as root: sudo ./apache-apply.sh
 #
-# It reads migration.env, detects the certificate, writes apache-final.conf,
-# finds the vhost that currently serves 443, keeps its first copy as
+# It reads migration.env, detects the certificate, finds the vhost that
+# currently serves 443, keeps its first copy as
 # <file>.bak, installs the generated block, tests the configuration and only
 # then reloads Apache. A failing configtest restores the backup.
 
@@ -18,26 +18,23 @@ DRY_RUN=0
 
 TCAS_URL=
 TCAS_HOST=
-NEW_WORKSPACE=
 NEW_HTTP_PORT=9092
 SSL_CERT_FILE=
 SSL_CERT_KEY_FILE=
-FINAL=
 
 usage() {
   cat <<'EOF'
 Usage: sudo ./apache-apply.sh [options]
 
-Generate <NEW_WORKSPACE>/apache-final.conf from migration.env and install it
-as the active *:443 vhost:
+Generate the final vhost from migration.env and install it as the active
+*:443 vhost:
 
   1. read migration.env and detect the certificate
-  2. write apache-final.conf
-  3. find the vhost with `apachectl -S`
-  4. save its first copy as <file>.bak
-  5. install the generated block
-  6. run `apachectl configtest`; on failure restore the backup
-  7. `systemctl reload apache2`
+  2. find the vhost with `apachectl -S`
+  3. save its first copy as <file>.bak
+  4. install the generated block
+  5. run `apachectl configtest`; on failure restore the backup
+  6. `systemctl reload apache2`
 
 Options:
   --config FILE  use FILE instead of migration.env
@@ -95,16 +92,13 @@ detect_target() {
 load_config() {
   [[ -f "$CONFIG" ]] || die "$CONFIG not found; pass --config FILE"
   TCAS_URL=$(cfg TCAS_URL)
-  NEW_WORKSPACE=$(cfg NEW_WORKSPACE)
   NEW_HTTP_PORT=$(cfg NEW_HTTP_PORT)
   SSL_CERT_FILE=$(cfg SSL_CERT_FILE)
   SSL_CERT_KEY_FILE=$(cfg SSL_CERT_KEY_FILE)
   [[ -n "$TCAS_URL" ]] || die "$CONFIG has no TCAS_URL"
-  [[ -n "$NEW_WORKSPACE" ]] || die "$CONFIG has no NEW_WORKSPACE"
   NEW_HTTP_PORT=${NEW_HTTP_PORT:-9092}
   TCAS_HOST=$(printf '%s' "$TCAS_URL" | sed -E 's#^[A-Za-z]+://([^/:]+).*#\1#')
   [[ -n "$TCAS_HOST" ]] || die "could not parse a host from $TCAS_URL"
-  FINAL="$NEW_WORKSPACE/apache-final.conf"
 }
 
 detect_cert_pair() {
@@ -210,21 +204,15 @@ BACKUP="$TARGET.bak"
 
 if (( DRY_RUN )); then
   log "vhost:   $TARGET"
-  log "final:   $FINAL"
   log "backup:  $BACKUP"
   log "cert:    $SSL_CERT_FILE"
   log "key:     $SSL_CERT_KEY_FILE"
-  printf '\nWould write %s:\n\n%s\n\nWould run:\n  install -m 0644 %q %q\n  apachectl configtest\n  systemctl reload apache2\n' \
-    "$FINAL" "$VHOST" "$FINAL" "$TARGET"
+  printf '\nGenerated vhost:\n\n%s\n\nWould install it as %s, then run:\n  apachectl configtest\n  systemctl reload apache2\n' \
+    "$VHOST" "$TARGET"
   exit 0
 fi
 
 (( EUID == 0 )) || die "this script edits Apache configuration; run it with sudo"
-
-mkdir -p "$NEW_WORKSPACE"
-printf '%s\n' "$VHOST" > "$FINAL"
-chmod 644 "$FINAL"
-log "wrote $FINAL"
 
 if [[ -f "$BACKUP" ]]; then
   log "keeping existing backup: $BACKUP"
@@ -233,8 +221,12 @@ else
   log "backup: $BACKUP"
 fi
 
-install -m 0644 "$FINAL" "$TARGET"
-log "installed $FINAL"
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+printf '%s\n' "$VHOST" > "$tmp"
+chmod 644 "$tmp"
+install -m 0644 "$tmp" "$TARGET"
+log "installed $TARGET"
 
 if ! apachectl configtest; then
   warn "configtest failed; restoring $BACKUP"

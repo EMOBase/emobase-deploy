@@ -736,14 +736,12 @@ contains "$out" "LimitRequestFieldSize 16384"
 contains "$out" "127.0.0.1:19092"
 contains "$out" "apache/https-test.conf"
 contains "$out" "apache/https-test.conf.bak"
-contains "$out" "install -m 0644"
+contains "$out" "Would install it as"
 contains "$out" "systemctl reload apache2"
 [[ "$(cat "$TMP/apache/https-test.conf")" == "old vhost" ]] \
   || fail "apache-apply dry-run changed the vhost"
 [[ ! -e "$TMP/apache/https-test.conf.bak" ]] \
   || fail "apache-apply dry-run wrote a backup"
-[[ ! -e "$TMP/new/apache-final.conf" ]] \
-  || fail "apache-apply dry-run wrote apache-final.conf"
 
 pass "apache-apply accepts an explicit root-only key path"
 rootkey_cfg="$TMP/apache-rootkey.env"
@@ -788,8 +786,6 @@ if (( EUID != 0 )); then
     fail "apache-apply wrote without root"
   fi
   contains "$out" "run it with sudo"
-  [[ ! -e "$TMP/new/apache-final.conf" ]] \
-    || fail "apache-apply wrote apache-final.conf without root"
 fi
 
 pass "all tests passed"
