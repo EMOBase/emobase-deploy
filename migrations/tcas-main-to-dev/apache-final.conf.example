@@ -1,16 +1,23 @@
-# Final Apache configuration for the migrated Tcas site.
+# Final Apache vhost for the migrated Tcas site.
+# This is apache-migration.conf.example with *:443 instead of *:9443.
+# 443 is already configured in ports.conf, so there is no Listen 443 here.
 #
-# Add the /keycloak route before the catch-all; Apache matches in order.
-# Replace paths and the certificate as needed for this server.
+# Replace the old 443 vhost block with this one, or enable this file and
+# disable the old site, then reload Apache.
 
-ProxyPreserveHost On
-RequestHeader set X-Forwarded-Proto "https"
+<VirtualHost *:443>
+    ServerName tcas.example.org
 
-ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
-ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
+    SSLEngine on
+    SSLCertificateFile    /etc/letsencrypt/live/tcas.example.org/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/tcas.example.org/privkey.pem
 
-# Optional: old bookmarks for the legacy Keycloak path.
-Redirect permanent /ibb/keycloak /keycloak
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "https"
 
-ProxyPass        /  http://127.0.0.1:9092/
-ProxyPassReverse /  http://127.0.0.1:9092/
+    ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
+    ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
+
+    ProxyPass        /  http://127.0.0.1:9092/
+    ProxyPassReverse /  http://127.0.0.1:9092/
+</VirtualHost>

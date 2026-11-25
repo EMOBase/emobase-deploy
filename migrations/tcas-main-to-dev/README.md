@@ -333,17 +333,26 @@ is applied.
 Then replace the 443 vhost:
 
 ```apache
-ProxyPreserveHost On
-RequestHeader set X-Forwarded-Proto "https"
+<VirtualHost *:443>
+    ServerName <TCAS_HOST>
 
-ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
-ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
+    SSLEngine on
+    SSLCertificateFile    /path/fullchain.pem
+    SSLCertificateKeyFile /path/privkey.pem
 
-ProxyPass        /  http://127.0.0.1:9092/
-ProxyPassReverse /  http://127.0.0.1:9092/
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "https"
+
+    ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
+    ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
+
+    ProxyPass        /  http://127.0.0.1:9092/
+    ProxyPassReverse /  http://127.0.0.1:9092/
+</VirtualHost>
 ```
 
-`apache-final.conf.example` is the same block. Reload Apache:
+`apache-final.conf.example` is the same vhost. 443 is already in `ports.conf`,
+so there is no `Listen 443`. Reload Apache:
 
 ```bash
 apachectl configtest
