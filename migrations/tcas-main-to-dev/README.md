@@ -4,20 +4,20 @@
 > verified.
 >
 > This is not a fresh deployment. It copies live data, replaces the infra
-> Keycloak database and briefly stops the old site. Read the whole runbook
-> before running any command, and do not continue past a failed checkpoint.
+> Keycloak database, switches 443 to the new stack and later stops the old
+> site. Read the whole runbook before running any command, and do not continue
+> past a failed checkpoint.
 
 This runbook migrates the running Tcas deployment to the `dev` layout with
 `emobase-infra`, while keeping the old stack available for rollback.
 
-The migration is parallel:
+The old stack stays live while the new one is prepared:
 
 | | Old stack | New stack |
 | --- | --- | --- |
 | Compose project | `COMPOSE_PROJECT_NAME` from old `.env` (default `ibb`) | `tcas` |
 | Species site | `HTTP_PORT` from old `.env` (default `9090`) | `9092` |
-| Temporary Apache URL | — | `https://<TCAS_HOST>:9443` |
-| Keycloak | legacy at `/ibb/keycloak` | infra at `/keycloak`, port `8181`; on 9443 during migration, 443 after cutover |
+| Keycloak | legacy at `/ibb/keycloak` | infra at `/keycloak`, port `8181`, public on 443 |
 | Elasticsearch | old stack, `9202` | infra, host port `9204` |
 | Public URL | `<TCAS_URL>` until cutover | `<TCAS_URL>` after cutover |
 
@@ -89,9 +89,8 @@ values later, edit `migration.env` or rerun `./migrate.sh init --force`.
 | `NEW_WORKSPACE` | New parent directory for `Tcas/` and `infra/` |
 | `BACKUP_DIR` | Backups and phase dumps; outside both checkouts |
 | `TCAS_URL` | Final public species URL |
-| `MIGRATION_URL` | Temporary migration URL, `https://<TCAS_HOST>:9443` |
 | `PORTAL_URL` | Deployed multi-species portal |
-| `KEYCLOAK_PUBLIC_URL` | Final Keycloak URL; during migration `MIGRATION_URL/keycloak` is used |
+| `KEYCLOAK_PUBLIC_URL` | Final Keycloak URL, `<TCAS_URL>/keycloak` |
 | `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE` | Optional certificate overrides for `apache`; set before running it |
 | `NEW_HTTP_PORT` | `9092` |
 | `NEW_ES_PORT` | `9204` |
@@ -159,223 +158,74 @@ them. It never stops a container or writes to the old checkout.
 ```
 
 This phase does not stop the old application and does not change the old
-checkout. It performs these actions in order.
+checkout. It performs a live bulk copy:
 
-1. Clones `emobase-infra` into `<NEW_WORKSPACE>/infra` if missing, writes its
-   `.env` with `KEYCLOAK_PUBLIC_URL` and `ELASTICSEARCH_HOST_PORT=9204`, and
-   starts it. Infra Keycloak uses `8181`; ES uses `9204`, away from the old
-   `9202`.
-
-2. Writes `<NEW_WORKSPACE>/Tcas/.env`:
-   - project `tcas`, site port `9092`, migration URL `9443`
-   - `PORTAL_SERVER` and `INTERNAL_API_GENOMICS_SERVICE`
-   - `PUBLIC_DATA_DIR` and `PRIVATE_DATA_DIR` taken from the old `.env`
-   - `IMAGE_DIR` for the detected image layout; direct NFS reuses the absolute
-     path
-   - `KEYCLOAK_PUBLIC_URL=<TCAS_URL>/keycloak`, realm `ibb`, client
-     `ibb-client`
-   - `DIRECTUS_DB_DATABASE=directus_tcas`
-   - `EMOBASE_ES_INDEX_PREFIX=tcas`
-   - old `DIRECTUS_SECRET`, Directus admin, `SSR_OIDC_SESSION_SECRET`,
-     Keycloak client secret and COCO values
-   - `COMPOSE_PROJECT_NAME=tcas`
-   - `OBA_IMAGE` from `migration.env`
-
-3. Reuses or materializes the image directory according to `IMAGE_MODE`, and
-   copies local `data/` and `oba/`.
-
-4. Mirrors the old `<OLD_PROJECT>_directus-data` volume into
-   `tcas_directus-data`.
-
-5. Dumps the old `directus` database, drops/recreates `directus_tcas` in infra
-   MySQL, and imports the dump. The old `directus` database is not modified.
-
-6. Checks that the infra Keycloak has no realms other than `master` and `ibb`,
-   then replaces the **infra** Keycloak database with a dump of the old
-   `keycloak` database. It also writes the old current admin credentials into
-   `infra/.env` and restarts infra Keycloak. This is the step that preserves
-   users, password hashes, OTP data and the `ibb` client.
-
-7. Adds `<TCAS_URL>` and `<MIGRATION_URL>` as Keycloak origins.
-
-8. Runs `setup-directus` against the imported database.
-
-9. Starts the new species stack on `9092` and prints migration URL checks.
+1. Clones/initializes `emobase-infra` and starts it.
+2. Writes the new species `.env` with the final `TCAS_URL` and
+   `KEYCLOAK_PUBLIC_URL`.
+3. Copies images/local data and mirrors the Directus uploads volume.
+4. Imports an initial Directus dump and copies the Keycloak database.
+5. Runs `setup-directus` and starts the new species stack on `9092`.
 
 After `prepare`:
 
-- The old site is still serving on `HTTP_PORT` from the old `.env` (default
-  `9090`) / `<TCAS_URL>`.
-- The new site is running on `9092`, but not yet reachable through Apache.
-- Do not run `delta` yet.
+- The old site is still serving on 443.
+- The new stack is running on `9092`, not yet public.
+- Generate and review the final Apache vhost:
 
-## 5. Expose and smoke-test the migration URL
+  ```bash
+  ./migrate.sh apache
+  ```
 
-This is a pre-cutover smoke test, not the final data check. It catches login,
-Apache and Keycloak routing problems while the old site is still live.
+- Run `delta` in the announced window.
 
-The old site owns 443. The new site and its Keycloak use a temporary 9443
-vhost, so the old 443 vhost is not edited before cutover.
-
-`prepare` configures the new site and infra Keycloak with
-`KEYCLOAK_PUBLIC_URL=https://<TCAS_HOST>:9443/keycloak`. At cutover, both move
-to `https://<TCAS_HOST>/keycloak`.
-
-Apache applies `ProxyPass` in order, so the `/keycloak` line must come before
-the `/` catch-all.
-
-1. Generate the vhosts:
-
-   ```bash
-   ./migrate.sh apache
-   ```
-
-   It writes `<NEW_WORKSPACE>/apache-migration.conf` for this step and
-   `<NEW_WORKSPACE>/apache-final.conf` for cutover, using the host from
-   `TCAS_URL` and the detected certificate paths. If detection fails, it writes
-   placeholders: edit the certificate paths in the generated file before
-   installing. The files follow `apache-migration.conf.example` and
-   `apache-final.conf.example`.
-
-2. Review the migration vhost before copying:
-
-   ```bash
-   less <NEW_WORKSPACE>/apache-migration.conf
-   ```
-
-   Check the `SSLCertificateFile` and `SSLCertificateKeyFile` paths. The host,
-   ports and proxy order are generated from `migration.env`.
-
-3. Install the migration vhost and reload Apache:
-
-   ```bash
-   cp <NEW_WORKSPACE>/apache-migration.conf \
-      /etc/apache2/sites-available/tcas-migration.conf
-   a2ensite tcas-migration
-   apachectl configtest
-   systemctl reload apache2
-   ```
-
-4. Open `https://<TCAS_HOST>:9443` and verify:
-   - one real user signs in with the old password
-   - the new site loads and Directus content/uploads from the initial copy are
-     present
-   - images and `/download/` files work
-   - OBA and Ontoscope start if used
-   - JBrowse2 and BLAST links point at the portal
-
-Search, GO annotation, ontology and publication results may be empty until
-`delta` restores the Elasticsearch snapshot. They are checked again after
-`delta` and at the final verification.
-
-If login fails, check the Keycloak admin credentials and the migration origin.
-Do not run `delta` until this checkpoint passes.
-
-## 6. Delta: freeze, copy final data, restart the new stack
+## 5. Final copy (old site stays live)
 
 ```bash
 ./migrate.sh delta
 ```
 
-This is the maintenance-window step. The old site is unavailable from the
-moment the old application containers stop until the final Apache switch.
+This is the short stateful copy before the switch. The old application keeps
+serving reads. Writes made during this window may not be carried over; announce
+that users should resubmit anything important.
 
-What it does, in order:
+It:
 
-1. Stops all old application containers. The old MySQL, Keycloak and ES
-   services are started again for the exports.
+1. Ensures the old MySQL/Keycloak/ES are running.
+2. Stops the new species stack.
+3. Dumps the final Directus and Keycloak databases.
+4. Mirrors local files and the Directus uploads volume.
+5. Takes/restores the Elasticsearch snapshot.
+6. Runs `setup-directus` and starts the new stack on `9092`.
 
-2. Stops the new species stack so nothing writes to the new database or
-   Directus volume during the copy.
+The old application is not stopped.
 
-3. Dumps the final old `directus` database, drops/recreates `directus_tcas`,
-   and imports it. This replaces the initial prepare copy.
+## 6. Switch 443 and verify
 
-4. Stops the old Keycloak, dumps the final `keycloak` database, replaces the
-   infra Keycloak database again, restores the admin credentials in
-   `infra/.env`, restarts infra Keycloak, and re-adds both origins. This keeps
-   users created or changed during the migration.
-
-5. Mirrors the local `data/` and `oba/` directories and the Directus uploads
-   volume again, so the new stack has the final files. The NFS image directory
-   is reused, not copied.
-
-6. Runs `setup-directus` against the final database.
-
-7. Takes a fresh snapshot of the old Elasticsearch and copies `es_bk` into
-   `infra/es_bk`. It then deletes the new `tcas-*` indices, registers the
-   snapshot repository on the new infra ES, and restores the old indices with
-   the `tcas-` prefix. The default `ES_MODE=snapshot` preserves ontology, GO
-   annotation and publication data that cannot be rebuilt from `data/private`.
-
-8. Starts the new services, then stops the old MySQL/Keycloak/ES containers.
-   Their volumes remain intact for rollback.
-
-After `delta`:
-
-- The old stack is stopped, but its volumes are untouched.
-- The new stack is running on `9092` with final data.
-- Reopen `https://<TCAS_HOST>:9443`, sign in and recheck the data before
-  cutover.
-- Do not clean up anything.
-
-If a service does not show its data, check the snapshot restore result and the
-new index names before continuing.
-
-## 7. Cut over the final URL
-
-First move the application and Keycloak to the final URL:
-
-```bash
-./migrate.sh cutover
-```
-
-This sets `PUBLIC_SERVER=<TCAS_URL>` and
-`KEYCLOAK_PUBLIC_URL=<TCAS_URL>/keycloak` in the new `.env`, moves the infra
-Keycloak to the same public URL, restarts Keycloak and the species stack, and
-re-adds the final origin. It does **not** edit Apache. The Keycloak issuer
-changes, so existing test sessions may need a fresh login. Keycloak is already
-on 443 at this point, so the 9443 site cannot log in until the final 443 vhost
-is applied.
-
-Review the final vhost before applying it:
+Review the final vhost:
 
 ```bash
 less <NEW_WORKSPACE>/apache-final.conf
 ```
 
-Check the `SSLCertificateFile` and `SSLCertificateKeyFile` paths. The host,
-port and proxy order are generated from `migration.env`.
+Check the certificate/key paths. The host, port and proxy order are generated
+from `migration.env`.
 
-Then replace the `<VirtualHost *:443>` block with
-`<NEW_WORKSPACE>/apache-final.conf` (generated by `./migrate.sh apache`). It is
-the migration vhost on 443; 443 is already in `ports.conf`, so there is no
-`Listen 443`. Reload Apache:
+Replace the `<VirtualHost *:443>` block with
+`<NEW_WORKSPACE>/apache-final.conf`, then reload Apache:
 
 ```bash
 apachectl configtest
 systemctl reload apache2
 ```
 
-Until this proxy change is applied, `<TCAS_URL>` still reaches the old
-`HTTP_PORT` stack (default `9090`), even though the new `.env` already says
-`<TCAS_URL>`. If you changed `NEW_HTTP_PORT` from `9092`, regenerate the
-vhosts with `./migrate.sh apache`.
+`./migrate.sh cutover` prints the same switch instructions.
 
-Remove the temporary `9443` vhost only after the final verification passes.
-
-## 8. Verify the final URL
+Verify:
 
 ```bash
 ./migrate.sh verify
 ```
-
-This checks:
-
-- the old nginx is stopped and the new stack is running
-- `<TCAS_URL>` is reachable
-- `<TCAS_URL>/ibb/directus` is reachable
-- the Keycloak realm is reachable at `<TCAS_URL>/keycloak`
 
 Then open `<TCAS_URL>` and confirm:
 
@@ -385,7 +235,17 @@ Then open `<TCAS_URL>` and confirm:
 - JBrowse2 and BLAST open the portal release
 - `/download/` files work
 
-## 9. Rolling back
+After verification, stop the old stack:
+
+```bash
+./migrate.sh finish
+```
+
+The old volumes are kept. If verification fails, switch the 443 vhost back and
+start the old stack; see Rolling back.
+
+## 7. Rolling back
+
 
 Run this only if the final verification failed, or if the cutover is
 intentionally abandoned. Do not run it after a successful migration.
@@ -395,13 +255,13 @@ intentionally abandoned. Do not run it after a successful migration.
 ```
 
 By default, this stops the new species and infra stacks, starts the old stack,
-and prints the old Apache target. Their volumes are kept for a retry. If
-cutover already moved Keycloak to 443, rollback moves it back to the migration
-URL.
+and prints the old Apache target. Their volumes are kept for a retry. The old
+application keeps running until `finish`, so before that step rollback is just
+the 443 vhost switch.
 
 Use `./migrate.sh rollback --keep-new` to start the old stack but leave the new
-species and infra stacks running for diagnosis. In that mode, the 9443 site
-stays available.
+species and infra stacks running. In that mode, the new app remains available
+on `127.0.0.1:9092` for local diagnosis.
 
 Restore the old 443 vhost:
 
@@ -410,8 +270,7 @@ Restore the old 443 vhost:
 /ibb/keycloak through the old stack
 ```
 
-If you used the default full rollback, remove or disable the temporary `9443`
-vhost. Keep it for `--keep-new`. Then reload Apache and verify the old site:
+Then reload Apache and verify the old site:
 
 ```bash
 apachectl configtest
@@ -430,7 +289,7 @@ If you want to retry, fix the failure, run `check` again, then rerun the phase
 that failed. The script re-copies the old data during `prepare`/`delta`; new
 writes made after cutover are not merged back automatically.
 
-## 10. Adopt the workspace in `emobase-cli`
+## 8. Adopt the workspace in `emobase-cli`
 
 Run this only after the final verification passes. Do not run it after a
 rollback; it applies to the new `tcas` stack.
@@ -477,7 +336,7 @@ If `doctor` reports `state.unrecorded`, running `sync` resolves it. After this,
 the workspace can be managed with `emobase status`, `emobase up`, `emobase down`
 and `emobase update`.
 
-## 11. Elasticsearch snapshot restore
+## 9. Elasticsearch snapshot restore
 
 `ES_MODE=snapshot` is the default and the recommended path for this migration.
 The old deployment's `data/private` directories are empty, and the ontology, GO
@@ -494,7 +353,7 @@ indices from the copied data. The old host's existing
 `full_backup_<date>` snapshot is not a substitute for the fresh snapshot taken
 during `delta`.
 
-## 12. Retention and cleanup
+## 10. Retention and cleanup
 
 Keep the old stack stopped, its volumes and `<BACKUP_DIR>` until the agreed
 retention period. This is the rollback window.
@@ -528,11 +387,12 @@ Then delete this migration folder.
   cd <NEW_WORKSPACE>/Tcas && docker compose down
   cd <NEW_WORKSPACE>/infra && docker compose down
   ```
-- **Migration URL login fails**: the migration origin is missing, the 443 `/keycloak`
-  route is missing, or the Keycloak admin credentials are stale.
+- **Final URL login fails**: the 443 vhost is still pointing at the old stack,
+  the `/keycloak` route is missing, or the Keycloak admin credentials are
+  stale.
 - **400 Bad Request, "Size of a request header field exceeds server limit"**:
-  the browser is sending too many or too large cookies, often because the old
-  443 site and the new 9443 site share cookies. Raise the Apache/nginx header
+  the browser is sending too many or too large cookies, often because old
+  and new site cookies share the same host. Raise the Apache/nginx header
   limit (for example Apache `LimitRequestFieldSize 16384` or nginx
   `large_client_header_buffers 4 16k`) and clear site data for the host or use
   a fresh browser profile. There is no application-level guard:
@@ -540,7 +400,7 @@ Then delete this migration folder.
   Apache `ErrorDocument 400` page that tells users to clear site data; it
   improves the message but does not prevent the failure.
 - **`migrate.sh apache` cannot detect the certificate**: it writes placeholders.
-  Edit the generated vhosts, or set `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in
+  Edit the generated vhost, or set `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in
   `migration.env` and rerun `./migrate.sh apache`. `/etc/ssl/private` may be
   root-only; an explicit key path is accepted even if the deploy user cannot
   read it.

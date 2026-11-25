@@ -1,5 +1,4 @@
 # Final Apache vhost for the migrated Tcas site.
-# This is apache-migration.conf.example with *:443 instead of *:9443.
 # 443 is already configured in ports.conf, so there is no Listen 443 here.
 #
 # Replace the old 443 vhost block with this one, or enable this file and

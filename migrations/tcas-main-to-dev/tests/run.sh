@@ -113,7 +113,6 @@ OLD_SPECIES_DIR=$TMP/old
 NEW_WORKSPACE=$TMP/new
 BACKUP_DIR=$TMP/new/backup
 TCAS_URL=https://tcas.test
-MIGRATION_URL=https://tcas.test:9443
 PORTAL_URL=https://portal.test
 KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak
 SSL_CERT_FILE=$TMP/cert.pem
@@ -245,7 +244,6 @@ old_abs=$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$TMP/
 ws_abs=$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$TMP/init-workspace")
 contains "$init_content" "OLD_SPECIES_DIR=$old_abs"
 contains "$init_content" "NEW_WORKSPACE=$ws_abs"
-contains "$init_content" "MIGRATION_URL=https://tcas.init:9443"
 contains "$init_content" "KEYCLOAK_PUBLIC_URL=https://tcas.init/keycloak"
 contains "$init_content" "NEW_PROJECT=tcas"
 contains "$init_out" "Next:"
@@ -256,7 +254,6 @@ OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-workspace" \
   PORTAL_URL="https://portal.init" \
   bash "$SCRIPT" --config "$url_cfg" init --yes >/dev/null 2>&1
 contains "$(cat "$url_cfg")" "TCAS_URL=https://old.test"
-contains "$(cat "$url_cfg")" "MIGRATION_URL=https://old.test:9443"
 contains "$(cat "$url_cfg")" "KEYCLOAK_PUBLIC_URL=https://old.test/keycloak"
 
 pass "init does not overwrite without --force"
@@ -281,21 +278,18 @@ dry_out=$(OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-workspace" \
 [[ ! -e "$dry_cfg" ]] || fail "init --dry-run wrote a config"
 contains "$dry_out" "would write"
 
-pass "apache generates both vhosts with the configured certificate"
+pass "apache generates the final vhost with the configured certificate"
 out=$(run apache apache)
-mig="$TMP/new/apache-migration.conf"
 fin="$TMP/new/apache-final.conf"
-[[ -f "$mig" && -f "$fin" ]] || fail "apache did not write both vhosts"
-contains "$(cat "$mig")" "ServerName tcas.test"
-contains "$(cat "$mig")" "Listen 9443"
-contains "$(cat "$mig")" "SSLCertificateFile    $TMP/cert.pem"
-contains "$(cat "$mig")" "ProxyPass        /keycloak"
-contains "$(cat "$mig")" "LimitRequestFieldSize 16384"
-contains "$(cat "$mig")" "127.0.0.1:19092"
-contains "$(cat "$fin")" "<VirtualHost *:443>"
+[[ -f "$fin" ]] || fail "apache did not write the final vhost"
+contains "$(cat "$fin")" "ServerName tcas.test"
+contains "$(cat "$fin")" "SSLCertificateFile    $TMP/cert.pem"
+contains "$(cat "$fin")" "ProxyPass        /keycloak"
 contains "$(cat "$fin")" "LimitRequestFieldSize 16384"
+contains "$(cat "$fin")" "127.0.0.1:19092"
+contains "$(cat "$fin")" "<VirtualHost *:443>"
 not_contains "$(cat "$fin")" "Listen 443"
-contains "$out" "Install the migration vhost"
+contains "$out" "At cutover, replace the 443 vhost"
 
 pass "apache accepts an explicit root-only key path"
 rootkey_cfg="$TMP/apache-rootkey.env"
@@ -306,7 +300,7 @@ if ! out=$(bash "$SCRIPT" --config "$rootkey_cfg" apache 2>&1); then
   fail "apache rejected an explicit key path"
 fi
 contains "$out" "not visible"
-contains "$(cat "$TMP/new/apache-migration.conf")" "missing-key.pem"
+contains "$(cat "$TMP/new/apache-final.conf")" "missing-key.pem"
 
 pass "apache writes placeholders when no certificate is detected"
 noplaceholder_cfg="$TMP/apache-nocert.env"
@@ -319,7 +313,7 @@ if ! out=$(bash "$SCRIPT" --config "$noplaceholder_cfg" apache 2>&1); then
   fail "apache failed to generate placeholder vhosts"
 fi
 contains "$out" "using placeholders"
-contains "$(cat "$TMP/new/apache-migration.conf")" "/path/fullchain.pem"
+contains "$(cat "$TMP/new/apache-final.conf")" "/path/fullchain.pem"
 
 pass "check reads old environment"
 reset_mock_log
@@ -344,7 +338,7 @@ not_contains "$out" "rsync -a $TMP/external/tcas5"
 pass "dry-run delta does not stop the old stack"
 reset_mock_log
 cat > "$TMP/new/Tcas/.env" <<'EOF'
-PUBLIC_SERVER=https://tcas.test:9443
+PUBLIC_SERVER=https://tcas.test
 EOF
 out=$(run "dry-run delta" --dry-run delta)
 contains "$out" "+ cd $TMP/old && docker compose"
@@ -355,7 +349,7 @@ contains "$out" "_restore"
 pass "dry-run rollback does not execute stop"
 reset_mock_log
 out=$(run "dry-run rollback" --dry-run rollback)
-contains "$out" "Restore the old Apache configuration"
+contains "$out" "Restore the old 443 vhost"
 contains "$out" "127.0.0.1:6092"
 ! mock_has_mutations || fail "dry-run rollback executed a mutating command"
 
@@ -376,9 +370,9 @@ contains "$(cat "$envfile")" "HTTP_PORT=19092"
 contains "$(cat "$envfile")" "PUBLIC_DATA_DIR=$TMP/external/tcas5"
 contains "$(cat "$envfile")" "PRIVATE_DATA_DIR=./data/private"
 contains "$(cat "$envfile")" "IMAGE_DIR=./images"
-contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test:9443"
-contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test:9443/keycloak"
-contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test:9443/keycloak"
+contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test"
+contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
+contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
 contains "$(cat "$envfile")" "OBA_IMAGE=jboss/base-jdk:7"
 contains "$(cat "$envfile")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
 
@@ -393,18 +387,17 @@ contains "$(cat "$envfile")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
 [[ ! -e "$TMP/new/Tcas/compose.media.yml" ]] || fail "copy mode wrote compose.media.yml"
 
 # ---------------------------------------------------------------- infra init cwd
-pass "cutover moves Keycloak to the final URL"
+pass "cutover prints the final Apache switch"
 out=$(run cutover --yes cutover)
+contains "$out" "Switch the 443 vhost"
+contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test"
+contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
+
+pass "prepare resets an existing env to the final URLs"
+out=$(run "prepare rerun" --yes prepare)
 contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test"
 contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
 contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
-contains "$out" "Keycloak is now at https://tcas.test/keycloak"
-
-pass "prepare resets an existing env to the migration URLs"
-out=$(run "prepare rerun" --yes prepare)
-contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test:9443"
-contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test:9443/keycloak"
-contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test:9443/keycloak"
 
 pass "prepare refuses an infra Keycloak with other realms"
 if out=$(MOCK_KEYCLOAK_EXTRA_REALMS=1 bash "$SCRIPT" --config "$TMP/migration.env" prepare 2>&1); then
@@ -428,7 +421,7 @@ MYSQL_ROOT_PASSWORD=infra-pass
 KEYCLOAK_ADMIN=admin
 KEYCLOAK_ADMIN_PASSWORD=infra-admin
 ELASTICSEARCH_HOST_PORT=19204
-KEYCLOAK_PUBLIC_URL=https://tcas.test:9443/keycloak
+KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak
 ENV
 EOF
 chmod +x "$TMP/new-init/infra/init.sh"
@@ -614,10 +607,16 @@ contains "$(cat "$direct_env")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
 [[ ! -e "$TMP/new-direct/Tcas/images" ]] || fail "direct layout created a local images directory"
 [[ ! -e "$TMP/new-direct/Tcas/compose.media.yml" ]] || fail "direct layout wrote compose.media.yml"
 
+pass "finish stops the old stack"
+reset_mock_log
+out=$(run finish --yes finish)
+contains "$out" "Old stack stopped"
+grep -Fq "compose.tcas.yml stop" "$MOCK_LOG" || fail "finish did not stop the old stack"
+
 pass "rollback without --dry-run issues stop and up"
 reset_mock_log
 out=$(run rollback --yes rollback)
-contains "$out" "Restore the old Apache configuration"
+contains "$out" "Restore the old 443 vhost"
 contains "$out" "127.0.0.1:6092"
 contains "$out" "stopping the new infra stack"
 grep -Fq "compose stop" "$MOCK_LOG" || fail "rollback did not issue stop for the new stack"
