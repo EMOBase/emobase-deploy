@@ -207,7 +207,7 @@ services:
     environment:
       - PUBLIC_SERVER=$PUBLIC_SERVER/ibb/api/querypipelineservice/v1/
       - GENOMICSSERVICE_BASE_URL=${INTERNAL_API_GENOMICS_SERVICE:-${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}/api/genomicsservice/v1}
-      - PHENOTYPESERVICE_BASE_URL=http://phenotypeservice:8080
+      - PHENOTYPESERVICE_BASE_URL=${INTERNAL_API_PHENOTYPE_SERVICE:-http://phenotypeservice:8080}
       - MAIN_SPECIES=${MAIN_SPECIES}
       - ORTHOLOG_SPECIES=Dmel
       - ORTHOLOGY_SOURCE=all
