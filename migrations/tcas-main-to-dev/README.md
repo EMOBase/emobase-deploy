@@ -103,7 +103,7 @@ present, otherwise `Tcas`, `ibb` and `ibb-client`.
 | `ES_MODE`                                           | `snapshot`; takes a fresh old-cluster snapshot and restores it. `rebuild` is only for deployments that can rebuild every index |
 | `IMAGE_MODE`                                        | `auto` (recommended); `copy` is the fallback when the image source is read-only                                                |
 | `EMOBASE_WEB_IMAGE`                                 | Pin a release or SHA for a long-lived deployment                                                                               |
-| `OBA_IMAGE`                                         | `jboss/base-jdk:7`; the old server needed this because `openjdk:7` does not run the OBA jar                                    |
+| `OBA_IMAGE`                                         | `jboss/base-jdk:7`; the Java 7 image the OBA jar is known to run with. Docker Hub removed the official `openjdk:7` image |
 
 The old Compose project name, HTTP port and data paths are read from
 `OLD_SPECIES_DIR/.env`; they are not set in `migration.env`. The new stack
@@ -446,8 +446,9 @@ Then delete this migration folder.
   system`**: the image mount is read-only, or `community-data` is not writable
   by the `UID`/`GID` from the old `.env`. Fix the mount or permissions, or use
   `IMAGE_MODE=copy` so `community-data` stays local.
-- **OBA keeps restarting**: set `OBA_IMAGE=jboss/base-jdk:7` (or another image
-  known to run the OBA jar); `openjdk:7` does not work on the test server.
+- **OBA keeps restarting**: set `OBA_IMAGE=jboss/base-jdk:7` (or another Java 7
+  image known to run the OBA jar); Docker Hub removed the official `openjdk:7`
+  image.
 - **The host runs out of memory while both stacks are up**: stop optional old
   services (`oba`, `ontoscope`, `blast`, `geneservice`, `swagger-ui`,
   `querypipelineservice`) or lower the new infra ES heap/limit for the migration
