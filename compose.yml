@@ -202,7 +202,7 @@ services:
         condition: service_healthy
 
   querypipelineservice:
-    image: ghcr.io/emobase/ibb-querypipelineservice:v1.7.0
+    image: ghcr.io/emobase/ibb-querypipelineservice:v1.6.3
     restart: always
     environment:
       - PUBLIC_SERVER=$PUBLIC_SERVER/ibb/api/querypipelineservice/v1/
