@@ -210,7 +210,8 @@ services:
       - PHENOTYPESERVICE_BASE_URL=${INTERNAL_API_PHENOTYPE_SERVICE:-http://phenotypeservice:8080}
       - MAIN_SPECIES=${MAIN_SPECIES}
       - ORTHOLOG_SPECIES=Dmel
-      - ORTHOLOGY_SOURCE=all
+      # The portal also publishes Eggnog6; the legacy pipeline used OrthoFinder.
+      - ORTHOLOGY_SOURCE=OrthoFinder
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
