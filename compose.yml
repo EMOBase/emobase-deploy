@@ -208,8 +208,6 @@ services:
       - PUBLIC_SERVER=$PUBLIC_SERVER/ibb/api/querypipelineservice/v1/
       - GENOMICSSERVICE_BASE_URL=${INTERNAL_API_GENOMICS_SERVICE:-${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}/api/genomicsservice/v1}
       - PHENOTYPESERVICE_BASE_URL=${INTERNAL_API_PHENOTYPE_SERVICE:-http://phenotypeservice:8080}
-      # Defaults to OrthoFinder; override in .env for another orthology source.
-      - ORTHOLOGY_SOURCE=${ORTHOLOGY_SOURCE:-OrthoFinder}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
