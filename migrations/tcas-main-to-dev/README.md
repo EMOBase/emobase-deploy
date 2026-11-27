@@ -99,7 +99,6 @@ present, otherwise `Tcas`, `ibb` and `ibb-client`.
 | `TCAS_URL` | old `PUBLIC_SERVER` | Final public species URL |
 | `KEYCLOAK_PUBLIC_URL` | `<TCAS_URL>/keycloak` | Final public Keycloak base URL |
 | `PORTAL_URL` | required | Multi-species portal origin |
-| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE` | unset | Override the certificate paths that `apache-apply.sh` auto-detects; placeholders if detection fails |
 | `NEW_HTTP_PORT` | `9092` | New species host port |
 | `NEW_ES_PORT` | `9204` | New infra Elasticsearch host port |
 | `NEW_PROJECT` | `tcas` | Compose project; must differ from the old one |
@@ -109,6 +108,7 @@ present, otherwise `Tcas`, `ibb` and `ibb-client`.
 | `IMAGE_MODE` | `auto` | How images are shared or copied; see `migration.env.example` |
 | `EMOBASE_WEB_IMAGE` | `ghcr.io/emobase/emobase-web:dev` | Web image; pin a release or SHA for a long-lived deployment |
 | `OBA_IMAGE` | `jboss/base-jdk:7` | Java 7 image for the OBA jar |
+| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE` | unset | Override the certificate paths for `apache-apply.sh` |
 
 The old Compose project name, HTTP port and data paths are read from
 `OLD_SPECIES_DIR/.env`; they are not set in `migration.env`. The new stack
