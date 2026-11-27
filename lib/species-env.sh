@@ -138,7 +138,6 @@ INTERNAL_API_QUERY_PIPELINE_SERVICE=http://querypipelineservice:8080
 # do not depend on the portal or the public TLS certificate.
 INTERNAL_KEYCLOAK_ISSUER=${INTERNAL_KEYCLOAK_ISSUER}
 INTERNAL_DIRECTUS_URL=http://directus:8055
-DIRECTUS_KEYCLOAK_ISSUER_URL=${KEYCLOAK_INTERNAL_URL}/realms/${KEYCLOAK_REALM}
 
 # The host port for the local reverse proxy
 HTTP_PORT=${HTTP_PORT}

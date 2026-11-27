@@ -23,7 +23,7 @@ x-directus-environment: &directus-environment
   AUTH_KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
   # Directus joins the shared infra network, so it uses Keycloak's internal
   # service URL. The browser-facing issuer is KEYCLOAK_PUBLIC_URL.
-  AUTH_KEYCLOAK_ISSUER_URL: ${DIRECTUS_KEYCLOAK_ISSUER_URL:-${KEYCLOAK_INTERNAL_URL:-http://keycloak:8080/keycloak}/realms/${KEYCLOAK_REALM}}
+  AUTH_KEYCLOAK_ISSUER_URL: ${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8181/keycloak/realms/${KEYCLOAK_REALM}}
   AUTH_KEYCLOAK_IDENTIFIER_KEY: preferred_username
   AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION: "true"
   AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST: ${PUBLIC_SERVER}/ibb/directus
@@ -215,9 +215,9 @@ services:
         condition: service_started
 
   # Directus uses the shared MySQL in emobase-infra and therefore joins that
-  # stack's external Docker network. The web UI and Quarkus services reach the
-  # shared Keycloak through the portal origin instead, so their service names
-  # do not collide with other species on the shared network.
+  # stack's external Docker network. Its OIDC calls use the host-published
+  # Keycloak, like the web UI and Quarkus services, so every service in the
+  # stack shares one internal issuer.
 
   directus:
     restart: always
@@ -225,6 +225,8 @@ services:
     environment: *directus-environment
     volumes:
       - directus-data:/directus/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test:
         - "CMD-SHELL"
