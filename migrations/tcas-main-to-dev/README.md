@@ -55,21 +55,8 @@ Stop before changing anything if any of these is false.
   and `emobase-infra`) and the local copies (`data/private`, `oba/`, the
   Directus uploads volume, MySQL dumps and the Elasticsearch snapshot).
 
-- There is enough memory for the old and new stacks at the same time. The new
-  Tcas stack uses about 600 MiB at idle, and the new Elasticsearch and Keycloak
-  can grow to their heap limits during the snapshot restore. Check before
-  starting:
-
-  ```bash
-  free -m
-  docker stats --no-stream --format 'table {{.Name}}	{{.MemUsage}}'
-  ```
-
-  Aim for at least about 1.5 GiB `available` once the new stack is up. If the
-  host is already swapping or below that, stop optional old services (`oba`,
-  `blast`, `geneservice`, `swagger-ui`, `querypipelineservice`) or lower
-  `ELASTICSEARCH_JAVA_OPTS`, `ELASTICSEARCH_MEM_LIMIT` and
-  `KEYCLOAK_JAVA_OPTS` in `infra/.env` before the window.
+- About 4 GB of RAM is available for the new setup (`emobase-infra` plus the
+  Tcas stack). Check `free -m` before starting.
 
 - The old data paths in `.env` exist and are readable.
 
