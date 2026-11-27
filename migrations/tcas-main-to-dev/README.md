@@ -343,24 +343,7 @@ rerun `emobase doctor --live` to confirm no state warning remains. After this,
 the workspace can be managed with `emobase status`, `emobase up`, `emobase down`
 and `emobase update`.
 
-## 10. Elasticsearch snapshot restore
-
-`ES_MODE=snapshot` is the default and the recommended path for this migration.
-The old deployment's `data/private` directories are empty, and the ontology, GO
-annotation and publication services have no local data mounts, so they cannot
-rebuild every index from files. The script takes a fresh snapshot of the old
-cluster during `transfer` and restores it into the new infra ES with the `tcas-`
-index prefix. It prints `_cat/indices` so you can check names and document
-counts.
-
-Do not copy the old `es-data` volume between Elasticsearch versions.
-
-Use `ES_MODE=rebuild` only after verifying that every service rebuilds its own
-indices from the copied data. The old host's existing
-`full_backup_<date>` snapshot is not a substitute for the fresh snapshot taken
-during `transfer`.
-
-## 11. Retention and cleanup
+## 10. Retention and cleanup
 
 Keep the old stack stopped, its volumes and `<BACKUP_DIR>` until the agreed
 retention period. This is the rollback window.
