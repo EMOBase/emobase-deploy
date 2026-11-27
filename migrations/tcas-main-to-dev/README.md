@@ -275,9 +275,7 @@ If everything passes, stop the old stack:
 ./migrate.sh finish
 ```
 
-The old volumes are kept. If a problem appears later, `./migrate.sh rollback`
-and `sudo ./apache-apply.sh --restore` bring the old stack back until the
-retention period ends.
+The old volumes are kept; see Rolling back if a problem appears later.
 
 ## 8. Rolling back
 
