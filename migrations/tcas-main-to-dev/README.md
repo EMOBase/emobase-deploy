@@ -281,7 +281,8 @@ The old volumes are kept; see Rolling back if a problem appears later.
 
 Use this after `finish` (the old stack is stopped then), or when you want to
 stop the new stacks. Before `finish`, restoring Apache from step 7 is enough
-because the old stack is still running.
+because the old stack is still running. Do not run it while the migration is
+working.
 
 ```bash
 ./migrate.sh rollback
