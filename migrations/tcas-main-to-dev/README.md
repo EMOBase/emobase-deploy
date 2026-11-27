@@ -262,8 +262,8 @@ Then open `<TCAS_URL>` and confirm:
 - JBrowse2 and BLAST open the portal release
 - `/download/` files work
 
-If anything fails, restore Apache. Do not run `finish`; the old stack is still
-running, so this is the whole rollback:
+If anything fails, restore Apache and do not run `finish`; the old stack is
+still running:
 
 ```bash
 sudo ./apache-apply.sh --restore
