@@ -102,7 +102,7 @@ present, otherwise `Tcas`, `ibb` and `ibb-client`.
 | `NEW_HTTP_PORT` | `9092` | New species host port |
 | `NEW_ES_PORT` | `9204` | New infra Elasticsearch host port |
 | `NEW_PROJECT` | `tcas` | Compose project; must differ from the old one |
-| `SPECIES_CODE`, `REALM`, `CLIENT_ID` | old `.env`, then `Tcas`, `ibb`, `ibb-client` | Species code, realm and client |
+| `SPECIES_CODE`, `REALM`, `CLIENT_ID` | from old `.env` | Species code, realm and client; fall back to `Tcas`, `ibb`, `ibb-client` when absent |
 | `OLD_KEYCLOAK_ADMIN`, `OLD_KEYCLOAK_ADMIN_PASSWORD` | old `.env` | Override only if the old `.env` is stale |
 | `ES_MODE` | `snapshot` | How indices move; see `migration.env.example` |
 | `IMAGE_MODE` | `auto` | How images are shared or copied; see `migration.env.example` |
