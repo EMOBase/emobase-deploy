@@ -55,6 +55,22 @@ Stop before changing anything if any of these is false.
   and `emobase-infra`) and the local copies (`data/private`, `oba/`, the
   Directus uploads volume, MySQL dumps and the Elasticsearch snapshot).
 
+- There is enough memory for the old and new stacks at the same time. The new
+  Tcas stack uses about 600 MiB at idle, and the new Elasticsearch and Keycloak
+  can grow to their heap limits during the snapshot restore. Check before
+  starting:
+
+  ```bash
+  free -m
+  docker stats --no-stream --format 'table {{.Name}}	{{.MemUsage}}'
+  ```
+
+  Aim for at least about 1.5 GiB `available` once the new stack is up. If the
+  host is already swapping or below that, stop optional old services (`oba`,
+  `blast`, `geneservice`, `swagger-ui`, `querypipelineservice`) or lower
+  `ELASTICSEARCH_JAVA_OPTS`, `ELASTICSEARCH_MEM_LIMIT` and
+  `KEYCLOAK_JAVA_OPTS` in `infra/.env` before the window.
+
 - The old data paths in `.env` exist and are readable.
 
 - Docker/Compose access is available, and Apache can be edited and reloaded.
@@ -112,7 +128,7 @@ present, otherwise `Tcas`, `ibb` and `ibb-client`.
 | `ES_MODE`                                           | `snapshot`; takes a fresh old-cluster snapshot and restores it. `rebuild` is only for deployments that can rebuild every index |
 | `IMAGE_MODE`                                        | `auto` (recommended); `copy` is the fallback when the image source is read-only                                                |
 | `EMOBASE_WEB_IMAGE`                                 | Pin a release or SHA for a long-lived deployment                                                                               |
-| `OBA_IMAGE`                                         | `jboss/base-jdk:7`; the Java 7 image the OBA jar is known to run with. Docker Hub removed the official `openjdk:7` image |
+| `OBA_IMAGE`                                         | `jboss/base-jdk:7`; the Java 7 image the OBA jar is known to run with. Docker Hub removed the official `openjdk:7` image       |
 
 The old Compose project name, HTTP port and data paths are read from
 `OLD_SPECIES_DIR/.env`; they are not set in `migration.env`. The new stack
