@@ -40,16 +40,9 @@ Stop before changing anything if any of these is false.
   in `migration.env`. The copied database keeps the current admin account.
 
 - The old Keycloak is 24.0.3, the same version as `emobase-infra`. The
-  migration copies the `keycloak` database (users, clients, realm settings)
-  into the new infra Keycloak; it does not migrate the schema. Keycloak only
-  applies supported upgrade paths on startup, so a database from a different
-  version can fail or leave an inconsistent schema.
-
-  Verify the version with:
-
-  ```bash
-  docker exec <old-keycloak-container> /opt/keycloak/bin/kc.sh --version
-  ```
+  migration copies its database, not the schema, so a different version can
+  fail on startup. Check with
+  `docker exec <old-keycloak-container> /opt/keycloak/bin/kc.sh --version`.
 
 - There is enough local disk for the two checkouts (`emobase-deploy` on `dev`
   and `emobase-infra`) and the local copies (`data/private`, `oba/`, the
@@ -439,13 +432,10 @@ Then delete this migration folder.
   Set `SSL_CERT_FILE` and `SSL_CERT_KEY_FILE` in `migration.env` and rerun
   `sudo ./apache-apply.sh`. Run the script as root: `/etc/ssl/private` is usually
   readable only by root.
-- **Login ends at `/api/auth/error?error=Configuration`, and the `fe` log shows
-  `UNABLE_TO_VERIFY_LEAF_SIGNATURE` or `ENOTFOUND`**: the app container could not
-  call the server-side Keycloak issuer. `prepare` writes
-  `INTERNAL_KEYCLOAK_ISSUER=http://host.docker.internal:8181/keycloak/realms/<realm>`,
-  so server-side OIDC avoids the public proxy and its certificate. If it was
-  changed to the public URL, set it back and run
-  `cd <NEW_WORKSPACE>/Tcas && docker compose up -d fe`.
+- **Login ends at `/api/auth/error?error=Configuration`, `fe` log says
+  `UNABLE_TO_VERIFY_LEAF_SIGNATURE` or `ENOTFOUND`**: the app container cannot
+  reach `INTERNAL_KEYCLOAK_ISSUER`. Use
+  `http://host.docker.internal:8181/keycloak/realms/<realm>` and recreate `fe`.
 - **Keycloak admin login fails after the DB copy**: the copied master realm has
   the current admin password, not the old bootstrap password. Set the current
   admin in `migration.env` and rerun the phase that updates `infra/.env`.
