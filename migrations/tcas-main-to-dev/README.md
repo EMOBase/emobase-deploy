@@ -48,8 +48,8 @@ Stop before changing anything if any of these is false.
   and `emobase-infra`) and the local copies (`data/private`, `oba/`, the
   Directus uploads volume, MySQL dumps and the Elasticsearch snapshot).
 
-- About 4 GB of RAM is available for the new setup (`emobase-infra` plus the
-  Tcas stack). Check `free -m` before starting.
+- At least 3 GB of RAM is available for the new setup (`emobase-infra` plus
+  the Tcas stack). Check `free -m` before starting.
 
 - The old data paths in `.env` exist and are readable.
 
