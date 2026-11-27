@@ -1,12 +1,8 @@
 # Migrating Tcas from `main` to `dev`
 
-> **One-time production migration.** Delete this folder after the migration is
-> verified.
->
-> This is not a fresh deployment. It copies live data, replaces the infra
-> Keycloak database, points Apache at the new stack and later stops the old
-> site. Read the whole runbook before running any command, and do not continue
-> past a failed checkpoint.
+> **One-time production migration.** It is not a fresh deployment: it copies
+> live data into a new stack, replaces the infra Keycloak database and later
+> stops the old site. Delete this folder once the migration is verified.
 
 This runbook migrates the running Tcas deployment to the `dev` layout with
 `emobase-infra`, while keeping the old stack available for rollback.
