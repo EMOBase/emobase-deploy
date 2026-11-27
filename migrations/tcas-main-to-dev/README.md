@@ -208,9 +208,6 @@ found`: do not run `emobase sync` or `emobase bootstrap` as it suggests, the
 migration is in progress and the ledger is written after verification, in the
 adoption step. Fix any other finding before `transfer`.
 
-The migration script does not call `emobase`; it is a checkpoint, not a
-dependency.
-
 Then run `transfer` in the announced window; it starts the new infra and copies
 the data.
 
