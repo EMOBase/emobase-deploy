@@ -76,7 +76,7 @@ container URLs:
 | `KEYCLOAK_REALM` | Joined realm or this species' new realm | `emobase-portal` / `emobase-tcas` |
 | `KEYCLOAK_CLIENT_ID` | Client ID in that realm | `emobase-tcas-client` |
 | `DIRECTUS_DB_DATABASE` | This species' database in the local MySQL | `directus_tcas` |
-| `INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER`, `INTERNAL_DIRECTUS_URL` | Full server-side service URLs | `http://phenotypeservice:8080` |
+| `INTERNAL_KEYCLOAK_ISSUER`, `INTERNAL_DIRECTUS_URL` | Server-side URLs written to `.env` | `http://host.docker.internal:8181/keycloak/realms/<realm>` |
 
 `KEYCLOAK_ISSUER` is derived from `KEYCLOAK_PUBLIC_URL` and `KEYCLOAK_REALM`, so
 it points at the Keycloak on this server, not at the portal. For a joined
@@ -102,13 +102,14 @@ BLAST is proxied through this stack's nginx so its iframe stays same-origin;
 the proxy uses `PORTAL_INTERNAL_URL`. JBrowse2 and browser-facing genomics
 links use `PORTAL_SERVER`.
 
-Server-side calls use `INTERNAL_API_*`, `INTERNAL_KEYCLOAK_ISSUER` and
-`INTERNAL_DIRECTUS_URL`. `init.sh` writes the Keycloak issuer as
+Server-side service URLs are Compose defaults. `INTERNAL_API_GENOMICS_SERVICE`
+and `GENOMICSSERVICE_BASE_URL` are derived from `PORTAL_INTERNAL_URL`, falling
+back to `PORTAL_SERVER` when the portal is remote. `init.sh` writes the Keycloak
+issuer as
 `http://host.docker.internal:<KEYCLOAK_HOST_PORT>/keycloak/realms/<realm>`, so
 sign-in does not depend on the public proxy certificate or on the container
 resolving the public name. Set `INTERNAL_KEYCLOAK_ISSUER` only when infra runs
-on a different host. The other `INTERNAL_*` values fall back to the matching
-public URL; that is correct for a separate server.
+on a different host.
 
 ## Elasticsearch
 

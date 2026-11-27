@@ -40,7 +40,7 @@ internal_keycloak_issuer() {
 #
 # The caller sets:
 #   MAIN_SPECIES EMOBASE_WEB_IMAGE PUBLIC_SERVER PUBLIC_HOST PORTAL_SERVER
-#   PORTAL_INTERNAL_URL INTERNAL_API_GENOMICS_SERVICE EMOBASE_INFRA_NETWORK
+#   PORTAL_INTERNAL_URL EMOBASE_INFRA_NETWORK
 #   MYSQL_ROOT_PASSWORD DIRECTUS_DB_DATABASE EMOBASE_ES_INDEX_PREFIX
 #   KEYCLOAK_PUBLIC_URL KEYCLOAK_INTERNAL_URL INTERNAL_KEYCLOAK_ISSUER
 #   KEYCLOAK_REALM KEYCLOAK_REALM_MODE KEYCLOAK_CLIENT_ID
@@ -51,8 +51,8 @@ internal_keycloak_issuer() {
 #
 # Optional:
 #   OBA_IMAGE (written only when non-empty)
-#   PORTAL_INTERNAL_URL and INTERNAL_API_GENOMICS_SERVICE may be empty for a
-#   remote portal.
+#   PORTAL_INTERNAL_URL may be empty for a remote portal; Compose then uses
+#   PORTAL_SERVER for the internal service URLs.
 render_species_env() {
   local missing=() var
   for var in \
@@ -125,15 +125,8 @@ KEYCLOAK_REALM=${KEYCLOAK_REALM}
 KEYCLOAK_REALM_MODE=${KEYCLOAK_REALM_MODE}
 KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
 
-# Internal service URLs used for server-side calls. These must be absolute.
-# They fall back to the matching PUBLIC_* URL if omitted.
-INTERNAL_API_GENOMICS_SERVICE=${INTERNAL_API_GENOMICS_SERVICE}
-INTERNAL_API_PHENOTYPE_SERVICE=http://phenotypeservice:8080
-INTERNAL_API_IMAGE_SERVICE=http://imageservice:8080
-INTERNAL_API_ONTOLOGY_SERVICE=http://ontologyservice:8080
-INTERNAL_API_GO_ANNOTATION_SERVICE=http://goannotationservice:8080
-INTERNAL_API_PUBLICATION_SERVICE=http://publicationservice:8080
-INTERNAL_API_QUERY_PIPELINE_SERVICE=http://querypipelineservice:8080
+# Internal service URLs are derived by Compose from the service names and the
+# portal origin; only the Keycloak issuer is written here.
 # Server-side Keycloak calls go to this server's emobase-infra Keycloak. They
 # do not depend on the portal or the public TLS certificate.
 INTERNAL_KEYCLOAK_ISSUER=${INTERNAL_KEYCLOAK_ISSUER}

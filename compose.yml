@@ -61,7 +61,7 @@ services:
       - PUBLIC_API_GENOMICS_SERVICE=${PORTAL_SERVER}/api/genomicsservice/v1
       # Server-side calls use these internal URLs instead of the public URL.
       # They fall back to the matching PUBLIC_* URL when omitted.
-      - INTERNAL_API_GENOMICS_SERVICE=${INTERNAL_API_GENOMICS_SERVICE:-${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}/api/genomicsservice/v1}
+      - INTERNAL_API_GENOMICS_SERVICE=${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}/api/genomicsservice/v1
       - INTERNAL_API_PHENOTYPE_SERVICE=${INTERNAL_API_PHENOTYPE_SERVICE:-http://phenotypeservice:8080}
       - INTERNAL_API_IMAGE_SERVICE=${INTERNAL_API_IMAGE_SERVICE:-http://imageservice:8080}
       - INTERNAL_API_ONTOLOGY_SERVICE=${INTERNAL_API_ONTOLOGY_SERVICE:-http://ontologyservice:8080}
@@ -206,7 +206,7 @@ services:
     restart: always
     environment:
       - PUBLIC_SERVER=$PUBLIC_SERVER/ibb/api/querypipelineservice/v1/
-      - GENOMICSSERVICE_BASE_URL=${INTERNAL_API_GENOMICS_SERVICE:-${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}/api/genomicsservice/v1}
+      - GENOMICSSERVICE_BASE_URL=${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}/api/genomicsservice/v1
       - PHENOTYPESERVICE_BASE_URL=${INTERNAL_API_PHENOTYPE_SERVICE:-http://phenotypeservice:8080}
     extra_hosts:
       - "host.docker.internal:host-gateway"

@@ -688,7 +688,6 @@ fi
 # Values for the shared species .env renderer (lib/species-env.sh).
 EMOBASE_WEB_IMAGE=ghcr.io/emobase/emobase-web:dev
 EMOBASE_INFRA_NETWORK="$INFRA_NETWORK"
-INTERNAL_API_GENOMICS_SERVICE="${PORTAL_INTERNAL_URL:+${PORTAL_INTERNAL_URL}/api/genomicsservice/v1}"
 COMPOSE_PROJECT_NAME="$CONTAINER_PREFIX"
 COMPOSE_FILE="$COMPOSE_FILES"
 PUBLIC_DATA_DIR=./data/public
