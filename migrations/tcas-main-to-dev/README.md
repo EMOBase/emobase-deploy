@@ -289,9 +289,7 @@ old stack is still running; do not roll back while the migration is working.
 ```
 
 By default, this stops the new species and infra stacks, starts the old stack,
-and prints the old Apache target. Their volumes are kept for a retry. The old
-application keeps running until `finish`, so before that step rollback is just
-repointing the 443 vhost.
+and prints the old Apache target. Their volumes are kept for a retry.
 
 Use `./migrate.sh rollback --keep-new` to start the old stack but leave the new
 species and infra stacks running. In that mode, the new app remains available
