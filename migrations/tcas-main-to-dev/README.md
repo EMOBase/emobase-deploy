@@ -437,8 +437,9 @@ Then delete this migration folder.
   image.
 - **The host runs out of memory while both stacks are up**: stop the old stack
   and accept downtime, or lower the new infra ES heap/limit for the migration
-  run. `geneservice` is essential to the old site, so stopping individual old
-  services is not a safe workaround.
+  run. As a short-term workaround, stop the old optional services
+  (`ontologyservice`, `phenotypeservice`, `imageservice`, `publicationservice`,
+  `goannotationservice`).
 - **JBrowse/BLAST missing**: the portal release is not READY, or
   `PORTAL_SERVER` is wrong.
 - **Final URL still shows the old site**: the 443 vhost still points at the old
