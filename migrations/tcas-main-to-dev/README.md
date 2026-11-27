@@ -260,7 +260,7 @@ Then open `<TCAS_URL>` and confirm:
 - `/download/` files work
 
 If anything fails, restore Apache and do not run `finish`; the old stack is
-still running. Continue with Rolling back (section 8):
+still running:
 
 ```bash
 sudo ./apache-apply.sh --restore
@@ -283,9 +283,6 @@ run:
 ```bash
 ./migrate.sh rollback
 ```
-
-Before `finish`, restoring Apache from step 7 is enough; the old stack is still
-running.
 
 By default, this stops the new species and infra stacks, starts the old stack,
 and prints the old Apache target. Their volumes are kept for a retry.
