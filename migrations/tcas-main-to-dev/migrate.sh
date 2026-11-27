@@ -904,15 +904,13 @@ start_infra() {
 
 write_new_env() {
   local env_file="$NEW_SPECIES_DIR/.env"
-  local internal_issuer
-  internal_issuer=$(internal_keycloak_issuer 8181 "$REALM")
 
   if [[ -f "$env_file" && $FORCE -eq 0 ]]; then
     log "using existing new .env: $env_file"
     set_env "$env_file" PUBLIC_SERVER "$TCAS_URL"
     set_env "$env_file" PUBLIC_HOST "$TCAS_HOST"
     set_env "$env_file" KEYCLOAK_PUBLIC_URL "$KEYCLOAK_PUBLIC_URL"
-    set_env "$env_file" INTERNAL_KEYCLOAK_ISSUER "$internal_issuer"
+    set_env "$env_file" KEYCLOAK_INTERNAL_URL "http://host.docker.internal:8181/keycloak"
     return
   fi
   if [[ -f "$env_file" ]]; then
@@ -951,8 +949,7 @@ write_new_env() {
   DIRECTUS_DB_DATABASE="$NEW_DIRECTUS_DB"
   EMOBASE_ES_INDEX_PREFIX="$NEW_ES_PREFIX"
   KEYCLOAK_PUBLIC_URL="$KEYCLOAK_PUBLIC_URL"
-  KEYCLOAK_INTERNAL_URL="http://keycloak:8080/keycloak"
-  INTERNAL_KEYCLOAK_ISSUER="$internal_issuer"
+  KEYCLOAK_INTERNAL_URL="http://host.docker.internal:8181/keycloak"
   KEYCLOAK_REALM="$REALM"
   KEYCLOAK_REALM_MODE="dedicated"
   KEYCLOAK_CLIENT_ID="$CLIENT_ID"

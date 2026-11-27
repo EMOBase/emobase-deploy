@@ -28,21 +28,13 @@ url_host() {
   fi
 }
 
-# internal_keycloak_issuer PORT REALM — server-side issuer on this host. It
-# must not use the public URL: the app container does not necessarily trust
-# the public certificate or resolve a host-only name.
-internal_keycloak_issuer() {
-  local port=${1:-8181} realm=$2
-  printf 'http://host.docker.internal:%s/keycloak/realms/%s' "$port" "$realm"
-}
-
 # render_species_env writes the species .env to stdout.
 #
 # The caller sets:
 #   MAIN_SPECIES EMOBASE_WEB_IMAGE PUBLIC_SERVER PUBLIC_HOST PORTAL_SERVER
 #   PORTAL_INTERNAL_URL EMOBASE_INFRA_NETWORK
 #   MYSQL_ROOT_PASSWORD DIRECTUS_DB_DATABASE EMOBASE_ES_INDEX_PREFIX
-#   KEYCLOAK_PUBLIC_URL KEYCLOAK_INTERNAL_URL INTERNAL_KEYCLOAK_ISSUER
+#   KEYCLOAK_PUBLIC_URL KEYCLOAK_INTERNAL_URL
 #   KEYCLOAK_REALM KEYCLOAK_REALM_MODE KEYCLOAK_CLIENT_ID
 #   KEYCLOAK_CLIENT_SECRET DIRECTUS_SECRET DIRECTUS_ADMIN_EMAIL
 #   DIRECTUS_ADMIN_PASSWORD SSR_OIDC_SESSION_SECRET COCO_USERNAME COCO_PASSWORD
@@ -53,13 +45,15 @@ internal_keycloak_issuer() {
 #   OBA_IMAGE (written only when non-empty)
 #   PORTAL_INTERNAL_URL may be empty for a remote portal; Compose then uses
 #   PORTAL_SERVER for the internal service URLs.
+#   KEYCLOAK_INTERNAL_URL may be empty; Compose then uses KEYCLOAK_PUBLIC_URL
+#   for the container-facing issuer.
 render_species_env() {
   local missing=() var
   for var in \
     MAIN_SPECIES EMOBASE_WEB_IMAGE PUBLIC_SERVER PUBLIC_HOST PORTAL_SERVER \
     EMOBASE_INFRA_NETWORK MYSQL_ROOT_PASSWORD DIRECTUS_DB_DATABASE \
-    EMOBASE_ES_INDEX_PREFIX KEYCLOAK_PUBLIC_URL KEYCLOAK_INTERNAL_URL \
-    INTERNAL_KEYCLOAK_ISSUER KEYCLOAK_REALM KEYCLOAK_REALM_MODE \
+    EMOBASE_ES_INDEX_PREFIX KEYCLOAK_PUBLIC_URL \
+    KEYCLOAK_REALM KEYCLOAK_REALM_MODE \
     KEYCLOAK_CLIENT_ID KEYCLOAK_CLIENT_SECRET DIRECTUS_SECRET \
     DIRECTUS_ADMIN_EMAIL DIRECTUS_ADMIN_PASSWORD SSR_OIDC_SESSION_SECRET \
     COCO_USERNAME COCO_PASSWORD HTTP_PORT COMPOSE_PROJECT_NAME COMPOSE_FILE \
@@ -119,17 +113,15 @@ EMOBASE_ES_INDEX_PREFIX=${EMOBASE_ES_INDEX_PREFIX}
 
 # Keycloak endpoint/realm/client. The realm is either an existing realm this
 # species joined or a new independent realm owned by this checkout.
+# KEYCLOAK_INTERNAL_URL is the container-facing base; Compose appends
+# /realms/<realm> and falls back to KEYCLOAK_PUBLIC_URL when it is empty.
 KEYCLOAK_PUBLIC_URL=${KEYCLOAK_PUBLIC_URL}
 KEYCLOAK_INTERNAL_URL=${KEYCLOAK_INTERNAL_URL}
 KEYCLOAK_REALM=${KEYCLOAK_REALM}
 KEYCLOAK_REALM_MODE=${KEYCLOAK_REALM_MODE}
 KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
 
-# Internal service URLs are derived by Compose from the service names and the
-# portal origin; only the Keycloak issuer is written here.
-# Server-side Keycloak calls go to this server's emobase-infra Keycloak. They
-# do not depend on the portal or the public TLS certificate.
-INTERNAL_KEYCLOAK_ISSUER=${INTERNAL_KEYCLOAK_ISSUER}
+# Internal Directus URL for server-side calls.
 INTERNAL_DIRECTUS_URL=http://directus:8055
 
 # The host port for the local reverse proxy

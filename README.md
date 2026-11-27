@@ -73,10 +73,11 @@ container URLs:
 | `PORTAL_SERVER` | The **public portal** URL used for genomics/JBrowse2/BLAST links | `https://portal.example.org` |
 | `PORTAL_INTERNAL_URL` | Portal origin for the BLAST proxy and derived API URLs | `http://host.docker.internal:9080` |
 | `KEYCLOAK_PUBLIC_URL` | This server's browser-facing Keycloak base URL | `https://auth.example.org/keycloak` |
+| `KEYCLOAK_INTERNAL_URL` | Keycloak base URL containers use; empty falls back to the public URL | `http://host.docker.internal:8181/keycloak` |
 | `KEYCLOAK_REALM` | Joined realm or this species' new realm | `emobase-portal` / `emobase-tcas` |
 | `KEYCLOAK_CLIENT_ID` | Client ID in that realm | `emobase-tcas-client` |
 | `DIRECTUS_DB_DATABASE` | This species' database in the local MySQL | `directus_tcas` |
-| `INTERNAL_KEYCLOAK_ISSUER`, `INTERNAL_DIRECTUS_URL` | Server-side URLs written to `.env` | `http://host.docker.internal:8181/keycloak/realms/<realm>` |
+| `INTERNAL_DIRECTUS_URL` | Server-side Directus URL written to `.env` | `http://directus:8055` |
 
 `KEYCLOAK_ISSUER` is derived from `KEYCLOAK_PUBLIC_URL` and `KEYCLOAK_REALM`, so
 it points at the Keycloak on this server, not at the portal. For a joined
@@ -104,12 +105,12 @@ links use `PORTAL_SERVER`.
 
 Server-side service URLs are Compose defaults. `INTERNAL_API_GENOMICS_SERVICE`
 and `GENOMICSSERVICE_BASE_URL` are derived from `PORTAL_INTERNAL_URL`, falling
-back to `PORTAL_SERVER` when the portal is remote. `init.sh` writes the Keycloak
-issuer as
-`http://host.docker.internal:<KEYCLOAK_HOST_PORT>/keycloak/realms/<realm>`, so
-sign-in does not depend on the public proxy certificate or on the container
-resolving the public name. Set `INTERNAL_KEYCLOAK_ISSUER` only when infra runs
-on a different host.
+back to `PORTAL_SERVER` when the portal is remote. The Keycloak issuer is
+derived from `KEYCLOAK_INTERNAL_URL` plus `/realms/<realm>`; when that value is
+empty, Compose uses `KEYCLOAK_PUBLIC_URL`. `init.sh` writes
+`http://host.docker.internal:<KEYCLOAK_HOST_PORT>/keycloak`, so sign-in does not
+depend on the public proxy certificate or on the container resolving the public
+name.
 
 ## Elasticsearch
 

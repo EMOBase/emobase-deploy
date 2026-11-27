@@ -21,9 +21,9 @@ x-directus-environment: &directus-environment
   AUTH_KEYCLOAK_DRIVER: openid
   AUTH_KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
   AUTH_KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
-  # Directus joins the shared infra network, so it uses Keycloak's internal
-  # service URL. The browser-facing issuer is KEYCLOAK_PUBLIC_URL.
-  AUTH_KEYCLOAK_ISSUER_URL: ${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8181/keycloak/realms/${KEYCLOAK_REALM}}
+  # Directus joins the shared infra network for MySQL, but its OIDC calls use
+  # the same container-facing base as the rest of the stack.
+  AUTH_KEYCLOAK_ISSUER_URL: ${KEYCLOAK_INTERNAL_URL:-${KEYCLOAK_PUBLIC_URL}}/realms/${KEYCLOAK_REALM}
   AUTH_KEYCLOAK_IDENTIFIER_KEY: preferred_username
   AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION: "true"
   AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST: ${PUBLIC_SERVER}/ibb/directus
@@ -68,7 +68,7 @@ services:
       - INTERNAL_API_GO_ANNOTATION_SERVICE=${INTERNAL_API_GO_ANNOTATION_SERVICE:-http://goannotationservice:8080}
       - INTERNAL_API_PUBLICATION_SERVICE=${INTERNAL_API_PUBLICATION_SERVICE:-http://publicationservice:8080}
       - INTERNAL_API_QUERY_PIPELINE_SERVICE=${INTERNAL_API_QUERY_PIPELINE_SERVICE:-http://querypipelineservice:8080}
-      - INTERNAL_KEYCLOAK_ISSUER=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8181/keycloak/realms/${KEYCLOAK_REALM}}
+      - INTERNAL_KEYCLOAK_ISSUER=${KEYCLOAK_INTERNAL_URL:-${KEYCLOAK_PUBLIC_URL}}/realms/${KEYCLOAK_REALM}
       - INTERNAL_DIRECTUS_URL=${INTERNAL_DIRECTUS_URL:-http://directus:8055}
       # BLAST is proxied through this deployment's nginx so its iframe stays
       # same-origin (SequenceServer's CSRF cookie must be first-party).
@@ -146,7 +146,7 @@ services:
     user: "${UID}:${GID}"
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8181/keycloak/realms/${KEYCLOAK_REALM}}
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${KEYCLOAK_INTERNAL_URL:-${KEYCLOAK_PUBLIC_URL}}/realms/${KEYCLOAK_REALM}
       - IMAGESERVICE_ELASTICSEARCH_INDEX_PREFIX=${EMOBASE_ES_INDEX_PREFIX}-imageservice
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -167,7 +167,7 @@ services:
         condition: service_started
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8181/keycloak/realms/${KEYCLOAK_REALM}}
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${KEYCLOAK_INTERNAL_URL:-${KEYCLOAK_PUBLIC_URL}}/realms/${KEYCLOAK_REALM}
       - PHENOTYPESERVICE_ELASTICSEARCH_INDEX_PREFIX=${EMOBASE_ES_INDEX_PREFIX}-phenotypeservice
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -180,7 +180,7 @@ services:
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8181/keycloak/realms/${KEYCLOAK_REALM}}
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${KEYCLOAK_INTERNAL_URL:-${KEYCLOAK_PUBLIC_URL}}/realms/${KEYCLOAK_REALM}
       - GOANNOTATIONSERVICE_ELASTICSEARCH_INDEX_PREFIX=${EMOBASE_ES_INDEX_PREFIX}-goannotationservice
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -193,7 +193,7 @@ services:
     restart: always
     environment:
       - QUARKUS_OIDC_CREDENTIALS_SECRET=$KEYCLOAK_CLIENT_SECRET
-      - QUARKUS_OIDC_AUTH_SERVER_URL=${INTERNAL_KEYCLOAK_ISSUER:-http://host.docker.internal:8181/keycloak/realms/${KEYCLOAK_REALM}}
+      - QUARKUS_OIDC_AUTH_SERVER_URL=${KEYCLOAK_INTERNAL_URL:-${KEYCLOAK_PUBLIC_URL}}/realms/${KEYCLOAK_REALM}
       - PUBLICATIONSERVICE_ELASTICSEARCH_INDEX=${EMOBASE_ES_INDEX_PREFIX}-publicationservice-publications
     extra_hosts:
       - "host.docker.internal:host-gateway"

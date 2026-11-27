@@ -453,7 +453,8 @@ contains "$(cat "$envfile")" "PUBLIC_HOST=tcas.test"
 contains "$(cat "$envfile")" "PORTAL_SERVER=https://portal.test"
 not_contains "$(cat "$envfile")" "INTERNAL_API_"
 contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
-contains "$(cat "$envfile")" "INTERNAL_KEYCLOAK_ISSUER=http://host.docker.internal:8181/keycloak/realms/ibb"
+contains "$(cat "$envfile")" "KEYCLOAK_INTERNAL_URL=http://host.docker.internal:8181/keycloak"
+not_contains "$(cat "$envfile")" "INTERNAL_KEYCLOAK_ISSUER="
 contains "$(cat "$envfile")" "INTERNAL_DIRECTUS_URL=http://directus:8055"
 contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
 contains "$(cat "$envfile")" "OBA_IMAGE=jboss/base-jdk:7"
@@ -480,11 +481,10 @@ grep -Fq "/new/infra compose compose up -d --wait" "$MOCK_LOG" \
 
 # ---------------------------------------------------------------- shared renderer
 pass "shared renderer helpers"
-out=$(bash -c 'source "$1/lib/species-env.sh"; printf "%s|%s|%s\n" \
+out=$(bash -c 'source "$1/lib/species-env.sh"; printf "%s|%s\n" \
   "$(trim_url "https://x///")" \
-  "$(url_host "https://h:8443/path")" \
-  "$(internal_keycloak_issuer 8181 ibb)"' _ "$HERE/../../..")
-contains "$out" "https://x|h|http://host.docker.internal:8181/keycloak/realms/ibb"
+  "$(url_host "https://h:8443/path")"' _ "$HERE/../../..")
+contains "$out" "https://x|h"
 
 pass "init.sh and prepare render the same keys"
 init_out=$(bash "$HERE/../../../init.sh" --print --yes \
@@ -496,7 +496,8 @@ init_out=$(bash "$HERE/../../../init.sh" --print --yes \
   --keycloak-client-id ibb-client --keycloak-client-secret old-client-secret \
   --coco-username coco --coco-password old-coco-password 2>/dev/null)
 contains "$init_out" "PUBLIC_HOST=tcas.test"
-contains "$init_out" "INTERNAL_KEYCLOAK_ISSUER=http://host.docker.internal:8181/keycloak/realms/ibb"
+contains "$init_out" "KEYCLOAK_INTERNAL_URL=http://host.docker.internal:8181/keycloak"
+contains "$init_out" "INTERNAL_DIRECTUS_URL=http://directus:8055"
 init_keys=$(printf '%s\n' "$init_out" | grep -E '^[A-Z][A-Z0-9_]*=' | cut -d= -f1 | sort -u)
 env_keys=$(grep -E '^[A-Z][A-Z0-9_]*=' "$envfile" | cut -d= -f1 | sort -u)
 missing_keys=$(comm -23 <(printf '%s\n' "$init_keys") <(printf '%s\n' "$env_keys"))

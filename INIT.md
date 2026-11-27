@@ -77,12 +77,11 @@ path. The species nginx serves only that name and rejects other `Host` headers,
 so open the site with the URL in `PUBLIC_SERVER`. Change both values together;
 editing `PUBLIC_HOST` alone breaks the site.
 
-`INTERNAL_KEYCLOAK_ISSUER` is written as
-`http://host.docker.internal:<KEYCLOAK_HOST_PORT>/keycloak/realms/<realm>`.
-Server-side OIDC must not use the public URL: the app container may not trust
-the public certificate or resolve a host-only name such as `*.test`. Set
-`INTERNAL_KEYCLOAK_ISSUER` in the environment to override it for unusual
-topologies.
+`KEYCLOAK_INTERNAL_URL` is written as
+`http://host.docker.internal:<KEYCLOAK_HOST_PORT>/keycloak`. Compose appends
+`/realms/<realm>` to build the issuer and falls back to `KEYCLOAK_PUBLIC_URL`
+when it is empty. Containers must not use a host-only name such as `*.test`, so
+keep the host-gateway value for a local Keycloak.
 
 The Elasticsearch prefix uses lowercase letters, digits, underscore and hyphen,
 and must not be `genomics` (reserved for the portal). The stack writes only

@@ -414,8 +414,8 @@ Then delete this migration folder.
   readable only by root.
 - **Login ends at `/api/auth/error?error=Configuration`, `fe` log says
   `UNABLE_TO_VERIFY_LEAF_SIGNATURE` or `ENOTFOUND`**: the app container cannot
-  reach `INTERNAL_KEYCLOAK_ISSUER`. Use
-  `http://host.docker.internal:8181/keycloak/realms/<realm>` and recreate `fe`.
+  reach `KEYCLOAK_INTERNAL_URL`. Use
+  `http://host.docker.internal:8181/keycloak` and recreate `fe`.
 - **Keycloak admin login fails after the DB copy**: the copied master realm has
   the current admin password, not the old bootstrap password. Set the current
   admin in `migration.env` and rerun the phase that updates `infra/.env`.

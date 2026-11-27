@@ -350,8 +350,6 @@ INFRA_KEYCLOAK_HOST_PORT=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_HOST_PORT |
 INFRA_KEYCLOAK_HOST_PORT="${INFRA_KEYCLOAK_HOST_PORT:-8181}"
 INFRA_KEYCLOAK_PUBLIC_URL=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_PUBLIC_URL || true)
 INFRA_KEYCLOAK_PUBLIC_URL="${INFRA_KEYCLOAK_PUBLIC_URL:-http://localhost:${INFRA_KEYCLOAK_HOST_PORT}/keycloak}"
-INFRA_KEYCLOAK_INTERNAL_URL=$(read_env_value "$INFRA_DIR/.env" KEYCLOAK_INTERNAL_URL || true)
-INFRA_KEYCLOAK_INTERNAL_URL="${INFRA_KEYCLOAK_INTERNAL_URL:-http://keycloak:8080/keycloak}"
 
 INFRA_NETWORK=$(read_env_value "$INFRA_DIR/.env" EMOBASE_INFRA_NETWORK || true)
 INFRA_NETWORK="${INFRA_NETWORK:-$DEFAULT_INFRA_NETWORK}"
@@ -666,7 +664,10 @@ fi
   || fatal "Keycloak client IDs may only contain letters, digits, dot, underscore and hyphen."
 
 KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL:-$INFRA_KEYCLOAK_PUBLIC_URL}"
-KEYCLOAK_INTERNAL_URL="${KEYCLOAK_INTERNAL_URL:-$INFRA_KEYCLOAK_INTERNAL_URL}"
+# App containers are not on the infra network, so the local Keycloak is
+# reached through the published host port. Export KEYCLOAK_INTERNAL_URL before
+# running init.sh to override it for a Keycloak on another host.
+KEYCLOAK_INTERNAL_URL="${KEYCLOAK_INTERNAL_URL:-http://host.docker.internal:${INFRA_KEYCLOAK_HOST_PORT:-8181}/keycloak}"
 KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL%/}"
 KEYCLOAK_INTERNAL_URL="${KEYCLOAK_INTERNAL_URL%/}"
 if is_loopback_url "$KEYCLOAK_PUBLIC_URL" \
@@ -674,11 +675,6 @@ if is_loopback_url "$KEYCLOAK_PUBLIC_URL" \
   >&2 echo "⚠️  KEYCLOAK_PUBLIC_URL points at localhost but PUBLIC_SERVER does not."
   >&2 echo "   Set --keycloak-public-url in the infra checkout's init.sh."
 fi
-# Server-side OIDC stays on this host: the app container may not trust the
-# public certificate or resolve a host-only name. The public issuer above is
-# still what clients see and what the token `iss` claim uses.
-INTERNAL_KEYCLOAK_ISSUER="${INTERNAL_KEYCLOAK_ISSUER:-$(internal_keycloak_issuer "${INFRA_KEYCLOAK_HOST_PORT:-8181}" "$KEYCLOAK_REALM")}"
-
 if [[ -z "$DIRECTUS_DB_DATABASE" ]]; then
   DIRECTUS_DB_DATABASE="directus_${species_slug}"
 fi
