@@ -262,11 +262,11 @@ Then open `<TCAS_URL>` and confirm:
 - JBrowse2 and BLAST open the portal release
 - `/download/` files work
 
-If anything fails, restore Apache and the old stack now. Do not run `finish`:
+If anything fails, restore Apache. Do not run `finish`; the old stack is still
+running, so this is the whole rollback:
 
 ```bash
 sudo ./apache-apply.sh --restore
-./migrate.sh rollback
 ```
 
 If everything passes, stop the old stack:
@@ -281,9 +281,9 @@ retention period ends.
 
 ## 8. Rolling back
 
-
-Run this only if the final verification failed, or if Apache should stay on
-the old stack. Do not run it after a successful migration.
+Use this after `finish` (the old stack is stopped then), or when you want to
+stop the new stacks. Before `finish`, restoring Apache from step 7 is enough
+because the old stack is still running.
 
 ```bash
 ./migrate.sh rollback

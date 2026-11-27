@@ -1291,9 +1291,9 @@ Keycloak:       $TCAS_URL/keycloak/admin/
 
 Open the site and test one real user login.
 
-If anything fails, restore Apache and the old stack; do not run finish:
+If anything fails, restore Apache; do not run finish. The old stack is still
+running, so that is the whole rollback:
   sudo ./apache-apply.sh --restore
-  ./migrate.sh rollback
 
 If everything passes, stop the old stack:
   ./migrate.sh finish
