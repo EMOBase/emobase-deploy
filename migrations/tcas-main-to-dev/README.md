@@ -91,24 +91,24 @@ present, otherwise `Tcas`, `ibb` and `ibb-client`.
 
 `migration.env` is ignored by git. The values are:
 
-| Variable                                            | Meaning                                                                                                                        |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `OLD_SPECIES_DIR`                                   | Existing running Tcas checkout; read-only                                                                                      |
-| `NEW_WORKSPACE`                                     | New parent directory for `Tcas/` and `infra/`                                                                                  |
-| `BACKUP_DIR`                                        | Backups and phase dumps; outside both checkouts                                                                                |
-| `TCAS_URL`                                          | Final public species URL                                                                                                       |
-| `KEYCLOAK_PUBLIC_URL`                               | Final Keycloak URL, `<TCAS_URL>/keycloak`                                                                                      |
-| `PORTAL_URL`                                        | Deployed multi-species portal                                                                                                  |
-| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE`                | Optional certificate overrides for `apache-apply.sh`                                                                           |
-| `NEW_HTTP_PORT`                                     | `9092`                                                                                                                         |
-| `NEW_ES_PORT`                                       | `9204`                                                                                                                         |
-| `NEW_PROJECT`                                       | `tcas`; must differ from the old project                                                                                       |
-| `SPECIES_CODE`, `REALM`, `CLIENT_ID`                | `Tcas`, `ibb`, `ibb-client`                                                                                                    |
-| `OLD_KEYCLOAK_ADMIN`, `OLD_KEYCLOAK_ADMIN_PASSWORD` | Override only if the old `.env` is stale                                                                                       |
-| `ES_MODE`                                           | `snapshot`; takes a fresh old-cluster snapshot and restores it. `rebuild` is only for deployments that can rebuild every index |
-| `IMAGE_MODE`                                        | `auto` (recommended); `copy` is the fallback when the image source is read-only                                                |
-| `EMOBASE_WEB_IMAGE`                                 | Pin a release or SHA for a long-lived deployment                                                                               |
-| `OBA_IMAGE`                                         | `jboss/base-jdk:7`; the Java 7 image the OBA jar is known to run with. Docker Hub removed the official `openjdk:7` image       |
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `OLD_SPECIES_DIR` | required | Existing running Tcas checkout; read-only |
+| `NEW_WORKSPACE` | parent of this checkout | New parent directory for `Tcas/` and `infra/` |
+| `BACKUP_DIR` | `<NEW_WORKSPACE>/backup` | Dumps and snapshots; outside both checkouts |
+| `TCAS_URL` | old `PUBLIC_SERVER` | Final public species URL |
+| `KEYCLOAK_PUBLIC_URL` | `<TCAS_URL>/keycloak` | Final public Keycloak base URL |
+| `PORTAL_URL` | required | Multi-species portal origin |
+| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE` | auto-detected | Certificate overrides for `apache-apply.sh` |
+| `NEW_HTTP_PORT` | `9092` | New species host port |
+| `NEW_ES_PORT` | `9204` | New infra Elasticsearch host port |
+| `NEW_PROJECT` | `tcas` | Compose project; must differ from the old one |
+| `SPECIES_CODE`, `REALM`, `CLIENT_ID` | old `.env`, then `Tcas`, `ibb`, `ibb-client` | Species code, realm and client |
+| `OLD_KEYCLOAK_ADMIN`, `OLD_KEYCLOAK_ADMIN_PASSWORD` | old `.env` | Override only if the old `.env` is stale |
+| `ES_MODE` | `snapshot` | How indices move; see `migration.env.example` |
+| `IMAGE_MODE` | `auto` | How images are shared or copied; see `migration.env.example` |
+| `EMOBASE_WEB_IMAGE` | `ghcr.io/emobase/emobase-web:dev` | Web image; pin a release or SHA for a long-lived deployment |
+| `OBA_IMAGE` | `jboss/base-jdk:7` | Java 7 image for the OBA jar |
 
 The old Compose project name, HTTP port and data paths are read from
 `OLD_SPECIES_DIR/.env`; they are not set in `migration.env`. The new stack
