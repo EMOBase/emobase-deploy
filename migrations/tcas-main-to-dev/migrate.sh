@@ -1291,7 +1291,11 @@ Keycloak:       $TCAS_URL/keycloak/admin/
 
 Open the site and test one real user login.
 
-After verification, stop the old stack:
+If anything fails, restore Apache and the old stack; do not run finish:
+  sudo ./apache-apply.sh --restore
+  ./migrate.sh rollback
+
+If everything passes, stop the old stack:
   ./migrate.sh finish
 EOF
 }

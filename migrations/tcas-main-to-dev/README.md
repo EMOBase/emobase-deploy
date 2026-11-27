@@ -262,14 +262,22 @@ Then open `<TCAS_URL>` and confirm:
 - JBrowse2 and BLAST open the portal release
 - `/download/` files work
 
-After verification, stop the old stack:
+If anything fails, restore Apache and the old stack now. Do not run `finish`:
+
+```bash
+sudo ./apache-apply.sh --restore
+./migrate.sh rollback
+```
+
+If everything passes, stop the old stack:
 
 ```bash
 ./migrate.sh finish
 ```
 
-The old volumes are kept. If verification fails, run
-`sudo ./apache-apply.sh --restore` and start the old stack; see Rolling back.
+The old volumes are kept. If a problem appears later, `./migrate.sh rollback`
+and `sudo ./apache-apply.sh --restore` bring the old stack back until the
+retention period ends.
 
 ## 8. Rolling back
 
