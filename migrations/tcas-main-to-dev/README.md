@@ -277,9 +277,10 @@ alternatives, not consecutive steps.
 
 ## 8. Rolling back
 
-Only for a failed or abandoned migration, or to stop the new stacks after
-`finish`. Before `finish`, restoring Apache from step 7 is enough because the
-old stack is still running; do not roll back while the migration is working.
+Run this only if the final verification failed or the migration is abandoned.
+Do not run it after a successful migration, and not before `finish`: before
+`finish`, restoring Apache from step 7 is enough because the old stack is still
+running.
 
 ```bash
 ./migrate.sh rollback
