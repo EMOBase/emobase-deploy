@@ -108,7 +108,7 @@ present, otherwise `Tcas`, `ibb` and `ibb-client`.
 | `IMAGE_MODE` | `auto` | How images are shared or copied; see `migration.env.example` |
 | `EMOBASE_WEB_IMAGE` | `ghcr.io/emobase/emobase-web:dev` | Web image; pin a release or SHA for a long-lived deployment |
 | `OBA_IMAGE` | `jboss/base-jdk:7` | Java 7 image for the OBA jar |
-| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE` | unset | Override the certificate paths for `apache-apply.sh` |
+| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE` | unset | Certificate path overrides for `apache-apply.sh`; set only if needed |
 
 The old Compose project name, HTTP port and data paths are read from
 `OLD_SPECIES_DIR/.env`; they are not set in `migration.env`. The new stack
