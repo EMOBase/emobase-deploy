@@ -59,8 +59,8 @@ services:
       - PUBLIC_APIS_BASE_URL=${PUBLIC_SERVER}/ibb/api
       # Genomics, JBrowse2 and BLAST are served by the portal deployment.
       - PUBLIC_API_GENOMICS_SERVICE=${PORTAL_SERVER}/api/genomicsservice/v1
-      # Server-side calls use these internal URLs instead of the public URL.
-      # They fall back to the matching PUBLIC_* URL when omitted.
+      # Server-side calls. The genomics URL follows the portal origin; the rest
+      # are fixed service names inside this stack.
       - INTERNAL_API_GENOMICS_SERVICE=${PORTAL_INTERNAL_URL:-${PORTAL_SERVER}}/api/genomicsservice/v1
       - INTERNAL_API_PHENOTYPE_SERVICE=${INTERNAL_API_PHENOTYPE_SERVICE:-http://phenotypeservice:8080}
       - INTERNAL_API_IMAGE_SERVICE=${INTERNAL_API_IMAGE_SERVICE:-http://imageservice:8080}

@@ -71,7 +71,7 @@ container URLs:
 | --- | --- | --- |
 | `PUBLIC_SERVER` | The URL users open for **this species site** | `https://tcas.example.org` |
 | `PORTAL_SERVER` | The **public portal** URL used for genomics/JBrowse2/BLAST links | `https://portal.example.org` |
-| `PORTAL_INTERNAL_URL` | Portal origin used by nginx for the BLAST proxy | `http://host.docker.internal:9080` |
+| `PORTAL_INTERNAL_URL` | Portal origin for the BLAST proxy and derived API URLs | `http://host.docker.internal:9080` |
 | `KEYCLOAK_PUBLIC_URL` | This server's browser-facing Keycloak base URL | `https://auth.example.org/keycloak` |
 | `KEYCLOAK_REALM` | Joined realm or this species' new realm | `emobase-portal` / `emobase-tcas` |
 | `KEYCLOAK_CLIENT_ID` | Client ID in that realm | `emobase-tcas-client` |
@@ -96,7 +96,7 @@ do not go out through the public domain:
 - For a same-host production deployment, set it explicitly, for example
   `http://host.docker.internal:9080` (or another hostname that is reachable
   from this stack's default Docker network).
-- On a separate server, leave it equal to `PORTAL_SERVER`.
+- On a separate server, leave it empty; Compose falls back to `PORTAL_SERVER`.
 
 BLAST is proxied through this stack's nginx so its iframe stays same-origin;
 the proxy uses `PORTAL_INTERNAL_URL`. JBrowse2 and browser-facing genomics
