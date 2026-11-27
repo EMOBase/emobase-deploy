@@ -435,10 +435,10 @@ Then delete this migration folder.
 - **OBA keeps restarting**: set `OBA_IMAGE=jboss/base-jdk:7` (or another Java 7
   image known to run the OBA jar); Docker Hub removed the official `openjdk:7`
   image.
-- **The host runs out of memory while both stacks are up**: stop optional old
-  services (`oba`, `ontoscope`, `blast`, `geneservice`, `swagger-ui`,
-  `querypipelineservice`) or lower the new infra ES heap/limit for the migration
-  run. The script does not stop them by default.
+- **The host runs out of memory while both stacks are up**: stop the old stack
+  and accept downtime, or lower the new infra ES heap/limit for the migration
+  run. `geneservice` is essential to the old site, so stopping individual old
+  services is not a safe workaround.
 - **JBrowse/BLAST missing**: the portal release is not READY, or
   `PORTAL_SERVER` is wrong.
 - **Final URL still shows the old site**: the 443 vhost still points at the old
