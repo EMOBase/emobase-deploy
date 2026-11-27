@@ -39,8 +39,17 @@ Stop before changing anything if any of these is false.
   old `.env` (`KEYCLOAK_ADMIN`, `KEYCLOAK_ADMIN_PASSWORD`) or will be supplied
   in `migration.env`. The copied database keeps the current admin account.
 
-- The old Keycloak is 24.0.3, matching `emobase-infra`. Do not use a database
-  copy across different Keycloak versions.
+- The old Keycloak is 24.0.3, the same version as `emobase-infra`. The
+  migration copies the `keycloak` database (users, clients, realm settings)
+  into the new infra Keycloak; it does not migrate the schema. Keycloak only
+  applies supported upgrade paths on startup, so a database from a different
+  version can fail or leave an inconsistent schema.
+
+  Verify the version with:
+
+  ```bash
+  docker exec <old-keycloak-container> /opt/keycloak/bin/kc.sh --version
+  ```
 
 - There is enough local disk for the two checkouts (`emobase-deploy` on `dev`
   and `emobase-infra`) and the local copies (`data/private`, `oba/`, the
