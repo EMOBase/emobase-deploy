@@ -263,7 +263,7 @@ Then open `<TCAS_URL>` and confirm:
 - `/download/` files work
 
 If anything fails, restore Apache and do not run `finish`; the old stack is
-still running:
+still running. Continue with Rolling back (section 8):
 
 ```bash
 sudo ./apache-apply.sh --restore
@@ -275,14 +275,14 @@ If everything passes, stop the old stack:
 ./migrate.sh finish
 ```
 
-The old volumes are kept; see Rolling back if a problem appears later.
+Then continue with Adopt the workspace (section 9). Sections 8 and 9 are
+alternatives, not consecutive steps.
 
 ## 8. Rolling back
 
-Use this after `finish` (the old stack is stopped then), or when you want to
-stop the new stacks. Before `finish`, restoring Apache from step 7 is enough
-because the old stack is still running. Do not run it while the migration is
-working.
+Only for a failed or abandoned migration, or to stop the new stacks after
+`finish`. Before `finish`, restoring Apache from step 7 is enough because the
+old stack is still running; do not roll back while the migration is working.
 
 ```bash
 ./migrate.sh rollback
