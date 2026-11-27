@@ -99,7 +99,7 @@ present, otherwise `Tcas`, `ibb` and `ibb-client`.
 | `TCAS_URL` | old `PUBLIC_SERVER` | Final public species URL |
 | `KEYCLOAK_PUBLIC_URL` | `<TCAS_URL>/keycloak` | Final public Keycloak base URL |
 | `PORTAL_URL` | required | Multi-species portal origin |
-| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE` | auto-detected | Certificate overrides for `apache-apply.sh` |
+| `SSL_CERT_FILE`, `SSL_CERT_KEY_FILE` | unset | Certificate paths for `apache-apply.sh`; detected when unset, placeholders if none is found |
 | `NEW_HTTP_PORT` | `9092` | New species host port |
 | `NEW_ES_PORT` | `9204` | New infra Elasticsearch host port |
 | `NEW_PROJECT` | `tcas` | Compose project; must differ from the old one |
