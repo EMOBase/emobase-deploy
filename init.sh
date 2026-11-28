@@ -346,8 +346,8 @@ if [[ "$PRINT" != true ]]; then
   fi
 fi
 
-# Resolve the shared MySQL/Keycloak secrets from emobase-infra. Every species
-# uses the same MySQL root password and Keycloak client secret.
+# Resolve the shared MySQL password and Docker network from emobase-infra.
+# Keycloak values are created on the portal and passed in by the operator.
 if [[ -z "$INFRA_DIR" ]] && [[ -f "${DEFAULT_INFRA_DIR}/.env" ]]; then
   INFRA_DIR="$DEFAULT_INFRA_DIR"
 fi

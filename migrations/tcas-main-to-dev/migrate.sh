@@ -783,9 +783,6 @@ cmd_check() {
   for p in "$NEW_HTTP_PORT" "$NEW_ES_PORT"; do
     if port_busy "$p"; then die "port $p is already in use"; fi
   done
-  if port_busy 8181; then
-    warn "port 8181 is in use; check that the old Keycloak does not publish it"
-  fi
   if ! port_busy "$OLD_HTTP_PORT"; then
     warn "old site port $OLD_HTTP_PORT is not listening; check HTTP_PORT in $OLD_ENV"
   fi

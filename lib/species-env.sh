@@ -97,8 +97,8 @@ PORTAL_SERVER=${PORTAL_SERVER}
 PORTAL_INTERNAL_URL=${PORTAL_INTERNAL_URL}
 
 # ── Shared infrastructure ───────────────────────────────────────────────────
-# MySQL, Keycloak and Elasticsearch run in the shared infra stack.
-# Start it first. The species stack and its services use these names.
+# MySQL and Elasticsearch run in the shared infra stack. Keycloak is hosted by
+# the portal; its URL and credentials are written above.
 EMOBASE_INFRA_NETWORK=${EMOBASE_INFRA_NETWORK}
 DIRECTUS_DB_HOST=mysql
 DIRECTUS_DB_PORT=3306
@@ -159,8 +159,8 @@ MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
 DIRECTUS_ADMIN_EMAIL=${DIRECTUS_ADMIN_EMAIL}
 DIRECTUS_ADMIN_PASSWORD=${DIRECTUS_ADMIN_PASSWORD}
 
-# Seed Keycloak user. For a joined realm these are copied from the owner; for
-# a new realm the password is temporary and must be changed on first login.
+# Seed Keycloak user created on the portal. The password may be temporary and
+# must be changed on first login.
 COCO_USERNAME=${COCO_USERNAME}
 COCO_PASSWORD=${COCO_PASSWORD}
 EOF

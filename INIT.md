@@ -32,7 +32,7 @@ as flags are validated once; an invalid flag stops the script.
 | Directus database | `directus_<species>` |
 | Compose project/container prefix | species slug |
 | Elasticsearch index prefix | species slug |
-| Keycloak realm | menu of existing realms plus a new realm |
+| Keycloak realm and client | none; create them on the portal first |
 
 Without `--local`, the species and portal URLs default to the detected host IPv4
 address; enter the public IP or domain if the server is behind NAT.

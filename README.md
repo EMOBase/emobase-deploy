@@ -1,10 +1,9 @@
 # EMOBase species deployment
 
 Single-species deployment: the **emobase-web** frontend, its Quarkus services
-and Directus. MySQL, Keycloak and Elasticsearch are shared **per server**: they
-run once in this server's
-[`emobase-infra`](https://github.com/EMOBase/emobase-infra) and serve the portal
-and every species deployed on that server.
+and Directus. MySQL and Elasticsearch are shared **per server** in
+[`emobase-infra`](https://github.com/EMOBase/emobase-infra); Keycloak is hosted
+by the portal deployment and used by every species on that server.
 
 Genomics, JBrowse2 and BLAST are **not** run here. They come from a running
 [`emobase-portal-deploy`](https://github.com/EMOBase/emobase-portal-deploy) stack. The multi-species
@@ -19,8 +18,7 @@ portal itself lives in that repository.
 
 - Docker Engine 24+ with Compose v2
 - A running `emobase-infra` stack with its `.env`
-- `python3` on the Docker host for the Keycloak helper scripts
-- A running portal deployment
+- A running portal deployment with Keycloak
 
 ## Quick start
 
@@ -117,7 +115,7 @@ per-species instance and prefix cleanup.
 ## Local development
 
 Start the `infra` checkout first so the external `emobase-infra` Docker network
-and the local MySQL/Keycloak/Elasticsearch containers exist. Then build the web
+and the local MySQL/Elasticsearch containers exist. Then build the web
 UI from a local source checkout instead of pulling the published image (set
 `EMOBASE_WEB_DIR` if it is not next to this checkout):
 
