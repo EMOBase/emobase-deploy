@@ -196,9 +196,6 @@ render_vhost() {
     RequestHeader set X-Forwarded-Proto "https"
     LimitRequestFieldSize 16384
 
-    ProxyPass        /keycloak  http://127.0.0.1:8181/keycloak
-    ProxyPassReverse /keycloak  http://127.0.0.1:8181/keycloak
-
     ProxyPass        /  http://127.0.0.1:$NEW_HTTP_PORT/
     ProxyPassReverse /  http://127.0.0.1:$NEW_HTTP_PORT/
 </VirtualHost>

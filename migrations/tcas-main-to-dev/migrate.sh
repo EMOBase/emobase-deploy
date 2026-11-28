@@ -312,7 +312,7 @@ load_context() {
   NEW_SPECIES_DIR="${NEW_SPECIES_DIR:-$NEW_WORKSPACE/$SPECIES_CODE}"
   INFRA_DIR="$NEW_WORKSPACE/infra"
   BACKUP_DIR="${BACKUP_DIR:-$NEW_WORKSPACE/backup}"
-  KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL:-$TCAS_URL/keycloak}"
+  KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL:-$PORTAL_URL/keycloak}"
   KEYCLOAK_PUBLIC_URL=$(trim_url "$KEYCLOAK_PUBLIC_URL")
   TCAS_HOST=$(python3 - "$TCAS_URL" <<'PY'
 import sys
@@ -348,14 +348,14 @@ PY
   OLD_DIRECTUS_ADMIN_EMAIL=$(env_get "$OLD_ENV" DIRECTUS_ADMIN_EMAIL || true)
   OLD_DIRECTUS_ADMIN_PASSWORD=$(env_get "$OLD_ENV" DIRECTUS_ADMIN_PASSWORD || true)
   OLD_CLIENT_SECRET=$(env_get "$OLD_ENV" KEYCLOAK_CLIENT_SECRET || true)
+  CLIENT_SECRET="${CLIENT_SECRET:-$OLD_CLIENT_SECRET}"
   OLD_SSR_SECRET=$(env_get "$OLD_ENV" SSR_OIDC_SESSION_SECRET || true)
   OLD_COCO_USER=$(env_get "$OLD_ENV" COCO_USERNAME || true)
   OLD_COCO_PASSWORD=$(env_get "$OLD_ENV" COCO_PASSWORD || true)
+  COCO_USERNAME="${COCO_USERNAME:-${OLD_COCO_USER:-coco}}"
+  COCO_PASSWORD="${COCO_PASSWORD:-$OLD_COCO_PASSWORD}"
   OLD_UID=$(env_get "$OLD_ENV" UID || true)
   OLD_GID=$(env_get "$OLD_ENV" GID || true)
-
-  OLD_KEYCLOAK_ADMIN="${OLD_KEYCLOAK_ADMIN:-$(env_get "$OLD_ENV" KEYCLOAK_ADMIN || true)}"
-  OLD_KEYCLOAK_ADMIN_PASSWORD="${OLD_KEYCLOAK_ADMIN_PASSWORD:-$(env_get "$OLD_ENV" KEYCLOAK_ADMIN_PASSWORD || true)}"
 
   OLD_PUBLIC_DATA_DIR=$(env_get "$OLD_ENV" PUBLIC_DATA_DIR || true)
   OLD_PRIVATE_DATA_DIR=$(env_get "$OLD_ENV" PRIVATE_DATA_DIR || true)
@@ -446,14 +446,10 @@ require_old_values() {
   [[ -n "$OLD_DIRECTUS_SECRET" ]] || missing+=("DIRECTUS_SECRET")
   [[ -n "$OLD_DIRECTUS_ADMIN_EMAIL" ]] || missing+=("DIRECTUS_ADMIN_EMAIL")
   [[ -n "$OLD_DIRECTUS_ADMIN_PASSWORD" ]] || missing+=("DIRECTUS_ADMIN_PASSWORD")
-  [[ -n "$OLD_CLIENT_SECRET" ]] || missing+=("KEYCLOAK_CLIENT_SECRET")
+  [[ -n "$CLIENT_SECRET" ]] || missing+=("CLIENT_SECRET")
+  [[ -n "$COCO_PASSWORD" ]] || missing+=("COCO_PASSWORD")
   [[ -n "$OLD_SSR_SECRET" ]] || missing+=("SSR_OIDC_SESSION_SECRET")
   (( ${#missing[@]} == 0 )) || die "old .env is missing: ${missing[*]}"
-}
-
-require_admin() {
-  [[ -n "$OLD_KEYCLOAK_ADMIN" && -n "$OLD_KEYCLOAK_ADMIN_PASSWORD" ]] || die \
-    "Keycloak admin credentials are required. Set OLD_KEYCLOAK_ADMIN and OLD_KEYCLOAK_ADMIN_PASSWORD in migration.env."
 }
 
 port_busy() {
@@ -518,6 +514,7 @@ cmd_init() {
 
   local cfg_old cfg_ws cfg_backup cfg_tcas cfg_portal cfg_kc
   local cfg_http cfg_es cfg_project cfg_species cfg_realm cfg_client
+  local cfg_client_secret cfg_coco_user cfg_coco_pass
   local cfg_es_mode cfg_image_mode cfg_web cfg_oba
   cfg_old=$(env_get "$CONFIG" OLD_SPECIES_DIR || true)
   cfg_ws=$(env_get "$CONFIG" NEW_WORKSPACE || true)
@@ -531,6 +528,9 @@ cmd_init() {
   cfg_species=$(env_get "$CONFIG" SPECIES_CODE || true)
   cfg_realm=$(env_get "$CONFIG" REALM || true)
   cfg_client=$(env_get "$CONFIG" CLIENT_ID || true)
+  cfg_client_secret=$(env_get "$CONFIG" CLIENT_SECRET || true)
+  cfg_coco_user=$(env_get "$CONFIG" COCO_USERNAME || true)
+  cfg_coco_pass=$(env_get "$CONFIG" COCO_PASSWORD || true)
   cfg_es_mode=$(env_get "$CONFIG" ES_MODE || true)
   cfg_image_mode=$(env_get "$CONFIG" IMAGE_MODE || true)
   cfg_web=$(env_get "$CONFIG" EMOBASE_WEB_IMAGE || true)
@@ -548,6 +548,10 @@ cmd_init() {
   old_species=$(env_get "$OLD_SPECIES_DIR/.env" MAIN_SPECIES || true)
   old_realm=$(env_get "$OLD_SPECIES_DIR/.env" KEYCLOAK_REALM || true)
   old_client=$(env_get "$OLD_SPECIES_DIR/.env" KEYCLOAK_CLIENT_ID || true)
+  local old_secret old_coco_user old_coco_pass
+  old_secret=$(env_get "$OLD_SPECIES_DIR/.env" KEYCLOAK_CLIENT_SECRET || true)
+  old_coco_user=$(env_get "$OLD_SPECIES_DIR/.env" COCO_USERNAME || true)
+  old_coco_pass=$(env_get "$OLD_SPECIES_DIR/.env" COCO_PASSWORD || true)
   ask_path NEW_WORKSPACE "New workspace" \
     "$ws_default" valid_new_workspace "Must be outside the old checkout"
   ask_path BACKUP_DIR "Backup directory" \
@@ -555,12 +559,14 @@ cmd_init() {
 
   ask TCAS_URL "Final Tcas URL" "${cfg_tcas:-$old_public}" valid_url \
     "Enter an http(s) URL"
-  ask KEYCLOAK_PUBLIC_URL "Final Keycloak URL" \
-    "${cfg_kc:-${TCAS_URL%/}/keycloak}" valid_url "Enter an http(s) URL"
   ask PORTAL_URL "Portal URL" "$cfg_portal" valid_url "Enter an http(s) URL"
+  ask KEYCLOAK_PUBLIC_URL "Final Keycloak URL" \
+    "${cfg_kc:-${PORTAL_URL%/}/keycloak}" valid_url "Enter an http(s) URL"
   TCAS_URL=$(trim_url "$TCAS_URL")
   KEYCLOAK_PUBLIC_URL=$(trim_url "$KEYCLOAK_PUBLIC_URL")
   PORTAL_URL=$(trim_url "$PORTAL_URL")
+  KEYCLOAK_PUBLIC_URL="${KEYCLOAK_PUBLIC_URL:-${PORTAL_URL%/}/keycloak}"
+  KEYCLOAK_PUBLIC_URL=$(trim_url "$KEYCLOAK_PUBLIC_URL")
 
   NEW_HTTP_PORT="${NEW_HTTP_PORT:-${cfg_http:-9092}}"
   NEW_ES_PORT="${NEW_ES_PORT:-${cfg_es:-9204}}"
@@ -568,6 +574,9 @@ cmd_init() {
   SPECIES_CODE="${cfg_species:-${old_species:-Tcas}}"
   REALM="${cfg_realm:-${old_realm:-ibb}}"
   CLIENT_ID="${cfg_client:-${old_client:-ibb-client}}"
+  CLIENT_SECRET="${CLIENT_SECRET:-${cfg_client_secret:-$old_secret}}"
+  COCO_USERNAME="${COCO_USERNAME:-${cfg_coco_user:-${old_coco_user:-coco}}}"
+  COCO_PASSWORD="${COCO_PASSWORD:-${cfg_coco_pass:-$old_coco_pass}}"
   ES_MODE="${ES_MODE:-${cfg_es_mode:-snapshot}}"
   IMAGE_MODE="${IMAGE_MODE:-${cfg_image_mode:-auto}}"
   EMOBASE_WEB_IMAGE="${EMOBASE_WEB_IMAGE:-${cfg_web:-ghcr.io/emobase/emobase-web:dev}}"
@@ -580,9 +589,10 @@ cmd_init() {
   valid_image_mode "$IMAGE_MODE" || die "invalid IMAGE_MODE: $IMAGE_MODE"
   [[ -n "$SPECIES_CODE" && -n "$REALM" && -n "$CLIENT_ID" ]] \
     || die "SPECIES_CODE, REALM and CLIENT_ID must not be empty"
-
-  local admin_note=0
-  env_get "$OLD_SPECIES_DIR/.env" KEYCLOAK_ADMIN >/dev/null 2>&1 || admin_note=1
+  [[ -n "$CLIENT_SECRET" ]] \
+    || die "CLIENT_SECRET is required; copy it from the portal's realm/client"
+  [[ -n "$COCO_PASSWORD" ]] \
+    || die "COCO_PASSWORD is required; copy it from the portal's realm/client"
 
   if (( DRY_RUN )); then
     log "would write $CONFIG"
@@ -598,6 +608,9 @@ cmd_init() {
     printf 'SPECIES_CODE=%s\n' "$SPECIES_CODE"
     printf 'REALM=%s\n' "$REALM"
     printf 'CLIENT_ID=%s\n' "$CLIENT_ID"
+    printf 'CLIENT_SECRET=%s\n' "$CLIENT_SECRET"
+    printf 'COCO_USERNAME=%s\n' "$COCO_USERNAME"
+    printf 'COCO_PASSWORD=%s\n' "$COCO_PASSWORD"
     printf 'ES_MODE=%s\n' "$ES_MODE"
     printf 'IMAGE_MODE=%s\n' "$IMAGE_MODE"
     printf 'EMOBASE_WEB_IMAGE=%s\n' "$EMOBASE_WEB_IMAGE"
@@ -618,6 +631,9 @@ cmd_init() {
     "SPECIES_CODE=$SPECIES_CODE" \
     "REALM=$REALM" \
     "CLIENT_ID=$CLIENT_ID" \
+    "CLIENT_SECRET=$CLIENT_SECRET" \
+    "COCO_USERNAME=$COCO_USERNAME" \
+    "COCO_PASSWORD=$COCO_PASSWORD" \
     "ES_MODE=$ES_MODE" \
     "IMAGE_MODE=$IMAGE_MODE" \
     "EMOBASE_WEB_IMAGE=$EMOBASE_WEB_IMAGE" \
@@ -664,10 +680,6 @@ PY
   log "wrote $CONFIG"
   printf 'Other values use defaults or the old config. Edit migration.env to change them.\n'
   printf '\nNext:\n  ./migrate.sh check\n'
-  if (( admin_note )); then
-    printf '\nThe old .env has no KEYCLOAK_ADMIN. Set OLD_KEYCLOAK_ADMIN and\n'
-    printf 'OLD_KEYCLOAK_ADMIN_PASSWORD in %s before prepare.\n' "$CONFIG"
-  fi
 }
 
 cmd_check() {
@@ -684,6 +696,10 @@ cmd_check() {
     "$OLD_SPECIES_DIR"|"$OLD_SPECIES_DIR"/*) die "NEW_WORKSPACE must be outside OLD_SPECIES_DIR" ;;
   esac
   require_old_values
+
+  log "checking Keycloak"
+  curl -fsS "$KEYCLOAK_PUBLIC_URL/realms/$REALM/.well-known/openid-configuration" >/dev/null \
+    || die "realm $REALM is not reachable at $KEYCLOAK_PUBLIC_URL; create it on the portal host first"
 
   log "checking old paths"
   local path_var path resolved
@@ -759,7 +775,7 @@ cmd_check() {
       ;;
   esac
 
-  [[ -n "$OLD_KEYCLOAK_ADMIN" && -n "$OLD_KEYCLOAK_ADMIN_PASSWORD" ]] || warn \
+  [[ -n "$CLIENT_SECRET" ]] || warn \
     "no Keycloak admin credentials; prepare will stop"
 
   log "checking new ports"
@@ -784,7 +800,7 @@ cmd_check() {
   docker volume inspect "$OLD_DIRECTUS_VOLUME" >/dev/null 2>&1 \
     || die "volume not found: $OLD_DIRECTUS_VOLUME"
   local svc
-  for svc in mysql keycloak es; do
+  for svc in mysql es; do
     old_compose ps --status running --services 2>/dev/null | grep -qx "$svc" \
       || die "old service is not running: $svc"
   done
@@ -826,11 +842,10 @@ clone_repos() {
 
 write_infra_env() {
   local env_file="$INFRA_DIR/.env"
-  require_admin
   [[ -n "$OLD_MYSQL_PASSWORD" ]] || die "old .env has no MYSQL_ROOT_PASSWORD"
 
   if (( DRY_RUN )); then
-    log "would write $env_file with the old MySQL and Keycloak admin secrets"
+    log "would write $env_file with the old MySQL password"
     NEW_INFRA_MYSQL_PASSWORD="$OLD_MYSQL_PASSWORD"
     return
   fi
@@ -839,8 +854,6 @@ write_infra_env() {
     # The volume was initialized from this file; never change its password.
     log "using existing infra .env: $env_file"
     set_env "$env_file" ELASTICSEARCH_HOST_PORT "$NEW_ES_PORT"
-    set_env "$env_file" KEYCLOAK_PUBLIC_URL "$KEYCLOAK_PUBLIC_URL"
-    set_env "$env_file" KEYCLOAK_INTERNAL_URL "http://keycloak:8080/keycloak"
     set_env "$env_file" EMOBASE_INFRA_NETWORK "emobase-infra"
   else
     umask 077
@@ -848,17 +861,10 @@ write_infra_env() {
 # Written by ./migrate.sh prepare for $TCAS_URL.
 # The new infrastructure keeps the old deployment's secrets.
 
-KEYCLOAK_PUBLIC_URL=$KEYCLOAK_PUBLIC_URL
-KEYCLOAK_INTERNAL_URL=http://keycloak:8080/keycloak
-KEYCLOAK_HOST_PORT=8181
 EMOBASE_INFRA_NETWORK=emobase-infra
 ELASTICSEARCH_HOST_PORT=$NEW_ES_PORT
 
 MYSQL_ROOT_PASSWORD=$OLD_MYSQL_PASSWORD
-KEYCLOAK_ADMIN=$OLD_KEYCLOAK_ADMIN
-KEYCLOAK_ADMIN_PASSWORD=$OLD_KEYCLOAK_ADMIN_PASSWORD
-
-KEYCLOAK_JAVA_OPTS="-Xms256m -Xmx768m"
 ELASTICSEARCH_JAVA_OPTS="-Xms512m -Xmx512m"
 ELASTICSEARCH_MEM_LIMIT=1g
 EOF
@@ -910,7 +916,7 @@ write_new_env() {
     set_env "$env_file" PUBLIC_SERVER "$TCAS_URL"
     set_env "$env_file" PUBLIC_HOST "$TCAS_HOST"
     set_env "$env_file" KEYCLOAK_PUBLIC_URL "$KEYCLOAK_PUBLIC_URL"
-    set_env "$env_file" KEYCLOAK_INTERNAL_URL "http://host.docker.internal:8181/keycloak"
+    set_env "$env_file" KEYCLOAK_INTERNAL_URL ""
     return
   fi
   if [[ -f "$env_file" ]]; then
@@ -949,11 +955,12 @@ write_new_env() {
   DIRECTUS_DB_DATABASE="$NEW_DIRECTUS_DB"
   EMOBASE_ES_INDEX_PREFIX="$NEW_ES_PREFIX"
   KEYCLOAK_PUBLIC_URL="$KEYCLOAK_PUBLIC_URL"
-  KEYCLOAK_INTERNAL_URL="http://host.docker.internal:8181/keycloak"
+  KEYCLOAK_INTERNAL_URL=""
   KEYCLOAK_REALM="$REALM"
-  KEYCLOAK_REALM_MODE="dedicated"
   KEYCLOAK_CLIENT_ID="$CLIENT_ID"
-  KEYCLOAK_CLIENT_SECRET="$OLD_CLIENT_SECRET"
+  KEYCLOAK_CLIENT_SECRET="$CLIENT_SECRET"
+  COCO_USERNAME="$COCO_USERNAME"
+  COCO_PASSWORD="$COCO_PASSWORD"
   DIRECTUS_SECRET="$OLD_DIRECTUS_SECRET"
   DIRECTUS_ADMIN_EMAIL="$OLD_DIRECTUS_ADMIN_EMAIL"
   DIRECTUS_ADMIN_PASSWORD="$OLD_DIRECTUS_ADMIN_PASSWORD"
@@ -1149,38 +1156,6 @@ import_directus() {
   infra_mysql_import "$NEW_DIRECTUS_DB" "$dump"
 }
 
-copy_keycloak_db() {
-  local label=$1
-  require_admin
-  [[ "$NEW_INFRA_MYSQL_PASSWORD" != "" ]] || die "infra MySQL password is missing"
-  local extra_realms=""
-  if (( ! DRY_RUN )); then
-    extra_realms=$(infra_compose exec -T mysql sh -c \
-      "exec mysql -N -s -uroot -p\"\$MYSQL_ROOT_PASSWORD\" -e \"SELECT COUNT(*) FROM keycloak.REALM WHERE NAME NOT IN ('master', '$REALM');\"" \
-      2>/dev/null || true)
-    extra_realms=${extra_realms//[^0-9]/}
-  fi
-  if [[ -n "$extra_realms" && "$extra_realms" != "0" ]]; then
-    die "infra Keycloak already hosts $extra_realms realm(s) other than master and $REALM; refusing to replace its database"
-  fi
-  local dump="$BACKUP_DIR/keycloak-$label.sql"
-  old_mysql_dump "keycloak" "$dump"
-
-  run_in "$INFRA_DIR" docker compose stop keycloak
-  infra_mysql_exec "DROP DATABASE IF EXISTS keycloak; CREATE DATABASE keycloak;"
-  infra_mysql_import "keycloak" "$dump"
-  set_env "$INFRA_DIR/.env" KEYCLOAK_ADMIN "$OLD_KEYCLOAK_ADMIN"
-  set_env "$INFRA_DIR/.env" KEYCLOAK_ADMIN_PASSWORD "$OLD_KEYCLOAK_ADMIN_PASSWORD"
-  run_in "$INFRA_DIR" docker compose up -d --wait keycloak
-  add_origins
-}
-
-add_origins() {
-  require_admin
-  run_in "$INFRA_DIR" ./scripts/allow-origin.sh \
-    --realm "$REALM" --client-id "$CLIENT_ID" \
-    "$TCAS_URL"
-}
 
 setup_directus() {
   run_in "$NEW_SPECIES_DIR" docker compose run --rm setup-directus
@@ -1216,7 +1191,6 @@ EOF
 
 cmd_transfer() {
   load_context
-  require_admin
   case "$ES_MODE" in
     snapshot|rebuild) ;;
     *) die "ES_MODE must be snapshot or rebuild" ;;
@@ -1226,15 +1200,12 @@ cmd_transfer() {
   [[ -n "$NEW_INFRA_MYSQL_PASSWORD" ]] || die "infra .env has no MYSQL_ROOT_PASSWORD"
 
   log "copying final data while the old site stays live"
-  old_compose_run up -d --wait mysql keycloak es
+  old_compose_run up -d --wait mysql es
   log "starting the new infra"
   start_infra
   new_compose_run stop
 
   import_directus "$BACKUP_DIR/directus-final.sql"
-
-  log "final Keycloak copy"
-  copy_keycloak_db final
 
   log "final files and uploads"
   write_media_override
@@ -1276,14 +1247,14 @@ cmd_verify() {
     || warn "Directus is not reachable at $TCAS_URL/ibb/directus"
   # Keycloak rejects HEAD with 405, so use GET on the discovery document.
   curl -fsS -o /dev/null \
-    "$TCAS_URL/keycloak/realms/$REALM/.well-known/openid-configuration" \
-    || warn "Keycloak realm $REALM is not reachable at $TCAS_URL/keycloak"
+    "$KEYCLOAK_PUBLIC_URL/realms/$REALM/.well-known/openid-configuration" \
+    || warn "Keycloak realm $REALM is not reachable at $KEYCLOAK_PUBLIC_URL"
 
   cat <<EOF
 
 Final site:     $TCAS_URL
 Directus:       $TCAS_URL/ibb/directus
-Keycloak:       $TCAS_URL/keycloak/admin/
+Keycloak:       $KEYCLOAK_PUBLIC_URL/admin/
 
 Open the site and test one real user login.
 

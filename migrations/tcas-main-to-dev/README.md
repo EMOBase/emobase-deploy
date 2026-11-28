@@ -1,8 +1,9 @@
 # Migrating Tcas from `main` to `dev`
 
 > **One-time production migration.** It is not a fresh deployment: it copies
-> live data into a new stack, replaces the infra Keycloak database and later
-> stops the old site. Delete this folder once the migration is verified.
+> live data into a new stack and later stops the old site. Keycloak is not
+> copied: it lives in the portal and the realm/client must exist there before
+> the migration starts. Delete this folder once the migration is verified.
 
 This runbook migrates the running Tcas deployment to the `dev` layout with
 `emobase-infra`, while keeping the old stack available for rollback.
@@ -13,7 +14,7 @@ The old stack stays live while the new one is prepared:
 | --------------- | ------------------------------------------------------ | ------------------------------------------------ |
 | Compose project | `COMPOSE_PROJECT_NAME` from old `.env` (default `ibb`) | `tcas`                                           |
 | Species site    | `HTTP_PORT` from old `.env` (default `9090`)           | `9092`                                           |
-| Keycloak        | legacy at `/ibb/keycloak`                              | infra at `/keycloak`, port `8181`, public on 443 |
+| Keycloak        | legacy, not copied                                     | portal Keycloak, public on 443                   |
 | Elasticsearch   | old stack, `9202`                                      | infra, host port `9204`                          |
 | Public URL      | `<TCAS_URL>`, served by the old stack                  | `<TCAS_URL>`, served by the new stack            |
 
@@ -31,14 +32,15 @@ Stop before changing anything if any of these is false.
 - The portal's default version has the Tcas assembly. Without it, the new site
   has no genomics, JBrowse2 or BLAST data.
 
-- The current Keycloak admin credentials are available. They are either in the
-  old `.env` (`KEYCLOAK_ADMIN`, `KEYCLOAK_ADMIN_PASSWORD`) or will be supplied
-  in `migration.env`. The copied database keeps the current admin account.
+- The realm and client already exist in the portal Keycloak. Create them on the
+  portal host, or in the admin UI, before `prepare`. Their credentials
+  (`REALM`, `CLIENT_ID`, `CLIENT_SECRET`, `COCO_*`) go into `migration.env`.
 
-- The old Keycloak is 24.0.3, the same version as `emobase-infra`. The
-  migration copies its database, not the schema, so a different version can
-  fail on startup. Check with
-  `docker exec <old-keycloak-container> /opt/keycloak/bin/kc.sh --version`.
+- The portal Keycloak client allows this species origin
+  (`https://<TCAS_URL>/*`) and web origin. Add it on the portal before login
+  testing.
+
+- The old Keycloak is not used by the migration. It can stay stopped.
 
 - There is enough local disk for the two checkouts (`emobase-deploy` on `dev`
   and `emobase-infra`) and the local copies (`data/private`, `oba/`, the
@@ -51,11 +53,10 @@ Stop before changing anything if any of these is false.
 
 - Docker/Compose access is available, and Apache can be edited and reloaded.
 
-- Ports `9092` (new species), `9204` (new infra ES) and `8181` (new infra
-  Keycloak) are free.
+- Ports `9092` (new species) and `9204` (new infra ES) are free.
 
-- The old `mysql`, `keycloak` and `es` services are running, and the old
-  Directus volume exists.
+- The old `mysql` and `es` services are running, and the old Directus volume
+  exists.
 
 ## 2. Get the new checkout and configure
 
@@ -93,13 +94,13 @@ present, otherwise `Tcas`, `ibb` and `ibb-client`.
 | `NEW_WORKSPACE` | parent of this checkout | New parent directory for `Tcas/` and `infra/` |
 | `BACKUP_DIR` | `<NEW_WORKSPACE>/backup` | Dumps and snapshots; outside both checkouts |
 | `TCAS_URL` | old `PUBLIC_SERVER` | Final public species URL |
-| `KEYCLOAK_PUBLIC_URL` | `<TCAS_URL>/keycloak` | Final public Keycloak base URL |
+| `KEYCLOAK_PUBLIC_URL` | `<PORTAL_URL>/keycloak` | Portal Keycloak base URL |
 | `PORTAL_URL` | required | Multi-species portal origin |
 | `NEW_HTTP_PORT` | `9092` | New species host port |
 | `NEW_ES_PORT` | `9204` | New infra Elasticsearch host port |
 | `NEW_PROJECT` | `tcas` | Compose project; must differ from the old one |
-| `SPECIES_CODE`, `REALM`, `CLIENT_ID` | from old `.env` | Species code, realm and client; fall back to `Tcas`, `ibb`, `ibb-client` when absent |
-| `OLD_KEYCLOAK_ADMIN`, `OLD_KEYCLOAK_ADMIN_PASSWORD` | from old `.env` | Override only if the old `.env` is stale |
+| `SPECIES_CODE`, `REALM`, `CLIENT_ID`, `CLIENT_SECRET` | from old `.env` | Species code and the portal realm/client credentials |
+| `COCO_USERNAME`, `COCO_PASSWORD` | old `.env` / `coco` | Seed user created on the portal |
 | `ES_MODE` | `snapshot` | How indices move; see `migration.env.example` |
 | `IMAGE_MODE` | `auto` | How images are shared or copied; see `migration.env.example` |
 | `EMOBASE_WEB_IMAGE` | `ghcr.io/emobase/emobase-web:dev` | Web image; pin a release or SHA for a long-lived deployment |
@@ -135,11 +136,11 @@ This step is read-only. It:
 - checks that the old `PUBLIC_DATA_DIR`, `PRIVATE_DATA_DIR` and `IMAGE_DIR` exist and are readable
 - detects the image layout and action, and checks that `community-data` is writable
 - checks that old and new project names differ and paths do not overlap
-- checks that the old `mysql`, `keycloak` and `es` services are running
+- checks that the old `mysql` and `es` services are running
 - checks the old Directus volume and the new ports
+- checks that the portal realm is reachable at `KEYCLOAK_PUBLIC_URL`
 - calls the portal READY endpoint
 - in `snapshot` mode, checks the old Elasticsearch and `es_bk`
-- warns if Keycloak admin credentials are missing
 
 Then print the planned commands:
 
@@ -165,13 +166,13 @@ This phase neither copies data nor starts a container. It only prepares the
 checkouts and configuration:
 
 1. Clones `emobase-deploy` (if needed) and `emobase-infra`.
-2. Writes `infra/.env` with the old MySQL root and Keycloak admin secrets, the
-   final Keycloak URL and the ES port. It does not run the infra `init.sh` and
-   does not start the stack; an existing `infra/.env` keeps its password.
+2. Writes `infra/.env` with the old MySQL root password, the network and the ES
+   port. It does not run the infra `init.sh` and does not start the stack; an
+   existing `infra/.env` keeps its password.
 3. Gives the old `es_bk` directory to UID `1000` (the Elasticsearch container)
    when `ES_MODE=snapshot`, so it can write the snapshot during `transfer`.
-4. Writes the new species `.env` with the final `TCAS_URL` and
-   `KEYCLOAK_PUBLIC_URL`.
+4. Writes the new species `.env` with the final `TCAS_URL`, the portal
+   `KEYCLOAK_PUBLIC_URL` and the realm/client/secret.
 5. Writes the image media override if needed.
 
 After `prepare`:
@@ -219,10 +220,10 @@ carried over; announce that users should resubmit anything important.
 
 It:
 
-1. Ensures the old MySQL/Keycloak/ES are running.
-2. Starts the new infra: MySQL first, verifies the root login, then Keycloak
-   and Elasticsearch.
-3. Dumps the final Directus and Keycloak databases.
+1. Ensures the old MySQL/ES are running.
+2. Starts the new infra: MySQL first, verifies the root login, then
+   Elasticsearch. Keycloak is in the portal and is not started here.
+3. Dumps the final Directus database.
 4. Mirrors local files and the Directus uploads volume.
 5. Takes/restores the Elasticsearch snapshot.
 6. Runs `setup-directus` and starts the new stack on `9092`.
@@ -298,8 +299,7 @@ Pass `--backup FILE` to restore a different backup.
 Confirm the old site, Keycloak login and Directus work. Do not run `cleanup`:
 the old volumes are the rollback window and still hold the authoritative data.
 
-The old MySQL/Keycloak/ES volumes and the old `directus` database were not
-modified.
+The old MySQL/ES volumes and the old `directus` database were not modified.
 
 Rollback remains possible until the cleanup step removes the old volumes.
 
@@ -375,14 +375,6 @@ Then delete this migration folder.
   (default `9090`) and `9202`; the new stack uses `9092`/`9204`. Stop the
   conflicting process or change `NEW_HTTP_PORT` / `NEW_ES_PORT` and the Apache
   examples.
-- **Keycloak cannot start, `Access denied for user 'root'`**: the infra MySQL
-  volume was initialized with a different password than `infra/.env`.
-  `mysqladmin ping` still reports MySQL as healthy. Before `transfer` the new
-  infra has no data, so recreate the volume:
-  ```bash
-  cd <NEW_WORKSPACE>/infra && docker compose down
-  docker volume rm emobase-infra_mysql-data
-  ```
 - **Snapshot fails with `AccessDeniedException: /es-bk/...`**: the old
   Elasticsearch container runs as UID `1000` and cannot write the `es_bk` tree.
   `prepare` corrects the ownership; to do it by hand:
@@ -396,9 +388,9 @@ Then delete this migration folder.
   cd <NEW_WORKSPACE>/Tcas && docker compose down
   cd <NEW_WORKSPACE>/infra && docker compose down
   ```
-- **Final URL login fails**: the 443 vhost is still pointing at the old stack,
-  the `/keycloak` route is missing, or the Keycloak admin credentials are
-  stale.
+- **Final URL login fails**: the 443 vhost still points at the old stack, the
+  portal client does not allow this species origin, or `REALM`/`CLIENT_ID` do
+  not match the portal realm.
 - **400 Bad Request, "Size of a request header field exceeds server limit"**:
   the browser is sending too many or too large cookies, often because old
   and new site cookies share the same host. Raise the Apache/nginx header
@@ -414,11 +406,10 @@ Then delete this migration folder.
   readable only by root.
 - **Login ends at `/api/auth/error?error=Configuration`, `fe` log says
   `UNABLE_TO_VERIFY_LEAF_SIGNATURE` or `ENOTFOUND`**: the app container cannot
-  reach `KEYCLOAK_INTERNAL_URL`. Use
-  `http://host.docker.internal:8181/keycloak` and recreate `fe`.
-- **Keycloak admin login fails after the DB copy**: the copied master realm has
-  the current admin password, not the old bootstrap password. Set the current
-  admin in `migration.env` and rerun the phase that updates `infra/.env`.
+  reach `KEYCLOAK_PUBLIC_URL`. Leave `KEYCLOAK_INTERNAL_URL` empty so it uses
+  the public portal URL, then recreate `fe`.
+- **Realm does not exist**: create the realm and client on the portal host
+  before running the migration. The script no longer copies a Keycloak database.
 - **Directus shows no uploads**: the `directus-data` mirror did not run, or the
   new project name is not `tcas`.
 - **Search or ontology data is empty after transfer**: check the snapshot restore

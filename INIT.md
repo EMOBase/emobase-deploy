@@ -37,51 +37,43 @@ as flags are validated once; an invalid flag stops the script.
 Without `--local`, the species and portal URLs default to the detected host IPv4
 address; enter the public IP or domain if the server is behind NAT.
 
-## Realm menu
+## Keycloak credentials
 
-`init.sh` scans the portal and sibling species checkouts for reusable realms:
+The realm and client are created on the portal host, or in the Keycloak admin
+UI, before `init.sh` runs. This script only consumes them and never creates a
+realm, generates a client secret or calls the Keycloak admin API.
 
-```text
-1) Create a new independent realm
-2) Realm 'emobase-portal' — used by portal
-3) Realm 'emobase-tcas' — used by Tcas
-```
-
-- The new-realm entry is always number 1; existing realms follow in discovery
-  order, so adding another species only appends a number.
-- Joining copies the realm name, client ID, client secret and seed credentials
-  from the owning checkout.
-- A new realm defaults to `emobase-<species>` and `emobase-<species>-client`.
-- The selected mode is written as `KEYCLOAK_REALM_MODE=joined|dedicated`.
-
-Non-interactive forms:
+Create the realm and client on the portal first, then pass the result:
 
 ```bash
---keycloak-realm join:emobase-portal
---keycloak-realm new:emobase-dmel
+./init.sh \
+  --keycloak-public-url https://<portal>/keycloak \
+  --keycloak-realm emobase-tcas \
+  --keycloak-client-id emobase-tcas-client \
+  --keycloak-client-secret '<client secret>' \
+  --coco-username coco \
+  --coco-password '<seed password>'
 ```
 
-A plain realm name creates a new realm unless it matches a discovered realm, in
-which case it joins that realm.
+The client must allow this species origin (`https://<species>/*`) and web
+origin. `KEYCLOAK_INTERNAL_URL` stays empty for a remote portal; Compose then
+uses the public URL.
 
 ## Generated values
 
 The species `.env` contains its public/internal URLs, Directus settings,
-realm/client credentials, `KEYCLOAK_REALM_MODE`, a new Directus database name,
+realm/client credentials, a new Directus database name,
 `EMOBASE_ES_INDEX_PREFIX` and `COMPOSE_FILE` (which adds a species overlay such
-as `compose.tcas.yml`). `MYSQL_ROOT_PASSWORD` and the Keycloak URLs are read
-from `../infra/.env`.
+as `compose.tcas.yml`). `MYSQL_ROOT_PASSWORD` and the network are read from
+`../infra/.env`; Keycloak values come from the portal.
 
 `PUBLIC_HOST` is the hostname part of `PUBLIC_SERVER`, without protocol, port or
 path. The species nginx serves only that name and rejects other `Host` headers,
 so open the site with the URL in `PUBLIC_SERVER`. Change both values together;
 editing `PUBLIC_HOST` alone breaks the site.
 
-`KEYCLOAK_INTERNAL_URL` is written as
-`http://host.docker.internal:<KEYCLOAK_HOST_PORT>/keycloak`. Compose appends
-`/realms/<realm>` to build the issuer and falls back to `KEYCLOAK_PUBLIC_URL`
-when it is empty. Containers must not use a host-only name such as `*.test`, so
-keep the host-gateway value for a local Keycloak.
+Compose appends `/realms/<realm>` to `KEYCLOAK_INTERNAL_URL`, falling back to
+`KEYCLOAK_PUBLIC_URL` when it is empty. A remote species leaves it empty.
 
 The Elasticsearch prefix uses lowercase letters, digits, underscore and hyphen,
 and must not be `genomics` (reserved for the portal). The stack writes only
@@ -100,69 +92,43 @@ and must not be `genomics` (reserved for the portal). The stack writes only
 | `--portal-dir DIR` | Portal checkout used to copy the portal URL |
 | `--infra-dir DIR` | `emobase-infra` checkout |
 | `--directus-db NAME` | Directus database name |
-| `--keycloak-realm join:REALM\|new:REALM` | Join or create a realm |
-| `--keycloak-client-id ID` | Client ID override |
-| `--keycloak-client-secret SECRET` | Client secret override |
-| `--coco-username USER` | Seed user name |
-| `--coco-password PASSWORD` | Seed password |
+| `--keycloak-public-url URL` | Portal Keycloak base URL (default: the portal checkout) |
+| `--keycloak-internal-url URL` | Optional container-facing Keycloak base URL |
+| `--keycloak-realm REALM` | Existing realm created on the portal |
+| `--keycloak-client-id ID` | Existing client ID from the portal |
+| `--keycloak-client-secret SECRET` | Existing client secret from the portal |
+| `--coco-username USER` | Seed user name (default `coco`) |
+| `--coco-password PASSWORD` | Seed password from the portal |
 | `--container-prefix PREFIX` | Compose project/container prefix |
 | `--es-index-prefix PREFIX` | Elasticsearch index prefix (default: species slug) |
-| `-y`, `--yes` | Accept defaults; joins the first discovered realm |
+| `-y`, `--yes` | Accept defaults; Keycloak credentials are still required |
 | `-f`, `--force` | Overwrite an existing `.env` |
 | `-p`, `--print` | Print the file instead of writing it |
 | `-h`, `--help` | Show help |
 
 ## Examples
 
-Local setup joining the portal realm:
-
-```bash
-./init.sh --local --species Tcas
-```
-
-Server joining the portal realm:
+Server using a realm created on the portal:
 
 ```bash
 ./init.sh \
   --species Tcas \
   --public-server https://tcas.example.org \
   --portal-dir ../portal \
-  --keycloak-realm join:emobase-portal
-```
-
-New independent realm:
-
-```bash
-./init.sh \
-  --species Dmel \
-  --public-server https://dmel.example.org \
-  --portal-dir ../portal \
-  --keycloak-realm new:emobase-dmel \
-  --http-port 9091
+  --keycloak-realm emobase-tcas \
+  --keycloak-client-id emobase-tcas-client \
+  --keycloak-client-secret "$KC_SECRET" \
+  --coco-password "$COCO_PASSWORD"
 ```
 
 ## After init
 
-Create the Directus database, create or extend the realm, initialise Directus,
-and start:
+Create the Directus database, initialise Directus and start:
 
 ```bash
 ../infra/scripts/create-database.sh directus_tcas
-
-../infra/scripts/create-realm.sh \
-  --realm "$(grep '^KEYCLOAK_REALM=' .env | cut -d= -f2-)" \
-  --origin "$(grep '^PUBLIC_SERVER=' .env | cut -d= -f2-)" \
-  --client-id "$(grep '^KEYCLOAK_CLIENT_ID=' .env | cut -d= -f2-)" \
-  --client-secret "$(grep '^KEYCLOAK_CLIENT_SECRET=' .env | cut -d= -f2-)" \
-  --coco-username "$(grep '^COCO_USERNAME=' .env | cut -d= -f2-)" \
-  --coco-password "$(grep '^COCO_PASSWORD=' .env | cut -d= -f2-)" \
-  --keep-password --quiet
-
 docker compose run --rm setup-directus
 docker compose up -d --wait
 ```
 
-The `emobase` CLI does this during `species setup`, `up` or `bootstrap`.
-
-See [REALMS.md](https://github.com/EMOBase/emobase-docs/blob/main/REALMS.md)
-for realm ownership, sharing, and credential rules.
+The realm already exists on the portal; do not create it here.

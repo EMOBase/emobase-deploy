@@ -38,29 +38,28 @@ The infra and portal must already be running. If the portal is on another
 server, run `./init.sh --portal-server URL` instead; the rest of the commands
 are the same.
 
+Create the realm and client on the portal host first (see
+`emobase-portal-deploy/scripts/create-realm.sh` or the Keycloak admin UI), then:
+
 ```bash
-./init.sh
+./init.sh \
+  --keycloak-public-url https://<portal>/keycloak \
+  --keycloak-realm emobase-<species> \
+  --keycloak-client-id emobase-<species>-client \
+  --keycloak-client-secret '<client secret>' \
+  --coco-password '<seed password>'
 
 ../infra/scripts/create-database.sh directus_<species>
-../infra/scripts/create-realm.sh \
-  --realm "$(grep '^KEYCLOAK_REALM=' .env | cut -d= -f2-)" \
-  --origin "$(grep '^PUBLIC_SERVER=' .env | cut -d= -f2-)" \
-  --client-id "$(grep '^KEYCLOAK_CLIENT_ID=' .env | cut -d= -f2-)" \
-  --client-secret "$(grep '^KEYCLOAK_CLIENT_SECRET=' .env | cut -d= -f2-)" \
-  --coco-username "$(grep '^COCO_USERNAME=' .env | cut -d= -f2-)" \
-  --coco-password "$(grep '^COCO_PASSWORD=' .env | cut -d= -f2-)" \
-  --keep-password --quiet
-
 docker compose run --rm setup-directus
 docker compose up -d --wait
 ```
 
 Use `./init.sh --local --species Tcas` for a same-machine trial.
 
-The realm menu lets this species join the portal or another species realm, or
-create a new independent realm. See the [`init.sh` reference](INIT.md) for the
-prompts and flags, and [Realm ownership](https://github.com/EMOBase/emobase-docs/blob/main/REALMS.md)
-for sharing and credentials.
+The realm and client are created on the portal host, or in the Keycloak admin
+UI, before this stack starts. `init.sh` only consumes the credentials; it never
+creates a realm or generates a client secret. See the
+[`init.sh` reference](INIT.md) for the flags.
 
 ## The public and internal URLs
 
@@ -73,17 +72,15 @@ container URLs:
 | `PORTAL_SERVER` | The **public portal** URL used for genomics/JBrowse2/BLAST links | `https://portal.example.org` |
 | `PORTAL_INTERNAL_URL` | Portal origin for the BLAST proxy and derived API URLs | `http://host.docker.internal:9080` |
 | `KEYCLOAK_PUBLIC_URL` | This server's browser-facing Keycloak base URL | `https://auth.example.org/keycloak` |
-| `KEYCLOAK_INTERNAL_URL` | Keycloak base URL containers use; empty falls back to the public URL | `http://host.docker.internal:8181/keycloak` |
-| `KEYCLOAK_REALM` | Joined realm or this species' new realm | `emobase-portal` / `emobase-tcas` |
+| `KEYCLOAK_INTERNAL_URL` | Keycloak base URL containers use; empty falls back to the public URL | empty (remote), or an internal portal address |
+| `KEYCLOAK_REALM` | Existing realm created on the portal | `emobase-tcas` |
 | `KEYCLOAK_CLIENT_ID` | Client ID in that realm | `emobase-tcas-client` |
 | `DIRECTUS_DB_DATABASE` | This species' database in the local MySQL | `directus_tcas` |
 | `INTERNAL_DIRECTUS_URL` | Server-side Directus URL written to `.env` | `http://directus:8055` |
 
-`KEYCLOAK_ISSUER` is derived from `KEYCLOAK_PUBLIC_URL` and `KEYCLOAK_REALM`, so
-it points at the Keycloak on this server, not at the portal. For a joined
-realm, add this species origin with
-`emobase-infra/scripts/create-realm.sh --keep-password` before users sign in. A
-new realm is created with the species origin already allowed.
+`KEYCLOAK_ISSUER` is derived from `KEYCLOAK_PUBLIC_URL` and `KEYCLOAK_REALM`,
+so it points at the portal Keycloak. The client's redirect URIs must include
+this species origin; the portal-side realm creation adds it.
 
 `PORTAL_SERVER` must be exactly the portal's `PUBLIC_SERVER` (same scheme,
 host and port, no trailing slash). `init.sh` strips a trailing slash for you.
@@ -107,10 +104,8 @@ Server-side service URLs are Compose defaults. `INTERNAL_API_GENOMICS_SERVICE`
 and `GENOMICSSERVICE_BASE_URL` are derived from `PORTAL_INTERNAL_URL`, falling
 back to `PORTAL_SERVER` when the portal is remote. The Keycloak issuer is
 derived from `KEYCLOAK_INTERNAL_URL` plus `/realms/<realm>`; when that value is
-empty, Compose uses `KEYCLOAK_PUBLIC_URL`. `init.sh` writes
-`http://host.docker.internal:<KEYCLOAK_HOST_PORT>/keycloak`, so sign-in does not
-depend on the public proxy certificate or on the container resolving the public
-name.
+empty, Compose uses `KEYCLOAK_PUBLIC_URL`. A remote species normally leaves it
+empty so containers use the portal URL.
 
 ## Elasticsearch
 

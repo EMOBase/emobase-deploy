@@ -81,8 +81,6 @@ PRIVATE_DATA_DIR=./data/private
 IMAGE_DIR=./images
 UID=1003
 GID=1003
-KEYCLOAK_ADMIN=admin
-KEYCLOAK_ADMIN_PASSWORD=old-admin-password
 MYSQL_ROOT_PASSWORD=old-mysql-password
 DIRECTUS_SECRET=old-directus-secret
 DIRECTUS_ADMIN_EMAIL=admin@example.org
@@ -95,8 +93,6 @@ EOF
 
 cat > "$TMP/new/infra/.env" <<'EOF'
 MYSQL_ROOT_PASSWORD=new-infra-mysql-password
-KEYCLOAK_ADMIN=admin
-KEYCLOAK_ADMIN_PASSWORD=new-infra-admin-password
 EOF
 
 cat > "$TMP/new/Tcas/compose.yml" <<'EOF'
@@ -118,7 +114,7 @@ NEW_WORKSPACE=$TMP/new
 BACKUP_DIR=$TMP/new/backup
 TCAS_URL=https://tcas.test
 PORTAL_URL=https://portal.test/
-KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak
+KEYCLOAK_PUBLIC_URL=https://portal.test/keycloak
 SSL_CERT_FILE=$TMP/cert.pem
 SSL_CERT_KEY_FILE=$TMP/key.pem
 NEW_HTTP_PORT=19092
@@ -127,8 +123,9 @@ NEW_PROJECT=tcastest
 SPECIES_CODE=Tcas
 REALM=ibb
 CLIENT_ID=ibb-client
-OLD_KEYCLOAK_ADMIN=admin
-OLD_KEYCLOAK_ADMIN_PASSWORD=old-admin-password
+CLIENT_SECRET=old-client-secret
+COCO_USERNAME=coco
+COCO_PASSWORD=old-coco-password
 ES_MODE=snapshot
 IMAGE_MODE=copy
 IMAGE_MOUNT_SOURCE=
@@ -290,7 +287,7 @@ old_abs=$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$TMP/
 ws_abs=$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$TMP/init-workspace")
 contains "$init_content" "OLD_SPECIES_DIR=$old_abs"
 contains "$init_content" "NEW_WORKSPACE=$ws_abs"
-contains "$init_content" "KEYCLOAK_PUBLIC_URL=https://tcas.init/keycloak"
+contains "$init_content" "KEYCLOAK_PUBLIC_URL=https://portal.init/keycloak"
 contains "$init_content" "NEW_PROJECT=tcas"
 contains "$init_out" "Next:"
 
@@ -310,7 +307,7 @@ OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-workspace" \
   PORTAL_URL="https://portal.init" \
   bash "$SCRIPT" --config "$url_cfg" init --yes >/dev/null 2>&1
 contains "$(cat "$url_cfg")" "TCAS_URL=https://old.test"
-contains "$(cat "$url_cfg")" "KEYCLOAK_PUBLIC_URL=https://old.test/keycloak"
+contains "$(cat "$url_cfg")" "KEYCLOAK_PUBLIC_URL=https://portal.init/keycloak"
 
 pass "init does not overwrite without --force"
 if OLD_SPECIES_DIR="$TMP/old" NEW_WORKSPACE="$TMP/init-workspace" \
@@ -452,11 +449,9 @@ contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test"
 contains "$(cat "$envfile")" "PUBLIC_HOST=tcas.test"
 contains "$(cat "$envfile")" "PORTAL_SERVER=https://portal.test"
 not_contains "$(cat "$envfile")" "INTERNAL_API_"
-contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
-contains "$(cat "$envfile")" "KEYCLOAK_INTERNAL_URL=http://host.docker.internal:8181/keycloak"
+contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://portal.test/keycloak"
 not_contains "$(cat "$envfile")" "INTERNAL_KEYCLOAK_ISSUER="
 contains "$(cat "$envfile")" "INTERNAL_DIRECTUS_URL=http://directus:8055"
-contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
 contains "$(cat "$envfile")" "OBA_IMAGE=jboss/base-jdk:7"
 contains "$(cat "$envfile")" "COMPOSE_FILE=compose.yml:compose.tcas.yml"
 [[ ! -e "$TMP/new/Tcas/data" ]] || fail "prepare copied data"
@@ -492,11 +487,12 @@ init_out=$(bash "$HERE/../../../init.sh" --print --yes \
   --public-server https://tcas.test --http-port 19092 \
   --portal-server https://portal.test --portal-internal-url "" \
   --container-prefix tcastest --directus-db directus_tcastest \
-  --es-index-prefix tcastest --keycloak-realm new:ibb \
+  --es-index-prefix tcastest --keycloak-realm ibb \
+  --keycloak-public-url https://portal.test/keycloak \
   --keycloak-client-id ibb-client --keycloak-client-secret old-client-secret \
   --coco-username coco --coco-password old-coco-password 2>/dev/null)
 contains "$init_out" "PUBLIC_HOST=tcas.test"
-contains "$init_out" "KEYCLOAK_INTERNAL_URL=http://host.docker.internal:8181/keycloak"
+contains "$init_out" "KEYCLOAK_PUBLIC_URL=https://portal.test/keycloak"
 contains "$init_out" "INTERNAL_DIRECTUS_URL=http://directus:8055"
 init_keys=$(printf '%s\n' "$init_out" | grep -E '^[A-Z][A-Z0-9_]*=' | cut -d= -f1 | sort -u)
 env_keys=$(grep -E '^[A-Z][A-Z0-9_]*=' "$envfile" | cut -d= -f1 | sort -u)
@@ -508,14 +504,7 @@ pass "prepare resets an existing env to the final URLs"
 out=$(run "prepare rerun" --yes prepare)
 contains "$(cat "$envfile")" "PUBLIC_SERVER=https://tcas.test"
 contains "$(cat "$envfile")" "PUBLIC_HOST=tcas.test"
-contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
-contains "$(cat "$TMP/new/infra/.env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
-
-pass "transfer refuses an infra Keycloak with other realms"
-if out=$(MOCK_KEYCLOAK_EXTRA_REALMS=1 bash "$SCRIPT" --config "$TMP/migration.env" transfer 2>&1); then
-  fail "transfer replaced a shared infra Keycloak"
-fi
-contains "$out" "refusing to replace its database"
+contains "$(cat "$envfile")" "KEYCLOAK_PUBLIC_URL=https://portal.test/keycloak"
 
 pass "prepare writes infra/.env from the old secrets"
 mkdir -p "$TMP/new-init/Tcas/.git" \
@@ -533,9 +522,7 @@ fi
 init_env="$TMP/new-init/infra/.env"
 [[ -f "$init_env" ]] || fail "prepare did not write infra/.env"
 contains "$(cat "$init_env")" "MYSQL_ROOT_PASSWORD=old-mysql-password"
-contains "$(cat "$init_env")" "KEYCLOAK_ADMIN=admin"
-contains "$(cat "$init_env")" "KEYCLOAK_ADMIN_PASSWORD=old-admin-password"
-contains "$(cat "$init_env")" "KEYCLOAK_PUBLIC_URL=https://tcas.test/keycloak"
+contains "$(cat "$init_env")" "ELASTICSEARCH_HOST_PORT=19204"
 contains "$(cat "$init_env")" "ELASTICSEARCH_HOST_PORT=19204"
 contains "$(cat "$init_env")" "EMOBASE_INFRA_NETWORK=emobase-infra"
 contains "$(cat "$TMP/new-init/Tcas/.env")" "MYSQL_ROOT_PASSWORD=old-mysql-password"
